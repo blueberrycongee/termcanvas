@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { PinStore, PinStoreError } from "../electron/pin-store.ts";
 import type { Pin } from "../shared/pin.ts";
 
@@ -10,6 +11,15 @@ function freshStore() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-"));
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pins-repo-"));
   return { store: new PinStore(root), root, repo };
+}
+
+function repoPinsDir(root: string, repo: string): string {
+  const hash = crypto
+    .createHash("sha1")
+    .update(path.resolve(repo))
+    .digest("hex")
+    .slice(0, 12);
+  return path.join(root, hash);
 }
 
 test("create + get round-trip preserves fields", () => {
@@ -33,6 +43,51 @@ test("create + get round-trip preserves fields", () => {
 
   const fetched = store.get(repo, created.id);
   assert.deepEqual(fetched, created);
+});
+
+test("create normalizes agent-style escaped newline separators in body", () => {
+  const { store, repo } = freshStore();
+  const created = store.create({
+    title: "multi-line body",
+    repo,
+    body: "Observed issue\\n\\n- First point\\n- Second point",
+  });
+
+  assert.equal(created.body, "Observed issue\n\n- First point\n- Second point");
+  assert.equal(store.get(repo, created.id)?.body, created.body);
+});
+
+test("get normalizes escaped newline separators from existing pin files", () => {
+  const { store, root, repo } = freshStore();
+  const created = store.create({ title: "legacy escaped body", repo });
+  const filePath = path.join(repoPinsDir(root, repo), `${created.id}.md`);
+
+  fs.writeFileSync(
+    filePath,
+    "---\n" +
+      `id: ${created.id}\n` +
+      "title: legacy escaped body\n" +
+      "status: open\n" +
+      `repo: ${repo}\n` +
+      "links: []\n" +
+      `created: ${created.created}\n` +
+      `updated: ${created.updated}\n` +
+      "---\n\n" +
+      "Line one\\n\\nLine two\n",
+  );
+
+  assert.equal(store.get(repo, created.id)?.body, "Line one\n\nLine two");
+});
+
+test("single literal escaped newline mention is preserved", () => {
+  const { store, repo } = freshStore();
+  const created = store.create({
+    title: "literal escape",
+    repo,
+    body: "Use \\n when describing newline escapes.",
+  });
+
+  assert.equal(created.body, "Use \\n when describing newline escapes.");
 });
 
 test("list returns pins for a repo, sorted newest first", async () => {

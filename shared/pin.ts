@@ -37,3 +37,18 @@ export interface UpdatePinInput {
   body?: string;
   links?: PinLink[];
 }
+
+export function normalizePinBodyInput(body: string): string {
+  const trimmed = body.trim();
+  if (!shouldDecodeEscapedLineBreaks(trimmed)) return trimmed;
+  return trimmed
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n");
+}
+
+function shouldDecodeEscapedLineBreaks(text: string): boolean {
+  const escapedLineBreaks = text.match(/(?:\\r\\n|\\n)/g)?.length ?? 0;
+  if (escapedLineBreaks >= 2) return true;
+  return /(?:\\r\\n|\\n)(?:[-*+]\s|\d+[.)]\s|#{1,6}\s|>\s)/.test(text);
+}

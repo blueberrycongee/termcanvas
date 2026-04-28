@@ -24,7 +24,22 @@ Recording a pin:
 termcanvas pin add --title "<short imperative>" --body "<detail>" [--link <url>]
 \`\`\`
 - \`--title\`: short, scannable. Rephrase the user's words into imperative mood.
-- \`--body\`: longer description, including any context the user gave.
+- \`--body\`: preserve enough context for a future agent or the user to resume without re-asking basic questions. Do not store only the user's raw sentence unless it is truly just a lightweight memo.
+- For bugs, feature requests, research threads, design feedback, or follow-up engineering work, write the body like a compact issue. Prefer sections such as:
+  \`Background\`: what prompted this and where it came from.
+  \`Observed / Request\`: the concrete symptom, ask, or idea.
+  \`Expected / Goal\`: what should be true when this is handled.
+  \`Evidence / References\`: user quote, screenshot, link, file path, command output, or code location if available.
+  \`Next action\`: the first useful step when someone picks it up.
+  \`Why pinned\`: why this is being saved instead of handled immediately.
+  \`Unknowns\`: missing decisions or facts that still need confirmation.
+- If the information is thin, choose deliberately:
+  If local context can answer it cheaply, inspect the relevant code, state, logs, or files before recording and include what you found.
+  If the missing information changes scope, product behavior, security, or architecture, ask the user one concise question before recording.
+  If the user is clearly deferring and cannot answer now, record the pin anyway but mark assumptions and unknowns explicitly.
+- If it is only a personal memo or reminder, a short body is acceptable, but still include why it matters or when to revisit it if that is known.
+- For multi-line bodies, pass real newlines. In shell commands, use ANSI-C quoting such as
+  \`--body $'line 1\\nline 2'\`; do not put literal \`\\n\` sequences inside ordinary quotes.
 - \`--link <url>\`: attach an external reference (GitHub issue, doc, etc.). Use \`--link-type github_issue\` for issue URLs.
 - Repo defaults to cwd. Pass \`--repo <path>\` only if you need a different one.
 

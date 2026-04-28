@@ -10,6 +10,7 @@ import type {
   CreatePinInput,
   UpdatePinInput,
 } from "../shared/pin.js";
+import { normalizePinBodyInput } from "../shared/pin.js";
 
 export type { Pin, PinStatus, PinLink, CreatePinInput, UpdatePinInput };
 
@@ -79,7 +80,7 @@ export class PinStore extends EventEmitter {
       title: input.title.trim(),
       status: input.status ?? "open",
       repo,
-      body: (input.body ?? "").trim(),
+      body: normalizePinBodyInput(input.body ?? ""),
       links: input.links ?? [],
       created: now,
       updated: now,
@@ -105,7 +106,10 @@ export class PinStore extends EventEmitter {
       ...existing,
       title: patch.title?.trim() ?? existing.title,
       status: patch.status ?? existing.status,
-      body: patch.body !== undefined ? patch.body.trim() : existing.body,
+      body:
+        patch.body !== undefined
+          ? normalizePinBodyInput(patch.body)
+          : existing.body,
       links: patch.links ?? existing.links,
       updated: new Date().toISOString(),
     };
@@ -225,7 +229,7 @@ export class PinStore extends EventEmitter {
       const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
       if (!match) return null;
       const meta = parseFrontmatter(match[1]);
-      const body = match[2].trim();
+      const body = normalizePinBodyInput(match[2]);
       const status = meta.status as PinStatus;
       if (!VALID_STATUSES.has(status)) return null;
       if (
