@@ -6,6 +6,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { useLocaleStore } from "../stores/localeStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import { PROVIDER_PRESETS, getPreset } from "../agentProviders";
@@ -794,6 +795,7 @@ const TAB_LABEL_KEYS: Record<Tab, string> = {
 };
 
 export function SettingsModal({ onClose }: Props) {
+  useBodyScrollLock(true);
   const { locale, setLocale } = useLocaleStore();
   const {
     animationBlur,

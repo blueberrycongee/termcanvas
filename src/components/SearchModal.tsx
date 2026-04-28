@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
-
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import {
   useSearchStore,
   type SearchCategory,
@@ -73,6 +73,7 @@ export function SearchModal() {
   const t = useT() as Record<string, unknown>;
   const { open, query, results, selectedIndex, loading, scope } =
     useSearchStore();
+  useBodyScrollLock(open);
   const {
     closeSearch,
     setQuery,
@@ -107,9 +108,7 @@ export function SearchModal() {
   // session results entirely and look like a bug).
   const projectDirs = useMemo(() => {
     const { projects } = useProjectStore.getState();
-    const allDirs = projects.flatMap((p) =>
-      p.worktrees.map((w) => w.path),
-    );
+    const allDirs = projects.flatMap((p) => p.worktrees.map((w) => w.path));
     if (scope === "all") return allDirs;
     for (const p of projects) {
       for (const w of p.worktrees) {
@@ -221,7 +220,8 @@ export function SearchModal() {
   );
 
   const grouped = useMemo(() => {
-    const groups: Array<{ category: SearchCategory; items: SearchResult[] }> = [];
+    const groups: Array<{ category: SearchCategory; items: SearchResult[] }> =
+      [];
     const byCategory = new Map<SearchCategory, SearchResult[]>();
     for (const r of results) {
       if (!byCategory.has(r.category)) byCategory.set(r.category, []);
@@ -491,8 +491,9 @@ export function SearchModal() {
                 >
                   {category === "session" && !trimmedQuery
                     ? ((t.search_category_sessions_recent as string) ??
-                        "Recent sessions")
-                    : ((t[CATEGORY_LABEL_KEYS[category]] as string) ?? category)}
+                      "Recent sessions")
+                    : ((t[CATEGORY_LABEL_KEYS[category]] as string) ??
+                      category)}
                 </div>
                 {items.map((result) =>
                   renderRow(result, results.indexOf(result)),

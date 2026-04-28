@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useT } from "../../i18n/useT";
 
 export type ConfirmTone = "neutral" | "danger";
@@ -58,6 +59,7 @@ export function ConfirmDialog({
   onConfirm,
   cancelLabel,
 }: Props) {
+  useBodyScrollLock(open);
   const t = useT();
   const confirmRef = useRef<HTMLButtonElement>(null);
 

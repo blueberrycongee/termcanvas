@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { marked } from "marked";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { useUpdaterStore } from "../stores/updaterStore";
 import { useT } from "../i18n/useT";
 import { useLocaleStore } from "../stores/localeStore";
@@ -16,6 +17,7 @@ function extractLocalizedNotes(notes: string, locale: string): string {
 }
 
 export function UpdateModal({ onClose }: Props) {
+  useBodyScrollLock(true);
   const t = useT();
   const locale = useLocaleStore((s) => s.locale);
   const { status, info, downloadPercent, errorMessage } = useUpdaterStore();

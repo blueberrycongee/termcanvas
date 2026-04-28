@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { useT } from "../i18n/useT";
 import { useCanvasManagerStore } from "../stores/canvasManagerStore";
 import { useCanvasRegistryStore } from "../stores/canvasRegistryStore";
@@ -83,6 +84,7 @@ function ActiveDotGlyph() {
 export function CanvasManagerModal() {
   const t = useT();
   const open = useCanvasManagerStore((s) => s.open);
+  useBodyScrollLock(open);
   const renameTargetId = useCanvasManagerStore((s) => s.renameTargetId);
   const closeManager = useCanvasManagerStore((s) => s.close);
 
@@ -175,7 +177,7 @@ export function CanvasManagerModal() {
   if (!open) return null;
 
   const deleteTarget = confirmDeleteId
-    ? canvases.find((c) => c.id === confirmDeleteId) ?? null
+    ? (canvases.find((c) => c.id === confirmDeleteId) ?? null)
     : null;
 
   return createPortal(
@@ -327,10 +329,7 @@ export function CanvasManagerModal() {
               >
                 {t["canvas.manager.newCanvas"]}
               </span>
-              <span
-                className="tc-meta"
-                style={{ color: "var(--text-faint)" }}
-              >
+              <span className="tc-meta" style={{ color: "var(--text-faint)" }}>
                 {t["canvas.manager.newCanvasHint"]}
               </span>
             </button>
@@ -340,7 +339,10 @@ export function CanvasManagerModal() {
             className="flex items-center gap-3 px-4 py-2 border-t border-[var(--border)]"
             style={{ color: "var(--text-faint)" }}
           >
-            <span className="tc-timestamp" style={{ color: "var(--text-faint)" }}>
+            <span
+              className="tc-timestamp"
+              style={{ color: "var(--text-faint)" }}
+            >
               {t["canvas.manager.cycleHint"]}
             </span>
             <span
@@ -356,11 +358,7 @@ export function CanvasManagerModal() {
       <ConfirmDialog
         open={confirmDeleteId !== null}
         title={t["canvas.delete.title"]}
-        body={
-          deleteTarget
-            ? t["canvas.delete.body"](deleteTarget.name)
-            : ""
-        }
+        body={deleteTarget ? t["canvas.delete.body"](deleteTarget.name) : ""}
         confirmLabel={t["canvas.delete.confirm"]}
         confirmTone="danger"
         onCancel={() => setConfirmDeleteId(null)}

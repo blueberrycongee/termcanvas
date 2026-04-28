@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { useT } from "../i18n/useT";
 import { useSnapshotHistoryStore } from "../stores/snapshotHistoryStore";
-import {
-  appendSnapshotToHistory,
-  relativeTimeLabel,
-} from "../snapshotHistory";
+import { appendSnapshotToHistory, relativeTimeLabel } from "../snapshotHistory";
 import {
   readWorkspaceSnapshot,
   restoreWorkspaceSnapshot,
@@ -74,6 +72,7 @@ function formatDelta(delta: { x: number; y: number }): string {
 export function SnapshotHistoryModal() {
   const t = useT();
   const open = useSnapshotHistoryStore((s) => s.open);
+  useBodyScrollLock(open);
   const entries = useSnapshotHistoryStore((s) => s.entries);
   const selectedIndex = useSnapshotHistoryStore((s) => s.selectedIndex);
   const loading = useSnapshotHistoryStore((s) => s.loading);
@@ -144,9 +143,10 @@ export function SnapshotHistoryModal() {
     }
     let idx = Math.min(Math.max(diffFromIndex, 0), entries.length - 1);
     if (idx === safeSelectedIndex) {
-      idx = safeSelectedIndex + 1 < entries.length
-        ? safeSelectedIndex + 1
-        : safeSelectedIndex - 1;
+      idx =
+        safeSelectedIndex + 1 < entries.length
+          ? safeSelectedIndex + 1
+          : safeSelectedIndex - 1;
     }
     return idx >= 0 ? idx : null;
   })();
@@ -199,10 +199,13 @@ export function SnapshotHistoryModal() {
     };
   }, [open, diffMode, selectedEntry, fromEntry]);
 
-  const triggerRestore = useCallback((id: string | undefined) => {
-    if (!id) return;
-    setPendingRestoreId(id);
-  }, [setPendingRestoreId]);
+  const triggerRestore = useCallback(
+    (id: string | undefined) => {
+      if (!id) return;
+      setPendingRestoreId(id);
+    },
+    [setPendingRestoreId],
+  );
 
   const performRestore = useCallback(async () => {
     if (!pendingRestoreId || !window.termcanvas?.snapshots) return;
@@ -231,12 +234,16 @@ export function SnapshotHistoryModal() {
       restoreWorkspaceSnapshot(restored);
       useWorkspaceStore.getState().setWorkspacePath(null);
       useWorkspaceStore.getState().markDirty();
-      useNotificationStore.getState().notify("info", t["snapshot.notify.restored"]);
+      useNotificationStore
+        .getState()
+        .notify("info", t["snapshot.notify.restored"]);
       setPendingRestoreId(null);
       closeHistory();
     } catch (err) {
       console.error("[SnapshotHistoryModal] restore failed:", err);
-      useNotificationStore.getState().notify("error", t["snapshot.notify.restore_failed"]);
+      useNotificationStore
+        .getState()
+        .notify("error", t["snapshot.notify.restore_failed"]);
     } finally {
       setRestoring(false);
     }
@@ -279,7 +286,13 @@ export function SnapshotHistoryModal() {
       }
       // Diff toggle. Lowercase 'd' only when no modifier — keeps Cmd-D /
       // Ctrl-D (browser bookmark) and Shift-D from getting eaten.
-      if ((e.key === "d" || e.key === "D") && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+      if (
+        (e.key === "d" || e.key === "D") &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
         e.preventDefault();
         toggleDiffMode();
         return;
@@ -326,7 +339,13 @@ export function SnapshotHistoryModal() {
 
   const renderRow = useMemo(() => {
     return (
-      entry: { id: string; savedAt: number; terminalCount: number; projectCount: number; label?: string },
+      entry: {
+        id: string;
+        savedAt: number;
+        terminalCount: number;
+        projectCount: number;
+        label?: string;
+      },
       index: number,
     ) => {
       const isSelected = index === safeSelectedIndex;
@@ -385,7 +404,10 @@ export function SnapshotHistoryModal() {
               title={absoluteTimeLabel(entry.savedAt)}
             >
               {relativeTimeLabel(entry.savedAt)} ·{" "}
-              {t["snapshot.modal.summary"](entry.terminalCount, entry.projectCount)}
+              {t["snapshot.modal.summary"](
+                entry.terminalCount,
+                entry.projectCount,
+              )}
             </div>
           </div>
           {isSelected ? (
@@ -393,7 +415,9 @@ export function SnapshotHistoryModal() {
               className="shrink-0 text-[10px]"
               style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
             >
-              {diffMode ? t["snapshot.modal.row_to"] : t["snapshot.modal.row_restore"]}
+              {diffMode
+                ? t["snapshot.modal.row_to"]
+                : t["snapshot.modal.row_restore"]}
             </span>
           ) : isFromAnchor ? (
             <span
@@ -406,7 +430,15 @@ export function SnapshotHistoryModal() {
         </button>
       );
     };
-  }, [safeSelectedIndex, safeFromIndex, diffMode, setSelectedIndex, triggerRestore, tick, t]);
+  }, [
+    safeSelectedIndex,
+    safeFromIndex,
+    diffMode,
+    setSelectedIndex,
+    triggerRestore,
+    tick,
+    t,
+  ]);
 
   const summary = useMemo(
     () => (diffEntries ? summarizeDiff(diffEntries) : null),
@@ -447,7 +479,9 @@ export function SnapshotHistoryModal() {
               className="min-w-0 flex-1 text-[13px]"
               style={{ ...MONO_STYLE, color: "var(--text-primary)" }}
             >
-              {diffMode ? t["snapshot.modal.title_diff"] : t["snapshot.modal.title"]}
+              {diffMode
+                ? t["snapshot.modal.title_diff"]
+                : t["snapshot.modal.title"]}
             </div>
             <button
               type="button"
@@ -548,10 +582,7 @@ export function SnapshotHistoryModal() {
           </div>
 
           {diffMode && entries.length >= 2 && (
-            <div
-              className="border-t"
-              style={{ borderColor: "var(--border)" }}
-            >
+            <div className="border-t" style={{ borderColor: "var(--border)" }}>
               <div
                 className="overflow-auto px-4 py-2"
                 style={{ maxHeight: "28vh" }}
@@ -640,7 +671,9 @@ export function SnapshotHistoryModal() {
                 >
                   ↵
                 </kbd>
-                <span className="ml-1">{t["snapshot.modal.footer_restore"]}</span>
+                <span className="ml-1">
+                  {t["snapshot.modal.footer_restore"]}
+                </span>
               </span>
               <span>
                 <kbd
@@ -672,7 +705,9 @@ export function SnapshotHistoryModal() {
                   >
                     ⇧↑↓
                   </kbd>
-                  <span className="ml-1">{t["snapshot.modal.footer_from"]}</span>
+                  <span className="ml-1">
+                    {t["snapshot.modal.footer_from"]}
+                  </span>
                 </span>
               )}
             </div>
