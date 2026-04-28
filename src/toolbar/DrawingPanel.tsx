@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+} from "react";
 import {
   clearAnnotationsInScene,
   deleteSelectedAnnotationsInScene,
@@ -31,8 +37,9 @@ export function DrawingPanel() {
     { id: "arrow", label: t.tool_arrow, icon: "→" },
   ];
   const { tool, color, elements } = useDrawingStore();
-  const selectedAnnotationCount = useSelectionStore((state) =>
-    state.selectedItems.filter((item) => item.type === "annotation").length,
+  const selectedAnnotationCount = useSelectionStore(
+    (state) =>
+      state.selectedItems.filter((item) => item.type === "annotation").length,
   );
   const [vertical, setVertical] = useState(true);
   const [pos, setPos] = useState({ x: window.innerWidth - 60, y: 60 });
@@ -44,18 +51,15 @@ export function DrawingPanel() {
     origY: number;
   } | null>(null);
 
-  const clampPos = useCallback(
-    (x: number, y: number) => {
-      const el = panelRef.current;
-      const w = el?.offsetWidth ?? 0;
-      const h = el?.offsetHeight ?? 0;
-      return {
-        x: Math.max(0, Math.min(x, window.innerWidth - w)),
-        y: Math.max(0, Math.min(y, window.innerHeight - h)),
-      };
-    },
-    [],
-  );
+  const clampPos = useCallback((x: number, y: number) => {
+    const el = panelRef.current;
+    const w = el?.offsetWidth ?? 0;
+    const h = el?.offsetHeight ?? 0;
+    return {
+      x: Math.max(0, Math.min(x, window.innerWidth - w)),
+      y: Math.max(0, Math.min(y, window.innerHeight - h)),
+    };
+  }, []);
 
   useEffect(() => {
     const onResize = () => setPos((p) => clampPos(p.x, p.y));
@@ -80,8 +84,10 @@ export function DrawingPanel() {
 
       const handleMove = (ev: MouseEvent) => {
         if (!dragRef.current) return;
-        const newX = dragRef.current.origX + ev.clientX - dragRef.current.startX;
-        const newY = dragRef.current.origY + ev.clientY - dragRef.current.startY;
+        const newX =
+          dragRef.current.origX + ev.clientX - dragRef.current.startX;
+        const newY =
+          dragRef.current.origY + ev.clientY - dragRef.current.startY;
         setPos(clampPos(newX, newY));
       };
 
@@ -116,6 +122,8 @@ export function DrawingPanel() {
             setVertical(!vertical);
           }}
           title={vertical ? t.layout_horizontal : t.layout_vertical}
+          aria-label={vertical ? t.layout_horizontal : t.layout_vertical}
+          aria-pressed={vertical}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             {vertical ? (
@@ -189,6 +197,8 @@ export function DrawingPanel() {
         {tools.map((toolItem) => (
           <button
             key={toolItem.id}
+            aria-label={toolItem.label}
+            aria-pressed={tool === toolItem.id}
             className={`${btnBase} ${
               tool === toolItem.id
                 ? "bg-[var(--border)] text-[var(--text-primary)]"
@@ -213,6 +223,8 @@ export function DrawingPanel() {
           {colors.map((c) => (
             <button
               key={c}
+              aria-label={`Select color ${c}`}
+              aria-pressed={color === c}
               className="w-4 h-4 rounded-full transition-all duration-150"
               style={{
                 backgroundColor: c,
@@ -232,6 +244,7 @@ export function DrawingPanel() {
             className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}
             onClick={deleteSelectedAnnotationsInScene}
             title={t.ctx_delete}
+            aria-label={t.ctx_delete}
             disabled={selectedAnnotationCount === 0}
           >
             ⌫
@@ -242,6 +255,8 @@ export function DrawingPanel() {
           <button
             className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}
             onClick={clearAnnotationsInScene}
+            title="Clear all annotations"
+            aria-label="Clear all annotations"
           >
             ✕
           </button>
