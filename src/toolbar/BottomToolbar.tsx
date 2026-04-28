@@ -1,16 +1,6 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePinStore } from "../stores/pinStore";
-import {
-  useCanvasToolStore,
-  type CanvasTool,
-} from "../stores/canvasToolStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
 import {
   fitAllProjects,
@@ -121,9 +111,7 @@ function usePopoverKeyboardNav({
     if (!popover) return;
 
     const items = () =>
-      Array.from(
-        popover.querySelectorAll<HTMLElement>("[data-popover-item]"),
-      );
+      Array.from(popover.querySelectorAll<HTMLElement>("[data-popover-item]"));
 
     // Focus the requested item once mounted (rAF lets the popover
     // paint first, otherwise focus flashes briefly to the trigger).
@@ -161,76 +149,22 @@ function usePopoverKeyboardNav({
 
 export function BottomToolbar() {
   const t = useT();
-  const tool = useCanvasToolStore((s) => s.tool);
-  const setTool = useCanvasToolStore((s) => s.setTool);
-  const spaceHeld = useCanvasToolStore((s) => s.spaceHeld);
   const viewport = useCanvasStore((s) => s.viewport);
   const composerEnabled = usePreferencesStore((s) => s.composerEnabled);
 
-  // Single open-menu slot so the two popovers are mutually exclusive —
-  // opening the zoom menu while the tool menu is open used to leave
-  // both visible, with both rendering their own keydown listener and
-  // ArrowDown / Esc bouncing focus between them.
-  const [openMenu, setOpenMenu] = useState<"tool" | "preset" | null>(null);
-  const toolMenuOpen = openMenu === "tool";
-  const presetOpen = openMenu === "preset";
-  const toolMenuWrapperRef = useRef<HTMLDivElement>(null);
-  const toolMenuPopoverRef = useRef<HTMLDivElement>(null);
-  const toolTriggerRef = useRef<HTMLButtonElement>(null);
+  const [presetOpen, setPresetOpen] = useState(false);
   const presetWrapperRef = useRef<HTMLDivElement>(null);
   const presetPopoverRef = useRef<HTMLDivElement>(null);
   const presetTriggerRef = useRef<HTMLButtonElement>(null);
 
-  const closeToolMenu = useCallback(() => setOpenMenu(null), []);
-  const closePresetMenu = useCallback(() => setOpenMenu(null), []);
-  const toggleToolMenu = useCallback(
-    () => setOpenMenu((prev) => (prev === "tool" ? null : "tool")),
-    [],
-  );
+  const closePresetMenu = useCallback(() => setPresetOpen(false), []);
   const togglePresetMenu = useCallback(
-    () => setOpenMenu((prev) => (prev === "preset" ? null : "preset")),
+    () => setPresetOpen((prev) => !prev),
     [],
   );
 
-  useCloseOnOutsideClick(toolMenuOpen, toolMenuWrapperRef, closeToolMenu);
   useCloseOnOutsideClick(presetOpen, presetWrapperRef, closePresetMenu);
 
-  const toolOptions = useMemo<
-    Array<{
-      id: CanvasTool;
-      label: string;
-      shortcut: string;
-      icon: React.ReactNode;
-    }>
-  >(
-    () => [
-      {
-        id: "select",
-        label: t.canvas_tool_select,
-        shortcut: "V",
-        icon: <SelectIcon />,
-      },
-      {
-        id: "hand",
-        label: t.canvas_tool_hand,
-        shortcut: "H",
-        icon: <HandIcon />,
-      },
-    ],
-    [t.canvas_tool_select, t.canvas_tool_hand],
-  );
-
-  usePopoverKeyboardNav({
-    open: toolMenuOpen,
-    popoverRef: toolMenuPopoverRef,
-    triggerRef: toolTriggerRef,
-    itemCount: toolOptions.length,
-    initialIndex: Math.max(
-      0,
-      toolOptions.findIndex((opt) => opt.id === tool),
-    ),
-    close: closeToolMenu,
-  });
   usePopoverKeyboardNav({
     open: presetOpen,
     popoverRef: presetPopoverRef,
@@ -252,8 +186,7 @@ export function BottomToolbar() {
       rightPanelWidth,
       viewport: current,
     } = useCanvasStore.getState();
-    const taskDrawerOpen =
-      usePinStore.getState().openProjectPath !== null;
+    const taskDrawerOpen = usePinStore.getState().openProjectPath !== null;
     const center = getViewportCenterClientPoint({
       leftPanelCollapsed,
       leftPanelWidth,
@@ -276,15 +209,6 @@ export function BottomToolbar() {
   }, []);
 
   const zoomPercent = Math.round(viewport.scale * 100);
-  // Trigger reflects the *effective* tool — when Space is held, the
-  // canvas behaves like Hand even though the persisted tool is still
-  // Move. Showing the hand glyph here gives the user the same visual
-  // confirmation Figma's cursor change provides. The dropdown's
-  // checkmark below stays on the persisted tool so the user always
-  // knows what'll be active when Space lifts.
-  const effectiveToolId: CanvasTool = spaceHeld ? "hand" : tool;
-  const activeTool =
-    toolOptions.find((opt) => opt.id === effectiveToolId) ?? toolOptions[0];
 
   // When composer is enabled, sit just above its measured height
   // (published as `--composer-height`). The fallback covers the brief
@@ -301,64 +225,6 @@ export function BottomToolbar() {
       <div
         className={`pointer-events-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
       >
-        <div className="relative" ref={toolMenuWrapperRef}>
-          <button
-            ref={toolTriggerRef}
-            className={`${buttonBase} px-2 gap-1 ${toolMenuOpen ? "bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] text-[var(--text-primary)]" : ""}`}
-            onClick={toggleToolMenu}
-            title={`${activeTool.label} (${activeTool.shortcut})`}
-            aria-haspopup="menu"
-            aria-expanded={toolMenuOpen}
-            aria-label={activeTool.label}
-          >
-            {activeTool.icon}
-            <CaretIcon open={toolMenuOpen} />
-          </button>
-          {toolMenuOpen && (
-            <div
-              ref={toolMenuPopoverRef}
-              role="menu"
-              aria-label={t.canvas_tool_select}
-              className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 min-w-[160px] rounded-md py-1 ${PILL_BG} ${PILL_BORDER} ${PILL_SHADOW}`}
-            >
-              {toolOptions.map((opt) => {
-                const active = opt.id === tool;
-                return (
-                  <button
-                    key={opt.id}
-                    data-popover-item
-                    role="menuitemradio"
-                    aria-checked={active}
-                    tabIndex={-1}
-                    className={`flex w-full items-center gap-3 px-2.5 py-1.5 text-[12px] transition-colors focus:outline-none ${
-                      active
-                        ? "text-[var(--text-primary)] bg-[color-mix(in_srgb,var(--surface)_72%,transparent)]"
-                        : "text-[var(--text-secondary)] hover:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] focus:bg-[color-mix(in_srgb,var(--surface)_72%,transparent)] hover:text-[var(--text-primary)] focus:text-[var(--text-primary)]"
-                    }`}
-                    onClick={() => {
-                      setTool(opt.id);
-                      closeToolMenu();
-                    }}
-                  >
-                    <span className="inline-flex items-center justify-center w-4">
-                      {opt.icon}
-                    </span>
-                    <span className="flex-1 text-left">{opt.label}</span>
-                    <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                      {opt.shortcut}
-                    </span>
-                    <span className="w-4 inline-flex items-center justify-center text-[var(--text-primary)]">
-                      {active ? <CheckIcon /> : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div aria-hidden="true" className={dividerCls} />
-
         <div className={groupBase}>
           <button
             className={iconButton}
@@ -445,65 +311,5 @@ export function BottomToolbar() {
         </button>
       </div>
     </div>
-  );
-}
-
-function SelectIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path
-        d="M3 2.2v8.6l2.3-2.1 1.6 3.3 1.7-.8-1.6-3.3 3 .1L3 2.2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
-function HandIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path
-        d="M4 6V2.7a.9.9 0 1 1 1.8 0V6m0 0V1.9a.9.9 0 1 1 1.8 0V6m0 0V2.4a.9.9 0 1 1 1.8 0V6m0 0V3.6a.9.9 0 1 1 1.8 0v4.6c0 2.3-1.7 3.6-3.5 3.6S2.5 10.5 2.5 8.5V6.5a.9.9 0 1 1 1.5-.5"
-        stroke="currentColor"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CaretIcon({ open }: { open: boolean }) {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      fill="none"
-      className={`transition-transform duration-150 opacity-70 ${open ? "rotate-180" : ""}`}
-      aria-hidden="true"
-    >
-      <path
-        d="M2 3.75L5 6.75L8 3.75"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg width="11" height="11" viewBox="0 0 11 11" fill="none" aria-hidden="true">
-      <path
-        d="M2 5.8L4.4 8.2L9 3.2"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
