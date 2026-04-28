@@ -322,7 +322,7 @@ export function LeftPanel() {
             </div>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="tc-sidebar-tree-font flex-1 min-h-0 overflow-y-auto">
             <ProjectTree
               projects={projectTree}
               renderTerminal={(item) => (

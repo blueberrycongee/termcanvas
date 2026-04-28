@@ -1070,6 +1070,12 @@ a.tc-kbd[data-dragover="true"] {
   background-color: var(--sidebar-hover);
 }
 
+/* File-tree adjacent lists should use the same face as @pierre/trees so
+   matching row metrics do not still read as two different components. */
+.tc-sidebar-tree-font {
+  font-family: system-ui;
+}
+
 /* Quieter variant for icon-button-like targets sitting inside a
    row: only colour shifts on hover, no surface lift (the row
    underneath already lifts). Use on chevron toggles and resize

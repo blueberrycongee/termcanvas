@@ -169,7 +169,7 @@ export function TerminalCard({
       role="button"
       tabIndex={0}
       className={`tc-row-icon group w-full rounded-md flex items-center gap-2 text-left cursor-pointer ${
-        compact ? "px-2 py-1.5" : "px-2 py-2"
+        compact ? "min-h-[44px] px-2 py-1.5" : "min-h-[48px] px-2 py-2"
       } ${
         item.focused
           ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
@@ -193,8 +193,8 @@ export function TerminalCard({
         <div
           className="truncate"
           style={{
-            fontSize: "var(--text-xs)",
-            fontWeight: "var(--weight-medium)",
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
             color: "var(--text-primary)",
             lineHeight: "var(--leading-snug)",
           }}
@@ -397,13 +397,13 @@ function StashedCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div className="tc-row-icon group flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]">
+    <div className="tc-row-icon group min-h-[44px] flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]">
       <div className="flex-1 min-w-0">
         <div
           className="truncate"
           style={{
-            fontSize: "var(--text-xs)",
-            fontWeight: "var(--weight-medium)",
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
             color: "var(--text-secondary)",
             lineHeight: "var(--leading-snug)",
           }}
@@ -482,7 +482,7 @@ export function StashedSection({
       onOpenChange={setExpanded}
       className="border-t border-[var(--border)]"
     >
-      <CollapsibleTrigger className="tc-row-hover flex w-full items-center gap-1.5 px-3 py-2 text-left">
+      <CollapsibleTrigger className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left">
         <svg
           width="10"
           height="10"
@@ -790,7 +790,7 @@ export function HistorySection({
   return (
     <div className="border-t border-[var(--border)]">
       <button
-        className="tc-row-hover flex w-full items-center gap-1.5 px-3 py-2 text-left"
+        className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left"
         onClick={() => setExpanded((v) => !v)}
       >
         <svg
@@ -826,7 +826,7 @@ export function HistorySection({
             <div className="flex flex-col">
               {pinnedEntries.length > 0 && (
                 <div className="mb-0.5">
-                  <div className="flex items-center gap-1.5 px-3 py-1">
+                  <div className="mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0">
                     <svg width="9" height="9" viewBox="0 0 10 10" fill="none" className="shrink-0" style={{ color: "var(--text-muted)" }}>
                       <circle cx="6" cy="4" r="2.2" fill="currentColor" />
                       <line x1="4.4" y1="5.6" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
@@ -834,8 +834,8 @@ export function HistorySection({
                     <span
                       className="truncate"
                       style={{
-                        fontSize: "var(--text-xs)",
-                        fontWeight: "var(--weight-medium)",
+                        fontSize: "var(--text-base)",
+                        fontWeight: "var(--weight-regular)",
                         color: "var(--text-primary)",
                         lineHeight: "var(--leading-snug)",
                       }}
@@ -865,7 +865,7 @@ export function HistorySection({
                 return (
                   <div key={group.projectDir} className="mb-0.5 last:mb-0">
                     <button
-                      className="tc-row-hover group/grp flex w-full items-center gap-1.5 px-3 py-1 text-left cursor-pointer"
+                      className="tc-row-hover group/grp mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left cursor-pointer"
                       onClick={() => toggleGroup(group.projectDir)}
                       title={group.projectDir}
                     >
@@ -884,8 +884,8 @@ export function HistorySection({
                       <span
                         className="truncate flex-1 min-w-0"
                         style={{
-                          fontSize: "var(--text-xs)",
-                          fontWeight: "var(--weight-medium)",
+                          fontSize: "var(--text-base)",
+                          fontWeight: "var(--weight-regular)",
                           color: "var(--text-primary)",
                           lineHeight: "var(--leading-snug)",
                         }}
@@ -911,7 +911,7 @@ export function HistorySection({
                         ))}
                         {hiddenCount > 0 && (
                           <button
-                            className="tc-row-icon flex w-full items-center gap-1 pl-6 pr-3 py-1 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
+                            className="tc-row-icon mx-2 flex min-h-[30px] items-center gap-1 rounded-md pl-6 pr-3 py-0 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -964,7 +964,7 @@ function HistoryRow({
     <div
       role="button"
       tabIndex={0}
-      className="tc-row-hover group flex w-full items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer"
+      className="tc-row-hover group mx-2 flex min-h-[44px] items-center gap-1.5 rounded-md pl-4 pr-2 py-1.5 text-left cursor-pointer"
       onClick={() => onOpen(entry.filePath)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -1010,8 +1010,8 @@ function HistoryRow({
         <div
           className="truncate"
           style={{
-            fontSize: "var(--text-xs)",
-            fontWeight: "var(--weight-medium)",
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
             color: "var(--text-primary)",
             lineHeight: "var(--leading-snug)",
           }}
@@ -1216,7 +1216,7 @@ export function SessionsPanel({
           </svg>
         </IconButton>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="tc-sidebar-tree-font flex-1 min-h-0 overflow-y-auto">
         <ProjectTree
           projects={projectTree}
           renderTerminal={(item) => (

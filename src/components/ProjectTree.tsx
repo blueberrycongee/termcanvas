@@ -272,7 +272,7 @@ function WorktreeRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-row-hover group w-full flex items-center gap-1.5 pl-4 pr-1 py-1 text-left cursor-pointer"
+        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md pl-4 pr-2 py-0 text-left cursor-pointer"
         onClick={() => {
           // Left-click on the row both activates and toggles expand/collapse
           // so users don't have to aim for the tiny chevron. Right-click is
@@ -309,7 +309,15 @@ function WorktreeRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span className="tc-caption truncate flex-1 min-w-0" style={{ color: "var(--text-muted)" }}>
+        <span
+          className="truncate flex-1 min-w-0"
+          style={{
+            fontSize: "var(--text-base)",
+            fontWeight: "var(--weight-regular)",
+            color: "var(--text-secondary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {group.worktreeName}
         </span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
@@ -497,7 +505,7 @@ function ProjectRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-row-hover group w-full flex items-center gap-1.5 px-3 py-1 text-left cursor-pointer"
+        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md px-2 py-0 text-left cursor-pointer"
         onClick={() => {
           // Match worktree rows: clicking anywhere on the project row should
           // both focus it and toggle collapse, instead of forcing the user to
@@ -536,8 +544,8 @@ function ProjectRow({
         <span
           className="truncate flex-1 min-w-0"
           style={{
-            fontSize: "var(--text-xs)",
-            fontWeight: "var(--weight-medium)",
+            fontSize: "var(--text-base)",
+            fontWeight: "var(--weight-regular)",
             color: "var(--text-primary)",
             lineHeight: "var(--leading-snug)",
           }}
