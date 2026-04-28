@@ -88,12 +88,14 @@
      makes it consistent and trackable. */
   --scrim: rgba(0, 0, 0, 0.55);
   --radius: 8px;
-  /* Find-overlay match decoration colors. Cyan tracks the app's utility
-     accent family and stays distinct from xterm's native blue selection
-     without introducing a warm warning-like block into terminal output. */
-  --find-match-bg: rgba(108, 196, 176, 0.26);
-  --find-match-active-bg: rgba(45, 212, 191, 0.68);
-  --find-match-active-outline: rgba(155, 231, 213, 0.95);
+  /* Find-match decorations. Dark theme gets a low-luminance brass marker:
+     warm enough to belong to the neutral palette, far enough from xterm's
+     blue selection to identify search state at a glance. */
+  --find-match-bg: rgba(184, 134, 64, 0.22);
+  --find-match-outline: rgba(212, 162, 78, 0.34);
+  --find-match-active-bg: rgba(245, 197, 110, 0.32);
+  --find-match-active-outline: rgba(245, 197, 110, 0.92);
+  --find-match-active-shadow: rgba(212, 162, 78, 0.18);
   color-scheme: dark;
 }
 
@@ -138,11 +140,14 @@
      stops the popup from looking like it's floating on coal. */
   --scrim: rgba(28, 25, 23, 0.42);
   --radius: 8px;
-  /* Light-theme find decorations: the same cyan family, with lower alpha so
-     highlighted text reads as selected output rather than a solid label. */
-  --find-match-bg: rgba(13, 148, 136, 0.18);
-  --find-match-active-bg: rgba(13, 148, 136, 0.44);
-  --find-match-active-outline: rgba(15, 118, 110, 0.9);
+  /* Light theme uses the same brass role but shifted darker and less
+     saturated. It should read like an editorial marker on paper, not a neon
+     label or a status color. */
+  --find-match-bg: rgba(146, 100, 40, 0.16);
+  --find-match-outline: rgba(120, 80, 30, 0.22);
+  --find-match-active-bg: rgba(180, 111, 35, 0.26);
+  --find-match-active-outline: rgba(120, 72, 24, 0.72);
+  --find-match-active-shadow: rgba(180, 111, 35, 0.12);
   color-scheme: light;
 }
 
@@ -642,17 +647,20 @@ a.tc-kbd:active {
 /* Find-match decorations rendered by @xterm/addon-search. The addon
    writes inline backgroundColor + outline directly on the decoration
    element; we override both via CSS classes it stamps on, so the
-   highlight respects our theme tokens (translucent cyan) instead of
-   muddy warm colors mixing with xterm's blue selection underneath. */
+   highlight respects our theme tokens instead of the addon's inline colors. */
 .terminal-tile .xterm-find-result-decoration {
   background-color: var(--find-match-bg) !important;
-  outline: none !important;
+  outline: 1px solid var(--find-match-outline) !important;
+  outline-offset: -1px;
   border-radius: 2px;
 }
 .terminal-tile .xterm-find-result-decoration.xterm-find-active-result-decoration {
   background-color: var(--find-match-active-bg) !important;
   outline: 1px solid var(--find-match-active-outline) !important;
   outline-offset: -1px;
+  box-shadow:
+    inset 0 -2px 0 var(--find-match-active-outline),
+    0 0 0 1px var(--find-match-active-shadow);
 }
 
 /* xterm v6 scroll shadows sit at z-index 11 along the top and left edges

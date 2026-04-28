@@ -33,10 +33,10 @@ interface FindActions {
 // in-terminal highlight, so these only show on the ruler and as a graceful
 // fallback if the CSS isn't loaded.
 const DECORATIONS = {
-  matchBackground: "#1f6f69",
-  matchOverviewRuler: "#6cc4b0",
-  activeMatchBackground: "#2dd4bf",
-  activeMatchColorOverviewRuler: "#9be7d5",
+  matchBackground: "#6f562f",
+  matchOverviewRuler: "#c9a255",
+  activeMatchBackground: "#b8863b",
+  activeMatchColorOverviewRuler: "#f5c56e",
 } as const;
 
 let detachResultsListener: (() => void) | null = null;
