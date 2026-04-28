@@ -8,11 +8,17 @@ interface AgentInputBoxProps {
   onAbort: () => void;
 }
 
-export function AgentInputBox({ running, slashCommands, onSend, onAbort }: AgentInputBoxProps) {
+export function AgentInputBox({
+  running,
+  slashCommands,
+  onSend,
+  onAbort,
+}: AgentInputBoxProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [focused, setFocused] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const submit = useCallback(() => {
     const value = textareaRef.current?.value.trim();
@@ -31,15 +37,24 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
   }, []);
 
   const handleInput = useCallback(() => {
-    const value = textareaRef.current?.value ?? "";
-    if (value.startsWith("/") && !value.includes(" ") && slashCommands?.length) {
-      const query = value.slice(1).toLowerCase();
-      const matched = slashCommands.filter((c) => c.toLowerCase().includes(query)).slice(0, 8);
-      setSuggestions(matched);
-      setSelectedIndex(0);
-    } else {
-      setSuggestions([]);
-    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const value = textareaRef.current?.value ?? "";
+      if (
+        value.startsWith("/") &&
+        !value.includes(" ") &&
+        slashCommands?.length
+      ) {
+        const query = value.slice(1).toLowerCase();
+        const matched = slashCommands
+          .filter((c) => c.toLowerCase().includes(query))
+          .slice(0, 8);
+        setSuggestions(matched);
+        setSelectedIndex(0);
+      } else {
+        setSuggestions([]);
+      }
+    }, 120);
   }, [slashCommands]);
 
   const handleKeyDown = useCallback(
@@ -55,7 +70,10 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
           setSelectedIndex((i) => Math.max(i - 1, 0));
           return;
         }
-        if (e.key === "Tab" || (e.key === "Enter" && !e.nativeEvent.isComposing)) {
+        if (
+          e.key === "Tab" ||
+          (e.key === "Enter" && !e.nativeEvent.isComposing)
+        ) {
           e.preventDefault();
           applySuggestion(suggestions[selectedIndex]);
           return;
@@ -88,7 +106,8 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
             style={{
               background: "var(--surface)",
               border: "1px solid var(--border)",
-              boxShadow: "0 4px 14px color-mix(in srgb, var(--shadow-color) 28%, transparent)",
+              boxShadow:
+                "0 4px 14px color-mix(in srgb, var(--shadow-color) 28%, transparent)",
             }}
             onMouseDown={(e) => e.preventDefault()}
           >
@@ -97,14 +116,22 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
                 key={cmd}
                 className="w-full text-left px-3 py-1.5 tc-body-sm"
                 style={{
-                  background: i === selectedIndex ? "var(--surface-hover)" : "transparent",
-                  color: i === selectedIndex ? "var(--text-primary)" : "var(--text-secondary)",
+                  background:
+                    i === selectedIndex
+                      ? "var(--surface-hover)"
+                      : "transparent",
+                  color:
+                    i === selectedIndex
+                      ? "var(--text-primary)"
+                      : "var(--text-secondary)",
                   transition:
                     "background-color var(--duration-instant) var(--ease-out-soft), color var(--duration-instant) var(--ease-out-soft)",
                 }}
                 onClick={() => applySuggestion(cmd)}
               >
-                <span className="tc-mono" style={{ color: "var(--accent)" }}>/{cmd}</span>
+                <span className="tc-mono" style={{ color: "var(--accent)" }}>
+                  /{cmd}
+                </span>
               </button>
             ))}
           </div>
@@ -156,7 +183,12 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
               aria-label="Stop"
               title="Stop generation"
             >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+              >
                 <rect x="3" y="3" width="10" height="10" rx="1.5" />
               </svg>
             </button>
@@ -168,14 +200,29 @@ export function AgentInputBox({ running, slashCommands, onSend, onAbort }: Agent
               transition:
                 "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
             }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--accent-soft)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+            onMouseEnter={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background =
+                "var(--accent-soft)")
+            }
+            onMouseLeave={(e) =>
+              ((e.currentTarget as HTMLButtonElement).style.background =
+                "transparent")
+            }
             onClick={submit}
             onMouseDown={(e) => e.stopPropagation()}
             aria-label="Send"
             title="Send (Enter)"
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M14 2L7 9" />
               <path d="M14 2L9.5 14L7 9L2 6.5L14 2Z" />
             </svg>
