@@ -149,7 +149,7 @@ export class ComputerUseManager {
         });
       });
       this.helperProcess.on("exit", (code) => {
-        console.log(`[ComputerUse] Helper exited with code ${code}`);
+        if (isDev) console.log(`[ComputerUse] Helper exited with code ${code}`);
         this.helperProcess = null;
         this.updateState({
           helperRunning: false,

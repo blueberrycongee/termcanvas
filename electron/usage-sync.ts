@@ -1,8 +1,18 @@
-import { readFile, writeFile, appendFile, unlink, access, stat } from "fs/promises";
+import {
+  readFile,
+  writeFile,
+  appendFile,
+  unlink,
+  access,
+  stat,
+} from "fs/promises";
 import path from "path";
 import { TERMCANVAS_DIR } from "./state-persistence";
 import { getSupabase, getAuthUser, getDeviceId, isLoggedIn } from "./auth";
-import { buildUsageRecordHash, type UsageRecordHashInput } from "./usage-record-hash";
+import {
+  buildUsageRecordHash,
+  type UsageRecordHashInput,
+} from "./usage-record-hash";
 import {
   parseClaudeSession,
   parseCodexSession,
@@ -13,6 +23,8 @@ import {
   type UsageSummary,
   type UsageBucket,
 } from "./usage-collector";
+
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
 const PREFIX = "[UsageSync]";
 const SYNC_QUEUE_FILE = path.join(TERMCANVAS_DIR, "sync-queue.jsonl");
@@ -96,7 +108,9 @@ async function shouldScanByMtime(
   }
 }
 
-function normalizeSyncRecord(record: SyncRecord): SyncRecord & { record_hash: string } {
+function normalizeSyncRecord(
+  record: SyncRecord,
+): SyncRecord & { record_hash: string } {
   return {
     ...record,
     record_hash: record.record_hash ?? buildUsageRecordHash(record),
@@ -106,7 +120,11 @@ function normalizeSyncRecord(record: SyncRecord): SyncRecord & { record_hash: st
 function parseRpcPayload<T>(payload: T | string | null): T | null {
   if (!payload) return null;
   if (typeof payload === "string") {
-    try { return JSON.parse(payload) as T; } catch { return null; }
+    try {
+      return JSON.parse(payload) as T;
+    } catch {
+      return null;
+    }
   }
   return payload;
 }
@@ -118,32 +136,67 @@ function createEmptyBuckets(intervalHours: number): UsageBucket[] {
     return {
       label: `${String(h).padStart(2, "0")}:00-${String(h + intervalHours).padStart(2, "0")}:00`,
       hourStart: h,
-      input: 0, output: 0, cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0, cost: 0, calls: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheCreate5m: 0,
+      cacheCreate1h: 0,
+      cost: 0,
+      calls: 0,
     };
   });
 }
 
-function mergeBucketsWithDefaults(rpcBuckets: RpcBucket[] | undefined, intervalHours: number): UsageBucket[] {
+function mergeBucketsWithDefaults(
+  rpcBuckets: RpcBucket[] | undefined,
+  intervalHours: number,
+): UsageBucket[] {
   const buckets = createEmptyBuckets(intervalHours);
   if (!rpcBuckets) return buckets;
   const map = new Map(rpcBuckets.map((b) => [b.hourStart, b]));
   return buckets.map((b) => {
     const rb = map.get(b.hourStart);
     if (!rb) return b;
-    return { ...b, input: Number(rb.input) || 0, output: Number(rb.output) || 0, cost: Number(rb.cost) || 0, calls: Number(rb.calls) || 0 };
+    return {
+      ...b,
+      input: Number(rb.input) || 0,
+      output: Number(rb.output) || 0,
+      cost: Number(rb.cost) || 0,
+      calls: Number(rb.calls) || 0,
+    };
   });
 }
 
 function createEmptyCloudSummary(dateStr: string): CloudUsageSummary {
   return {
-    date: dateStr, sessions: 0, totalInput: 0, totalOutput: 0,
-    totalCacheRead: 0, totalCacheCreate5m: 0, totalCacheCreate1h: 0, totalCost: 0,
-    buckets: createEmptyBuckets(2), projects: [], models: [], devices: [],
+    date: dateStr,
+    sessions: 0,
+    totalInput: 0,
+    totalOutput: 0,
+    totalCacheRead: 0,
+    totalCacheCreate5m: 0,
+    totalCacheCreate1h: 0,
+    totalCost: 0,
+    buckets: createEmptyBuckets(2),
+    projects: [],
+    models: [],
+    devices: [],
   };
 }
 
-function mapUsageRecordToRow(userId: string, deviceId: string, record: UsageRecord) {
-  const costUsd = computeCost(record.model, record.input, record.output, record.cacheRead, record.cacheCreate5m, record.cacheCreate1h);
+function mapUsageRecordToRow(
+  userId: string,
+  deviceId: string,
+  record: UsageRecord,
+) {
+  const costUsd = computeCost(
+    record.model,
+    record.input,
+    record.output,
+    record.cacheRead,
+    record.cacheCreate5m,
+    record.cacheCreate1h,
+  );
   const syncRecord: SyncRecord = {
     model: record.model,
     project: record.projectPath || "",
@@ -192,7 +245,11 @@ async function uploadRecord(record: SyncRecord): Promise<void> {
 
 async function appendToQueue(record: SyncRecord): Promise<void> {
   try {
-    await appendFile(SYNC_QUEUE_FILE, JSON.stringify(normalizeSyncRecord(record)) + "\n", "utf-8");
+    await appendFile(
+      SYNC_QUEUE_FILE,
+      JSON.stringify(normalizeSyncRecord(record)) + "\n",
+      "utf-8",
+    );
   } catch (err) {
     console.error(PREFIX, "Failed to write to sync queue:", err);
   }
@@ -285,26 +342,28 @@ export async function backfillHistory(): Promise<void> {
     try {
       const { records } = parseClaudeSession(f, utcStart, utcEnd);
       allRecords.push(...records);
-    } catch {
-    }
+    } catch {}
   }
 
   for (const f of findCodexJsonlFiles()) {
     try {
       const { records } = parseCodexSession(f, utcStart, utcEnd);
       allRecords.push(...records);
-    } catch {
-    }
+    } catch {}
   }
 
   if (allRecords.length === 0) {
     try {
       await writeFile(BACKFILL_FLAG, new Date().toISOString(), "utf-8");
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
     return;
   }
 
-  const rows = allRecords.map((record) => mapUsageRecordToRow(user.id, deviceId, record));
+  const rows = allRecords.map((record) =>
+    mapUsageRecordToRow(user.id, deviceId, record),
+  );
 
   for (let i = 0; i < rows.length; i += BATCH_SIZE) {
     if (i > 0) await new Promise<void>((r) => setImmediate(r));
@@ -312,20 +371,29 @@ export async function backfillHistory(): Promise<void> {
     const batch = rows.slice(i, i + BATCH_SIZE);
     try {
       const { error } = await supabase.from("usage_records").upsert(batch, {
-            onConflict: "user_id,device_id,record_hash",
-            ignoreDuplicates: true,
-          });
+        onConflict: "user_id,device_id,record_hash",
+        ignoreDuplicates: true,
+      });
       if (error) {
-        console.error(PREFIX, `Backfill batch ${i}-${i + batch.length} failed:`, error.message);
+        console.error(
+          PREFIX,
+          `Backfill batch ${i}-${i + batch.length} failed:`,
+          error.message,
+        );
       }
     } catch (err) {
-      console.error(PREFIX, `Backfill batch ${i}-${i + batch.length} error:`, err);
+      console.error(
+        PREFIX,
+        `Backfill batch ${i}-${i + batch.length} error:`,
+        err,
+      );
     }
   }
 
   try {
     await writeFile(BACKFILL_FLAG, new Date().toISOString(), "utf-8");
-    console.log(PREFIX, `Backfill complete: ${allRecords.length} records`);
+    if (isDev)
+      console.log(PREFIX, `Backfill complete: ${allRecords.length} records`);
   } catch (err) {
     console.error(PREFIX, "Failed to write backfill flag:", err);
   }
@@ -348,11 +416,16 @@ export async function syncRecentRecords(): Promise<void> {
     const deviceId = getDeviceId();
 
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - 1,
+    );
     const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     // This avoids parsing years of immutable history every 5 minutes.
     const scanStartLocalDate = toLocalDateString(start);
-    const fmt = (ms: number) => new Date(ms).toISOString().replace("Z", "").split(".")[0];
+    const fmt = (ms: number) =>
+      new Date(ms).toISOString().replace("Z", "").split(".")[0];
     const utcStart = fmt(start.getTime());
     const utcEnd = fmt(end.getTime());
 
@@ -368,8 +441,7 @@ export async function syncRecentRecords(): Promise<void> {
       try {
         const { records } = parseClaudeSession(filePath, utcStart, utcEnd);
         allRecords.push(...records);
-      } catch {
-      }
+      } catch {}
     }
 
     const codexFiles = findCodexJsonlFiles();
@@ -382,8 +454,7 @@ export async function syncRecentRecords(): Promise<void> {
       try {
         const { records } = parseCodexSession(filePath, utcStart, utcEnd);
         allRecords.push(...records);
-      } catch {
-      }
+      } catch {}
     }
 
     if (allRecords.length === 0) return;
@@ -429,7 +500,9 @@ export async function syncRecentRecords(): Promise<void> {
  * Query usage data from Supabase for the logged-in user (all devices).
  * Uses server-side RPC aggregation to avoid PostgREST row limits.
  */
-export async function queryCloudUsage(dateStr: string): Promise<CloudUsageSummary | null> {
+export async function queryCloudUsage(
+  dateStr: string,
+): Promise<CloudUsageSummary | null> {
   if (!isLoggedIn()) return null;
 
   const supabase = getSupabase();
@@ -470,22 +543,32 @@ export async function queryCloudUsage(dateStr: string): Promise<CloudUsageSummar
       buckets: mergeBucketsWithDefaults(payload.buckets, 2),
       projects: (payload.projects ?? []).map((p) => ({
         path: p.path || "unknown",
-        name: (p.path && p.path !== "unknown") ? path.basename(p.path) : "Other",
-        input: Number(p.input) || 0, output: Number(p.output) || 0,
-        cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0,
-        cost: Number(p.cost) || 0, calls: Number(p.calls) || 0,
+        name: p.path && p.path !== "unknown" ? path.basename(p.path) : "Other",
+        input: Number(p.input) || 0,
+        output: Number(p.output) || 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: Number(p.cost) || 0,
+        calls: Number(p.calls) || 0,
       })),
       models: (payload.models ?? []).map((m) => ({
         model: m.model || "unknown",
-        input: Number(m.input) || 0, output: Number(m.output) || 0,
-        cacheRead: 0, cacheCreate5m: 0, cacheCreate1h: 0,
-        cost: Number(m.cost) || 0, calls: Number(m.calls) || 0,
+        input: Number(m.input) || 0,
+        output: Number(m.output) || 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: Number(m.cost) || 0,
+        calls: Number(m.calls) || 0,
       })),
       devices: (payload.devices ?? []).map((d) => ({
         deviceId: d.deviceId || "unknown",
         isCurrentDevice: d.deviceId === currentDeviceId,
-        input: Number(d.input) || 0, output: Number(d.output) || 0,
-        cost: Number(d.cost) || 0, calls: Number(d.calls) || 0,
+        input: Number(d.input) || 0,
+        output: Number(d.output) || 0,
+        cost: Number(d.cost) || 0,
+        calls: Number(d.calls) || 0,
       })),
     };
   } catch (err) {
@@ -498,7 +581,10 @@ export async function queryCloudUsage(dateStr: string): Promise<CloudUsageSummar
  * Query cloud heatmap data (all devices, last 91 days).
  * Uses server-side RPC aggregation to avoid PostgREST row limits.
  */
-export async function queryCloudHeatmap(): Promise<Record<string, { tokens: number; cost: number }> | null> {
+export async function queryCloudHeatmap(): Promise<Record<
+  string,
+  { tokens: number; cost: number }
+> | null> {
   if (!isLoggedIn()) return null;
 
   const supabase = getSupabase();
@@ -506,7 +592,11 @@ export async function queryCloudHeatmap(): Promise<Record<string, { tokens: numb
 
   const HEATMAP_DAYS = 91;
   const today = new Date();
-  const startLocal = new Date(today.getFullYear(), today.getMonth(), today.getDate() - (HEATMAP_DAYS - 1));
+  const startLocal = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - (HEATMAP_DAYS - 1),
+  );
   const utcStart = new Date(startLocal.getTime()).toISOString();
 
   try {
@@ -520,7 +610,8 @@ export async function queryCloudHeatmap(): Promise<Record<string, { tokens: numb
       return null;
     }
 
-    const payload = parseRpcPayload<Record<string, { tokens: number; cost: number }>>(data);
+    const payload =
+      parseRpcPayload<Record<string, { tokens: number; cost: number }>>(data);
     if (!payload) return {};
 
     return Object.fromEntries(

@@ -1,6 +1,7 @@
 import net from "node:net";
 import fs from "node:fs";
 import os from "node:os";
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
 export interface HookEvent {
   terminal_id: string;
@@ -94,7 +95,7 @@ export class HookReceiver {
           this.eventsReceived++;
           this.lastEventAt = new Date().toISOString();
 
-          console.log(
+          if (isDev) console.log(
             `[HookReceiver] ${parsed.hook_event_name} terminal=${parsed.terminal_id}` +
             (parsed.tool_name ? ` tool=${parsed.tool_name}` : "") +
             (parsed.session_id ? ` session=${parsed.session_id}` : "") +

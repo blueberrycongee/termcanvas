@@ -2,6 +2,7 @@ import fs from "fs";
 import { spawn } from "child_process";
 import { buildLaunchSpec } from "./pty-launch";
 import { resolveSessionFile } from "./session-watcher";
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
 type SummaryCli = "claude" | "codex";
 type SessionType = "claude" | "codex";
@@ -104,23 +105,23 @@ export async function generateSummary(
   const tag = `[Summary ${terminalId.slice(0, 8)}]`;
 
   if (inFlight.has(terminalId)) {
-    console.log(`${tag} skipped: already in flight`);
+    if (isDev) console.log(`${tag} skipped: already in flight`);
     return { ok: false, error: "Summary already in progress for this terminal" };
   }
 
-  console.log(`${tag} resolving session file: sessionId=${sessionId} type=${sessionType} cwd=${cwd}`);
+  if (isDev) console.log(`${tag} resolving session file: sessionId=${sessionId} type=${sessionType} cwd=${cwd}`);
   const sessionFile = resolveSessionFile(sessionId, sessionType, cwd);
   if (!sessionFile || !fs.existsSync(sessionFile)) {
     console.warn(`${tag} session file not found: ${sessionFile ?? "null"}`);
     return { ok: false, error: "Session file not found" };
   }
   const fileSize = fs.statSync(sessionFile).size;
-  console.log(`${tag} session file: ${sessionFile} (${fileSize} bytes)`);
+  if (isDev) console.log(`${tag} session file: ${sessionFile} (${fileSize} bytes)`);
 
   inFlight.add(terminalId);
   try {
     const prompt = LOCALE_PROMPTS[locale] ?? LOCALE_PROMPTS.en;
-    console.log(`${tag} invoking ${summaryCli} --resume ${sessionId} (locale=${locale})...`);
+    if (isDev) console.log(`${tag} invoking ${summaryCli} --resume ${sessionId} (locale=${locale})...`);
 
     const raw = await invokeSummaryCli(summaryCli, sessionId, prompt, cwd);
     const summary = raw.trim().replace(/\n+/g, " ").slice(0, 120);
@@ -130,7 +131,7 @@ export async function generateSummary(
       return { ok: false, error: "CLI returned empty response" };
     }
 
-    console.log(`${tag} success: "${summary}"`);
+    if (isDev) console.log(`${tag} success: "${summary}"`);
     return { ok: true, summary, sessionFileSize: fileSize };
   } catch (err) {
     console.error(`${tag} failed:`, err);

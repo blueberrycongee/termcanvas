@@ -7,6 +7,8 @@ import type {
   TelemetryTurnState,
 } from "../shared/telemetry.ts";
 
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
+
 export type SessionType = "claude" | "codex" | "kimi" | "wuu";
 
 interface CompletionSignal {
@@ -1031,9 +1033,10 @@ export class SessionWatcher {
       return { ok: false, reason: "session-file-not-found" };
     }
 
-    console.log(
-      `[SessionWatcher] watch session=${sessionId} type=${type} file=${filePath}`,
-    );
+    if (isDev)
+      console.log(
+        `[SessionWatcher] watch session=${sessionId} type=${type} file=${filePath}`,
+      );
 
     const dir = path.dirname(filePath);
     const basename = path.basename(filePath);
@@ -1073,13 +1076,15 @@ export class SessionWatcher {
       entry.lastNotifiedMtime = currentMtime;
 
       const result = checkTurnComplete(filePath, type);
-      console.log(
-        `[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed} awaitingNewTurn=${awaitingNewTurn}`,
-      );
+      if (isDev)
+        console.log(
+          `[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed} awaitingNewTurn=${awaitingNewTurn}`,
+        );
       if (result.completed) {
         if (!awaitingNewTurn) {
           awaitingNewTurn = true;
-          console.log(`[SessionWatcher] completed session=${sessionId}`);
+          if (isDev)
+            console.log(`[SessionWatcher] completed session=${sessionId}`);
           callback();
           return true;
         }
@@ -1093,9 +1098,10 @@ export class SessionWatcher {
     const watcher = fs.watch(dir, (event, changedFile) => {
       if (changedFile && changedFile !== basename) return;
 
-      console.log(
-        `[SessionWatcher] fs.watch event=${event} file=${changedFile} session=${sessionId}`,
-      );
+      if (isDev)
+        console.log(
+          `[SessionWatcher] fs.watch event=${event} file=${changedFile} session=${sessionId}`,
+        );
 
       let newMtime = 0;
       try {
@@ -1124,9 +1130,10 @@ export class SessionWatcher {
       const entry = this.entries.get(sessionId);
       if (!entry) return;
 
-      console.log(
-        `[SessionWatcher] starting fallback polling for session=${sessionId}`,
-      );
+      if (isDev)
+        console.log(
+          `[SessionWatcher] starting fallback polling for session=${sessionId}`,
+        );
       entry.pollTimer = setInterval(() => {
         if (!this.entries.has(sessionId)) {
           const e = this.entries.get(sessionId);
@@ -1150,9 +1157,10 @@ export class SessionWatcher {
     if (lastNotifiedMtime > 0) {
       const result = checkTurnComplete(filePath, type);
       if (result.completed) {
-        console.log(
-          `[SessionWatcher] initial check: already completed session=${sessionId}`,
-        );
+        if (isDev)
+          console.log(
+            `[SessionWatcher] initial check: already completed session=${sessionId}`,
+          );
         awaitingNewTurn = true;
         callback();
       }
@@ -1164,7 +1172,7 @@ export class SessionWatcher {
   unwatch(sessionId: string): void {
     const entry = this.entries.get(sessionId);
     if (!entry) return;
-    console.log(`[SessionWatcher] unwatch session=${sessionId}`);
+    if (isDev) console.log(`[SessionWatcher] unwatch session=${sessionId}`);
     entry.watcher.close();
     if (entry.debounceTimer) clearTimeout(entry.debounceTimer);
     if (entry.pollTimer) {

@@ -485,7 +485,7 @@ function createWindow() {
     try {
       const port = await apiServer.start();
       writePortFile(port);
-      console.log(`[TermCanvas API] http://127.0.0.1:${port}`);
+      if (isDev) console.log(`[TermCanvas API] http://127.0.0.1:${port}`);
     } catch (err) {
       console.error("[TermCanvas API] Failed to start:", err);
     }

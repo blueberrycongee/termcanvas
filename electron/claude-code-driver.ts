@@ -6,6 +6,8 @@
 import { spawn, type ChildProcess } from "child_process";
 import type { AgentStreamEvent } from "../src/types/index.ts";
 
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
+
 interface ContentBlockDeltaText {
   type: "content_block_delta";
   delta: { type: "text_delta"; text: string };
@@ -163,7 +165,7 @@ export class ClaudeCodeDriver {
       ...this.options.env,
     };
 
-    console.log("[ClaudeCodeDriver] start:", { args, cwd: this.options.cwd, sessionId: this.options.sessionId });
+    if (isDev) console.log("[ClaudeCodeDriver] start:", { args, cwd: this.options.cwd, sessionId: this.options.sessionId });
 
     this.proc = spawn("claude", args, {
       cwd: this.options.cwd,
@@ -171,20 +173,20 @@ export class ClaudeCodeDriver {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
-    console.log("[ClaudeCodeDriver] process spawned, pid:", this.proc.pid);
+    if (isDev) console.log("[ClaudeCodeDriver] process spawned, pid:", this.proc.pid);
 
     this.proc.stdout?.setEncoding("utf-8");
     this.proc.stdout?.on("data", (chunk: string) => {
-      console.log("[ClaudeCodeDriver] stdout chunk:", chunk.slice(0, 200));
+      if (isDev) console.log("[ClaudeCodeDriver] stdout chunk:", chunk.slice(0, 200));
       this.onStdoutData(chunk);
     });
     this.proc.stderr?.setEncoding("utf-8");
     this.proc.stderr?.on("data", (chunk: string) => {
-      console.log("[ClaudeCodeDriver] stderr:", chunk.trimEnd());
+      if (isDev) console.log("[ClaudeCodeDriver] stderr:", chunk.trimEnd());
     });
 
     this.proc.on("exit", (code, signal) => {
-      console.log("[ClaudeCodeDriver] process exited, code:", code, "signal:", signal);
+      if (isDev) console.log("[ClaudeCodeDriver] process exited, code:", code, "signal:", signal);
       this.proc = null;
       if (!this.destroyed) {
         this.emit({ type: "stream_end" });
@@ -192,13 +194,13 @@ export class ClaudeCodeDriver {
     });
 
     this.proc.on("error", (err) => {
-      console.log("[ClaudeCodeDriver] process error:", err.message);
+      if (isDev) console.log("[ClaudeCodeDriver] process error:", err.message);
       this.emit({ type: "error", error: { message: err.message } });
     });
   }
 
   send(text: string): void {
-    console.log("[ClaudeCodeDriver] send:", text.slice(0, 100), "| proc alive:", !!this.proc, "| stdin writable:", !!this.proc?.stdin?.writable);
+    if (isDev) console.log("[ClaudeCodeDriver] send:", text.slice(0, 100), "| proc alive:", !!this.proc, "| stdin writable:", !!this.proc?.stdin?.writable);
     this.writeStdin({
       type: "user",
       message: { role: "user", content: text },
@@ -314,7 +316,7 @@ export class ClaudeCodeDriver {
   }
 
   private processMessage(msg: CCStdoutMessage): void {
-    console.log("[ClaudeCodeDriver] event:", msg.type, "subtype" in msg ? (msg as { subtype?: string }).subtype : "");
+    if (isDev) console.log("[ClaudeCodeDriver] event:", msg.type, "subtype" in msg ? (msg as { subtype?: string }).subtype : "");
     switch (msg.type) {
       case "system":
         this.handleSystem(msg as CCSystemInit);

@@ -6,6 +6,7 @@ import crypto from "crypto";
 import os from "os";
 import { TERMCANVAS_DIR } from "./state-persistence";
 import { startOAuthCallbackServer, type CallbackResult } from "./oauth-callback-server";
+const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
 interface AuthUser {
   id: string;
@@ -50,7 +51,7 @@ function saveSession(session: Session): void {
       mode: 0o600,
     });
     fs.renameSync(tmp, AUTH_FILE);
-    console.log("[Auth] Session saved");
+    if (isDev) console.log("[Auth] Session saved");
   } catch (err) {
     console.error("[Auth] Failed to save session:", err);
   }
@@ -72,7 +73,7 @@ function clearSession(): void {
     if (fs.existsSync(AUTH_FILE)) {
       fs.unlinkSync(AUTH_FILE);
     }
-    console.log("[Auth] Session cleared");
+    if (isDev) console.log("[Auth] Session cleared");
   } catch (err) {
     console.error("[Auth] Failed to clear session:", err);
   }
@@ -88,7 +89,7 @@ function loadOrCreateDeviceId(): string {
     }
     const id = crypto.randomUUID();
     fs.writeFileSync(DEVICE_ID_FILE, id, { encoding: "utf-8", mode: 0o600 });
-    console.log("[Auth] Generated device ID");
+    if (isDev) console.log("[Auth] Generated device ID");
     return id;
   } catch (err) {
     console.error("[Auth] Failed to manage device ID:", err);
@@ -153,7 +154,7 @@ async function processCallbackResult(result: CallbackResult): Promise<LoginResul
 
     case "success": {
       try {
-        console.log("[Auth] Exchanging authorization code for session...");
+        if (isDev) console.log("[Auth] Exchanging authorization code for session...");
         const { data, error } = await supabase.auth.exchangeCodeForSession(result.code);
 
         if (error) {
@@ -165,7 +166,7 @@ async function processCallbackResult(result: CallbackResult): Promise<LoginResul
           saveSession(data.session);
           const user = extractUser(data.session);
           setUser(user);
-          console.log("[Auth] Login successful, user:", user?.username);
+          if (isDev) console.log("[Auth] Login successful, user:", user?.username);
           return { ok: true };
         }
 
@@ -229,7 +230,7 @@ export async function login(): Promise<LoginResult> {
 
     // Log the OAuth URL for debugging PKCE issues
     const oauthUrl = new URL(data.url);
-    console.log(
+    if (isDev) console.log(
       `[Auth] OAuth URL generated (code_challenge present: ${oauthUrl.searchParams.has("code_challenge")})`,
     );
 
@@ -263,15 +264,15 @@ export async function logout(): Promise<void> {
 
   clearSession();
   setUser(null);
-  console.log("[Auth] Logged out");
+  if (isDev) console.log("[Auth] Logged out");
 }
 
 export async function initAuth(): Promise<void> {
   deviceId = loadOrCreateDeviceId();
-  console.log("[Auth] Device ID loaded");
+  if (isDev) console.log("[Auth] Device ID loaded");
 
   if (!isConfigured()) {
-    console.log("[Auth] Supabase not configured, skipping auth init");
+    if (isDev) console.log("[Auth] Supabase not configured, skipping auth init");
     return;
   }
 
@@ -305,7 +306,7 @@ export async function initAuth(): Promise<void> {
         console.error("[Auth] Failed to restore session:", error.message);
         clearSession();
       } else if (data.session) {
-        console.log("[Auth] Session restored");
+        if (isDev) console.log("[Auth] Session restored");
       }
     } catch (err) {
       console.error("[Auth] Session restore error:", err);
@@ -371,7 +372,7 @@ export async function handleAuthCallback(url: string): Promise<void> {
     if (data.session) {
       saveSession(data.session);
       setUser(extractUser(data.session));
-      console.log("[Auth] Login successful, user:", extractUser(data.session)?.username);
+      if (isDev) console.log("[Auth] Login successful, user:", extractUser(data.session)?.username);
     }
   } catch (err) {
     console.error("[Auth] Callback handling error:", err);
