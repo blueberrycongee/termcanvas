@@ -149,6 +149,11 @@ import { isSelectAllShortcutInput } from "./select-all-shortcut";
 import { isReloadShortcutInput } from "./reload-shortcut";
 import { TelemetryService } from "./telemetry-service";
 import { createRenderDiagnosticsLogger } from "./render-diagnostics";
+import {
+  collectMainSnapshot,
+  openReportIssue,
+} from "./diagnostics-snapshot";
+import type { ReportIssueRequest } from "../shared/diagnostics-snapshot";
 import { RenderThrottlingCoordinator } from "./render-throttling-coordinator";
 import { HookReceiver } from "./hook-receiver";
 import {
@@ -1360,6 +1365,20 @@ function setupIpc() {
   ipcMain.handle("diagnostics:get-render-log-info", () => {
     return renderDiagnostics.getLogInfo();
   });
+
+  ipcMain.handle("diagnostics:collect-main-snapshot", async () => {
+    return collectMainSnapshot(
+      mainWindow,
+      renderDiagnostics.getLogInfo().filePath,
+    );
+  });
+
+  ipcMain.handle(
+    "diagnostics:open-report-issue",
+    (_event, request: ReportIssueRequest) => {
+      return openReportIssue(request);
+    },
+  );
 
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
   ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());

@@ -76,6 +76,17 @@ export function createMenu(mainWindow: BrowserWindow) {
         { role: "togglefullscreen" as const },
       ],
     },
+    {
+      role: "help" as const,
+      submenu: [
+        {
+          label: "Report Issue...",
+          click: () => {
+            mainWindow.webContents.send("menu:report-issue");
+          },
+        },
+      ],
+    },
   ];
 
   const menu = Menu.buildFromTemplate(template);

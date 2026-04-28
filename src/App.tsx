@@ -18,6 +18,8 @@ import { DiscoveryCue } from "./components/DiscoveryCue";
 import { StatusDigest } from "./components/StatusDigest";
 import { CompletionGlow } from "./components/CompletionGlow";
 import { initSessionStoreIPC } from "./stores/sessionStore";
+import { useNotificationStore } from "./stores/notificationStore";
+import { triggerReportIssue } from "./terminal/reportIssue";
 import { SearchModal } from "./components/SearchModal";
 import { CommandPalette } from "./components/CommandPalette/CommandPalette";
 import { UsageOverlay } from "./components/UsageOverlay";
@@ -298,10 +300,32 @@ export function App() {
         selectFocusedTerminalBuffer,
       );
     });
+    const removeReportIssueListener = window.termcanvas.menu.onReportIssue(
+      () => {
+        void triggerReportIssue().then((result) => {
+          if (result.outcome === "clipboard-fallback") {
+            useNotificationStore
+              .getState()
+              .notify(
+                "info",
+                "Diagnostics copied to clipboard — paste into the issue body.",
+              );
+          } else if (result.outcome === "error") {
+            useNotificationStore
+              .getState()
+              .notify(
+                "warn",
+                `Failed to open issue: ${result.errorMessage ?? "unknown"}`,
+              );
+          }
+        });
+      },
+    );
 
     return () => {
       removeOpenFolderListener();
       removeSelectAllListener();
+      removeReportIssueListener();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);

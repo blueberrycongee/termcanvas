@@ -3,6 +3,11 @@ import type {
   RenderDiagnosticEventInput,
   RenderDiagnosticsLogInfo,
 } from "../shared/render-diagnostics";
+import type {
+  MainSnapshot,
+  ReportIssueRequest,
+  ReportIssueResult,
+} from "../shared/diagnostics-snapshot";
 import type { SessionHistoryChangedEvent } from "../shared/sessions";
 
 contextBridge.exposeInMainWorld("termcanvas", {
@@ -167,6 +172,15 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke(
         "diagnostics:get-render-log-info",
       ) as Promise<RenderDiagnosticsLogInfo>,
+    collectMainSnapshot: () =>
+      ipcRenderer.invoke(
+        "diagnostics:collect-main-snapshot",
+      ) as Promise<MainSnapshot>,
+    openReportIssue: (request: ReportIssueRequest) =>
+      ipcRenderer.invoke(
+        "diagnostics:open-report-issue",
+        request,
+      ) as Promise<ReportIssueResult>,
   },
   lifecycle: {
     onVisible: (
@@ -1022,6 +1036,11 @@ contextBridge.exposeInMainWorld("termcanvas", {
       const listener = () => callback();
       ipcRenderer.on("menu:select-all", listener);
       return () => ipcRenderer.removeListener("menu:select-all", listener);
+    },
+    onReportIssue: (callback: () => void) => {
+      const listener = () => callback();
+      ipcRenderer.on("menu:report-issue", listener);
+      return () => ipcRenderer.removeListener("menu:report-issue", listener);
     },
   },
   pins: {

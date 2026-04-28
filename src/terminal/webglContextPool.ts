@@ -216,6 +216,35 @@ export function touch(terminalId: string): void {
   recordWebGLDiagnostic("webgl_touch", terminalId);
 }
 
+export interface WebGLPoolDiagnosticSnapshot {
+  poolSize: number;
+  maxContexts: number;
+  focusedTerminalId: string | null;
+  trackedTerminalIds: string[];
+  contextLossCount: number;
+  lastContextLossAt: string | null;
+}
+
+export function getWebGLPoolDiagnosticSnapshot(): WebGLPoolDiagnosticSnapshot {
+  let contextLossCount = 0;
+  let lastContextLossAt: string | null = null;
+  try {
+    const raw = localStorage.getItem("tc:webgl-loss-count");
+    contextLossCount = raw ? Number.parseInt(raw, 10) || 0 : 0;
+    lastContextLossAt = localStorage.getItem("tc:webgl-loss-last");
+  } catch {
+    // localStorage may be unavailable in some test envs.
+  }
+  return {
+    poolSize: entries.size,
+    maxContexts: MAX_CONTEXTS,
+    focusedTerminalId: focusedId,
+    trackedTerminalIds: [...entries.keys()],
+    contextLossCount,
+    lastContextLossAt,
+  };
+}
+
 function evictLRU(): void {
   let oldest: PoolEntry | null = null;
   for (const entry of entries.values()) {

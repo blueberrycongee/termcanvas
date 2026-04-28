@@ -2203,6 +2203,40 @@ export function getTerminalPtyId(terminalId: string): number | null {
   return runtime?.ptyId ?? null;
 }
 
+export interface TerminalDiagnosticSnapshot {
+  id: string;
+  rendererMode: TerminalRendererMode;
+  status: TerminalStatus;
+  mode: TerminalMountMode;
+  hasXterm: boolean;
+  isAttached: boolean;
+  isFocused: boolean;
+  cols: number | null;
+  rows: number | null;
+}
+
+// Privacy-safe shape: enums, booleans, the internal terminal UUID, and
+// xterm grid dimensions only. No labels, no cwd, no buffer content. The
+// schema is fixed in `shared/diagnostics-snapshot.ts` — keep this getter
+// in sync with it.
+export function getTerminalDiagnosticSnapshots(): TerminalDiagnosticSnapshot[] {
+  const out: TerminalDiagnosticSnapshot[] = [];
+  for (const runtime of runtimeRegistry.values()) {
+    out.push({
+      id: runtime.meta.terminal.id,
+      rendererMode: runtime.rendererMode,
+      status: runtime.currentStatus,
+      mode: runtime.mode,
+      hasXterm: !!runtime.xterm,
+      isAttached: !!runtime.attachedContainer,
+      isFocused: runtime.meta.terminal.focused,
+      cols: runtime.xterm?.cols ?? null,
+      rows: runtime.xterm?.rows ?? null,
+    });
+  }
+  return out;
+}
+
 export type { ManagedTerminalRuntime };
 
 export function getTerminalRuntime(
