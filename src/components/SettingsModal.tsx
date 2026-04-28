@@ -67,6 +67,7 @@ const SHORTCUT_GROUPS: Array<{
       { key: "renameTerminalTitle", labelKey: "shortcut_rename_terminal_title" },
       { key: "closeFocused", labelKey: "shortcut_close_focused" },
       { key: "toggleStarFocused", labelKey: "shortcut_toggle_star_focused" },
+      { key: "openTerminalFind", labelKey: "shortcut_open_terminal_find" },
     ],
   },
   {

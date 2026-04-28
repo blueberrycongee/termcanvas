@@ -26,6 +26,7 @@ import {
 import { useNotificationStore } from "../stores/notificationStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { useShortcutStore, matchesShortcut } from "../stores/shortcutStore";
+import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { useT } from "../i18n/useT";
 import { useComposerStore } from "../stores/composerStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
@@ -605,6 +606,21 @@ export function useKeyboardShortcuts() {
             focused.worktreeId,
             focused.terminalId,
           );
+        }
+        return;
+      }
+
+      if (
+        matchesShortcut(e, shortcuts.openTerminalFind) &&
+        !isEditableTarget(e.target)
+      ) {
+        consumeShortcut();
+        const list = getAllTerminals();
+        const focusedIdx = getFocusedTerminalIndex(list);
+        if (focusedIdx !== -1) {
+          useTerminalFindStore
+            .getState()
+            .openFor(list[focusedIdx].terminalId);
         }
         return;
       }

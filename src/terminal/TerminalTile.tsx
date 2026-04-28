@@ -55,6 +55,7 @@ import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
 import { ActivitySparkline } from "./ActivitySparkline";
+import { TerminalFindOverlay } from "./TerminalFindOverlay";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface Props {
@@ -1320,6 +1321,7 @@ export function TerminalTile({
               }
             }}
           />
+          <TerminalFindOverlay terminalId={terminal.id} />
         </div>
       ) : (
         <div

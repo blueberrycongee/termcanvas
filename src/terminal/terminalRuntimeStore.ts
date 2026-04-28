@@ -3,6 +3,7 @@ import * as xtermModule from "@xterm/xterm";
 import type { Terminal as XtermTerminal, ILink, ILinkProvider } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { ImageAddon } from "@xterm/addon-image";
+import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import {
   acquireWebGL,
@@ -32,6 +33,7 @@ import {
   type TerminalRendererMode,
 } from "../stores/preferencesStore";
 import { useProjectStore } from "../stores/projectStore";
+import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { getTerminalDisplayTitle } from "../stores/terminalState";
 import {
   resolveTerminalWithRuntimeState,
@@ -139,6 +141,7 @@ interface ManagedTerminalRuntime {
   removeHookStopFailure: (() => void) | null;
   removeTurnComplete: (() => void) | null;
   resizeDisposable: { dispose(): void } | null;
+  searchAddon: SearchAddon | null;
   selectionAutoCopy: TerminalSelectionAutoCopyState;
   selectionDisposable: { dispose(): void } | null;
   selectionPointerCleanup: (() => void) | null;
@@ -947,6 +950,7 @@ function detachTerminalRenderer(
   runtime.xterm = null;
   runtime.fitAddon = null;
   runtime.serializeAddon = null;
+  runtime.searchAddon = null;
   removeTerminalHost(runtime);
 }
 
@@ -1128,6 +1132,7 @@ function createTerminalRenderer(
   });
   const fitAddon = new FitAddon();
   const serializeAddon = new SerializeAddon();
+  const searchAddon = new SearchAddon();
   const host = attachTerminalHost(runtime, container);
   if (!host) {
     return;
@@ -1135,6 +1140,7 @@ function createTerminalRenderer(
 
   xterm.loadAddon(fitAddon);
   xterm.loadAddon(serializeAddon);
+  xterm.loadAddon(searchAddon);
   xterm.open(host);
 
   try {
@@ -1167,6 +1173,7 @@ function createTerminalRenderer(
   runtime.xterm = xterm;
   runtime.fitAddon = fitAddon;
   runtime.serializeAddon = serializeAddon;
+  runtime.searchAddon = searchAddon;
   syncRuntimeRenderer(runtime);
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
@@ -1475,6 +1482,7 @@ function buildTerminalRuntime(
     removeHookStopFailure: null,
     removeTurnComplete: null,
     resizeDisposable: null,
+    searchAddon: null,
     selectionAutoCopy: createTerminalSelectionAutoCopyState(),
     selectionDisposable: null,
     selectionPointerCleanup: null,
@@ -2122,6 +2130,9 @@ export function destroyTerminalRuntime(
     ...getLifecycleDiagnosticData(cause),
     pty_present: runtime.ptyId !== null,
   });
+  if (useTerminalFindStore.getState().openTerminalId === terminalId) {
+    useTerminalFindStore.getState().close();
+  }
   runtime.disposed = true;
   clearRuntimeTimers(runtime);
   runtime.sessionCancel?.();
