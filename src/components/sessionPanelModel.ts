@@ -173,9 +173,9 @@ function deriveStateFromTelemetry(
     telemetry.last_input_at;
   const turnStartedAt = telemetry.turn_started_at;
 
-  // Attention is reserved for high-confidence signals only: a real
-  // process error, the agent explicitly waiting for input, or an exited
-  // PTY with a non-zero code. We deliberately do NOT promote
+  // Attention is reserved for signals that should be visible in the
+  // left panel: a real process error, `awaiting_input`, or an exited PTY
+  // with a non-zero code. We deliberately do NOT promote
   // `derived_status === "stall_candidate"` to attention — it's a
   // heuristic ("output has been quiet for a while") that fires on slow
   // models, which is the exact false positive we're trying to kill.
@@ -195,9 +195,10 @@ function deriveStateFromTelemetry(
     };
   }
 
-  // Main process sets turn_state to "awaiting_input" after PreToolUse
-  // has been pending for ≥5s — that gate is what makes this a confident
-  // signal rather than a flicker.
+  // Active review area: `awaiting_input` can be explicit (Claude
+  // Notification) or heuristic (provider-specific PreToolUse silence
+  // timer in telemetry-service.ts). Keep this path easy to audit because
+  // false positives here make the left panel show red.
   if (telemetry.turn_state === "awaiting_input") {
     return {
       state: "attention",
