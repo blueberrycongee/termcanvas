@@ -8,10 +8,7 @@ import { SettingsModal } from "../components/SettingsModal";
 import { UpdateModal } from "../components/UpdateModal";
 import { useT } from "../i18n/useT";
 import { getWorkspaceBaseName } from "../titleHelper";
-import {
-  formatShortcut,
-  useShortcutStore,
-} from "../stores/shortcutStore";
+import { formatShortcut, useShortcutStore } from "../stores/shortcutStore";
 
 export { TOOLBAR_HEIGHT } from "./toolbarHeight";
 
@@ -122,9 +119,7 @@ export function Toolbar() {
             style={ICON_BUTTON_TRANSITION}
             onClick={toggleTheme}
             title={theme === "dark" ? t.switch_to_light : t.switch_to_dark}
-            aria-label={
-              theme === "dark" ? t.switch_to_light : t.switch_to_dark
-            }
+            aria-label={theme === "dark" ? t.switch_to_light : t.switch_to_dark}
           >
             {/* Key on theme triggers the entrance pop on swap so the
                 glyph change reads as a deliberate state hand-off, not
@@ -147,6 +142,22 @@ export function Toolbar() {
             aria-label={t.settings}
           >
             <SettingsIcon />
+          </button>
+
+          <button
+            type="button"
+            className={iconButtonClass}
+            style={ICON_BUTTON_TRANSITION}
+            onClick={() =>
+              window.open(
+                "https://github.com/blueberrycongee/termcanvas",
+                "_blank",
+              )
+            }
+            title="Star on GitHub"
+            aria-label="Star on GitHub"
+          >
+            <StarIcon />
           </button>
         </div>
       </div>
@@ -228,13 +239,7 @@ function HubIcon() {
 function SunIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle
-        cx="7"
-        cy="7"
-        r="2.5"
-        stroke="currentColor"
-        strokeWidth="1.4"
-      />
+      <circle cx="7" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.4" />
       <path
         d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.93 2.93l1.06 1.06M10.01 10.01l1.06 1.06M2.93 11.07l1.06-1.06M10.01 3.99l1.06-1.06"
         stroke="currentColor"
@@ -267,13 +272,7 @@ function SettingsIcon() {
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
-      <circle
-        cx="7"
-        cy="7"
-        r="1.8"
-        stroke="currentColor"
-        strokeWidth="1.2"
-      />
+      <circle cx="7" cy="7" r="1.8" stroke="currentColor" strokeWidth="1.2" />
     </svg>
   );
 }
@@ -358,6 +357,19 @@ function SpinnerIcon({ className }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="1.3"
         strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StarIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 1l1.76 3.57L12.5 5.27 10.25 8.14l.43 3.86L7 10.73l-3.68 1.27.43-3.86L1.5 5.27l3.74-.7L7 1Z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
       />
     </svg>
   );
