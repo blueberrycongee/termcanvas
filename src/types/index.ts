@@ -8,6 +8,11 @@ import type {
   RenderDiagnosticEventInput,
   RenderDiagnosticsLogInfo,
 } from "../../shared/render-diagnostics";
+import type {
+  MainSnapshot,
+  ReportIssueRequest,
+  ReportIssueResult,
+} from "../../shared/diagnostics-snapshot";
 import type { SessionHistoryChangedEvent } from "../../shared/sessions";
 import type {
   Pin,
@@ -576,6 +581,8 @@ export interface TermCanvasAPI {
   diagnostics: {
     recordRenderEvent: (input: RenderDiagnosticEventInput) => Promise<void>;
     getRenderLogInfo: () => Promise<RenderDiagnosticsLogInfo>;
+    collectMainSnapshot: () => Promise<MainSnapshot>;
+    openReportIssue: (request: ReportIssueRequest) => Promise<ReportIssueResult>;
   };
   lifecycle: {
     onVisible: (
@@ -1087,6 +1094,7 @@ export interface TermCanvasAPI {
   menu: {
     onOpenFolder: (callback: (dirPath: string) => void) => () => void;
     onSelectAll: (callback: () => void) => () => void;
+    onReportIssue: (callback: () => void) => () => void;
   };
   pins: {
     list: (repo: string) => Promise<Pin[]>;
