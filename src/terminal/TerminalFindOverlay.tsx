@@ -40,6 +40,22 @@ export function TerminalFindOverlay({ terminalId }: Props) {
     return () => cancelAnimationFrame(id);
   }, [isOpen, focusNonce]);
 
+  // Window-level Esc capture so the overlay closes regardless of which
+  // element currently owns focus. Without this, Esc only worked when the
+  // input itself had focus — and after the user clicked into xterm to
+  // re-anchor a selection, Esc would silently fall through.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      close();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [isOpen, close]);
+
   if (!isOpen) return null;
 
   const counterText =
@@ -62,7 +78,7 @@ export function TerminalFindOverlay({ terminalId }: Props) {
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
-      style={{ minWidth: 300 }}
+      style={{ minWidth: 240, maxWidth: "calc(100% - 16px)" }}
     >
       <input
         ref={inputRef}

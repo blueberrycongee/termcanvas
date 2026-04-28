@@ -781,6 +781,13 @@ export function TerminalTile({
       // open link, etc.). Don't hijack them.
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       if (useHandoffDragStore.getState().active) return;
+      // While the find overlay is open, the active match is held as a real
+      // xterm selection. Letting the pickup handler fire on that would
+      // prevent the user from drag-selecting new text — which is exactly
+      // the workflow they're trying to do mid-search.
+      if (useTerminalFindStore.getState().openTerminalId === terminal.id) {
+        return;
+      }
 
       const xterm = getTerminalRuntime(terminal.id)?.xterm;
       if (!xterm || !xterm.hasSelection()) return;

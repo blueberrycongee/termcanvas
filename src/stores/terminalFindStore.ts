@@ -51,20 +51,18 @@ function clearForTerminal(terminalId: string | null) {
 
 function buildSearchOptions(
   state: Pick<FindState, "caseSensitive" | "wholeWord" | "useRegex">,
-  incremental: boolean,
 ): ISearchOptions {
   return {
     caseSensitive: state.caseSensitive,
     wholeWord: state.wholeWord,
     regex: state.useRegex,
-    incremental,
     decorations: DECORATIONS,
   };
 }
 
 export const useTerminalFindStore = create<FindState & FindActions>(
   (set, get) => {
-    function rerunSearch(opts: { incremental: boolean }) {
+    function rerunSearch() {
       const state = get();
       if (!state.openTerminalId || !state.query) {
         if (state.openTerminalId) {
@@ -74,7 +72,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
         return;
       }
       const search = getTerminalRuntime(state.openTerminalId)?.searchAddon;
-      search?.findNext(state.query, buildSearchOptions(state, opts.incremental));
+      search?.findNext(state.query, buildSearchOptions(state));
     }
 
     return {
@@ -130,7 +128,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
         detachResultsListener = () => disp.dispose();
 
         if (initialQuery) {
-          search.findNext(initialQuery, buildSearchOptions(get(), false));
+          search.findNext(initialQuery, buildSearchOptions(get()));
         }
       },
 
@@ -148,36 +146,36 @@ export const useTerminalFindStore = create<FindState & FindActions>(
 
       setQuery: (query) => {
         set({ query });
-        rerunSearch({ incremental: true });
+        rerunSearch();
       },
 
       findNext: () => {
         const { openTerminalId, query } = get();
         if (!openTerminalId || !query) return;
         const search = getTerminalRuntime(openTerminalId)?.searchAddon;
-        search?.findNext(query, buildSearchOptions(get(), false));
+        search?.findNext(query, buildSearchOptions(get()));
       },
 
       findPrevious: () => {
         const { openTerminalId, query } = get();
         if (!openTerminalId || !query) return;
         const search = getTerminalRuntime(openTerminalId)?.searchAddon;
-        search?.findPrevious(query, buildSearchOptions(get(), false));
+        search?.findPrevious(query, buildSearchOptions(get()));
       },
 
       toggleCaseSensitive: () => {
         set({ caseSensitive: !get().caseSensitive });
-        rerunSearch({ incremental: true });
+        rerunSearch();
       },
 
       toggleWholeWord: () => {
         set({ wholeWord: !get().wholeWord });
-        rerunSearch({ incremental: true });
+        rerunSearch();
       },
 
       toggleUseRegex: () => {
         set({ useRegex: !get().useRegex });
-        rerunSearch({ incremental: true });
+        rerunSearch();
       },
     };
   },
