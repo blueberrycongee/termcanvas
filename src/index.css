@@ -563,9 +563,9 @@ a.tc-kbd:active {
 
 /* Hover-only action affordances (minimise, close, edit-title icon).
    Idle = invisible; reveal on tile hover, focus, or keyboard focus.
-   data-pinned="true" keeps a control visible regardless — used for
-   state marks (a starred tile keeps its star so the mark persists
-   without hover). */
+   data-visible="always" keeps structural controls visible; data-pinned="true"
+   keeps state marks visible regardless — used for a starred tile so the mark
+   persists without hover. */
 .tc-tile-action {
   opacity: 0;
   transition:
@@ -576,6 +576,7 @@ a.tc-kbd:active {
 .terminal-tile:hover .tc-tile-action,
 .terminal-tile[data-focused="true"] .tc-tile-action,
 .terminal-tile .tc-tile-action:focus-visible,
+.terminal-tile .tc-tile-action[data-visible="always"],
 .terminal-tile .tc-tile-action[data-pinned="true"] {
   opacity: 1;
 }

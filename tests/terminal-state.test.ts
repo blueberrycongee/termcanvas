@@ -145,6 +145,58 @@ test("TerminalTile gives the worktree branch label layout priority over truncati
   assert.doesNotMatch(match[1], /max-w-\[9rem\]/);
 });
 
+test("TerminalTile keeps minimize and close controls visible without hover", async () => {
+  const terminal: TerminalData = {
+    id: "terminal-1",
+    title: "Terminal",
+    type: "shell",
+    minimized: false,
+    focused: false,
+    ptyId: null,
+    status: "idle",
+    span: { cols: 1, rows: 1 },
+  };
+
+  Object.assign(globalThis, {
+    localStorage: {
+      getItem: () => null,
+      setItem: () => undefined,
+      removeItem: () => undefined,
+    },
+  });
+
+  const { TerminalTile } = await import("../src/terminal/TerminalTile.tsx");
+  const { useTerminalRuntimeStore } = await import(
+    "../src/terminal/terminalRuntimeStore.ts"
+  );
+
+  useTerminalRuntimeStore.setState({
+    terminals: {
+      [terminal.id]: {
+        copiedNonce: 0,
+        mode: "parked",
+        previewText: "",
+        telemetry: null,
+      },
+    },
+  });
+
+  const html = renderToStaticMarkup(
+    createElement(TerminalTile, {
+      lodMode: "parked",
+      projectId: "project-1",
+      worktreeId: "worktree-1",
+      worktreeName: "main",
+      worktreePath: "/tmp/project-1-main",
+      terminal,
+      width: 640,
+      height: 480,
+    }),
+  );
+
+  assert.equal((html.match(/data-visible="always"/g) ?? []).length, 2);
+});
+
 test("withToggledTerminalStarred flips the terminal star state", () => {
   const terminal: TerminalData = {
     id: "terminal-1",

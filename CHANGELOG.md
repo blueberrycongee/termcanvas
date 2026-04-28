@@ -11,6 +11,7 @@ All notable changes to TermCanvas will be documented in this file.
 ### Fixed
 - **Literal `\n` leaked into pin detail views**: pin bodies now normalize agent-style escaped line breaks at the store boundary while preserving single literal newline-escape mentions.
 - **Terminal cursor stayed as a grab hand in default hand mode**: the canvas still defaults to Hand, but terminal tiles opt out of the inherited pan cursor and xterm text areas keep the text-selection cursor.
+- **Terminal tile window controls were hidden until hover**: minimize and close controls now stay visible while hover-only state marks still use the existing reveal behavior.
 
 ## [0.38.3] - 2026-04-27
 

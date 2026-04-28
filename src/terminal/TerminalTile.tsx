@@ -1170,6 +1170,7 @@ export function TerminalTile({
         <div className="flex items-center gap-0.5">
           <button
             className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
+            data-visible="always"
             data-pinned={terminal.minimized ? "true" : undefined}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
@@ -1200,6 +1201,7 @@ export function TerminalTile({
           </button>
           <button
             className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--red)] p-1 rounded-md hover:bg-[var(--border)]"
+            data-visible="always"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
