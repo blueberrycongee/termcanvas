@@ -89,6 +89,33 @@ export function ConfirmDialog({
     }
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return;
+    const dialog = confirmRef.current?.closest(
+      '[role="dialog"]',
+    ) as HTMLElement | null;
+    if (!dialog) return;
+
+    const trap = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    dialog.addEventListener("keydown", trap);
+    return () => dialog.removeEventListener("keydown", trap);
+  }, [open]);
+
   if (!open) return null;
 
   const confirmBaseClass =

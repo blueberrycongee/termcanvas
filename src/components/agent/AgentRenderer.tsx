@@ -500,19 +500,9 @@ export function AgentRenderer({
             >
               <span className="flex-1 min-w-0 break-words">{err.message}</span>
               <button
-                className="shrink-0"
+                className="shrink-0 opacity-100 hover:opacity-70 transition-opacity"
                 onClick={() => dismissError(err.id)}
                 aria-label="Dismiss error"
-                style={{
-                  transition:
-                    "opacity var(--duration-quick) var(--ease-out-soft)",
-                }}
-                onMouseEnter={(e) =>
-                  ((e.currentTarget as HTMLButtonElement).style.opacity = "0.7")
-                }
-                onMouseLeave={(e) =>
-                  ((e.currentTarget as HTMLButtonElement).style.opacity = "1")
-                }
               >
                 <svg
                   width="12"
@@ -534,28 +524,13 @@ export function AgentRenderer({
       {userScrolledUp && (
         <div className="relative shrink-0">
           <button
-            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 h-7 rounded-full tc-label backdrop-blur-md tc-enter-fade-up-quick"
+            className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 h-7 rounded-full tc-label backdrop-blur-md tc-enter-fade-up-quick bg-[color-mix(in_srgb,var(--surface)_86%,transparent)] text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text-primary)] transition-[background-color,color]"
             style={{
-              background: "color-mix(in srgb, var(--surface) 86%, transparent)",
-              color: "var(--text-secondary)",
               border: "1px solid var(--border)",
               boxShadow:
                 "0 4px 14px color-mix(in srgb, var(--shadow-color) 28%, transparent)",
-              transition:
-                "background-color var(--duration-quick) var(--ease-out-soft), color var(--duration-quick) var(--ease-out-soft)",
             }}
             onClick={scrollToBottom}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background = "var(--surface)";
-              el.style.color = "var(--text-primary)";
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget as HTMLButtonElement;
-              el.style.background =
-                "color-mix(in srgb, var(--surface) 86%, transparent)";
-              el.style.color = "var(--text-secondary)";
-            }}
           >
             {hasNewMessages ? "New messages" : "Scroll to bottom"}
           </button>

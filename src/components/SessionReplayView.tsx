@@ -12,7 +12,6 @@ import type { TerminalType } from "../types";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
 
-
 /*
  * Replay as a chat transcript.
  *
@@ -49,7 +48,10 @@ import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
  */
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function formatRelativeAge(iso: string): string {
@@ -237,7 +239,9 @@ function toolSubjectHint(event: TimelineEvent): string {
   // Prefer the detected file path (most user-recognisable anchor),
   // fall back to the first line of the tool input preview.
   if (event.filePath) {
-    return event.filePath.split(/[\\/]/).filter(Boolean).pop() ?? event.filePath;
+    return (
+      event.filePath.split(/[\\/]/).filter(Boolean).pop() ?? event.filePath
+    );
   }
   if (event.textPreview) {
     const firstLine = event.textPreview.split("\n", 1)[0].trim();
@@ -288,47 +292,49 @@ function TopicHeader({
     <div className="shrink-0 border-b border-[var(--border)] px-3 py-3">
       <div className="mx-auto max-w-[720px]">
         <div className="flex items-start gap-2">
-        <button
-          className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-          onClick={onBack}
-          title={backLabel}
-        >
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
-            <path
-              d="M8 1L3 6l5 5"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </button>
-        <div className="flex-1 min-w-0">
-          {/*
+          <button
+            className="mt-0.5 shrink-0 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
+            onClick={onBack}
+            title={backLabel}
+          >
+            <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M8 1L3 6l5 5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <div className="flex-1 min-w-0">
+            {/*
             Topic = first user prompt. line-clamp-2 keeps the header
             bounded even for wordy first turns; hover tooltip gives
             the full content if clamping hides the tail. 14 px prose
             with accent colour announces it as "the thing this
             conversation is about" without needing any chrome.
           */}
-          <div
-            className="text-[length:var(--text-md)] font-medium leading-snug text-[var(--text-primary)] line-clamp-2"
-            title={topic}
-          >
-            {topic || (
-              <span className="italic text-[var(--text-muted)]">(no prompt captured)</span>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 tc-meta tc-mono">
-            <span>{project}</span>
-            <span className="text-[var(--text-faint)]">·</span>
-            <span>{provider}</span>
-            <span className="text-[var(--text-faint)]">·</span>
-            <span>{age}</span>
-            <span className="text-[var(--text-faint)]">·</span>
-            <span className="tabular-nums">{messageCount} msgs</span>
-          </div>
-          {/*
+            <div
+              className="text-[length:var(--text-md)] font-medium leading-snug text-[var(--text-primary)] line-clamp-2"
+              title={topic}
+            >
+              {topic || (
+                <span className="italic text-[var(--text-muted)]">
+                  (no prompt captured)
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 tc-meta tc-mono">
+              <span>{project}</span>
+              <span className="text-[var(--text-faint)]">·</span>
+              <span>{provider}</span>
+              <span className="text-[var(--text-faint)]">·</span>
+              <span>{age}</span>
+              <span className="text-[var(--text-faint)]">·</span>
+              <span className="tabular-nums">{messageCount} msgs</span>
+            </div>
+            {/*
             Shell command the user can paste into their own terminal if
             they don't want to resume via the in-app button. Showing
             the full command (not just an ID) answers the "ok great, I
@@ -342,61 +348,61 @@ function TopicHeader({
             command itself starts with the provider name ("claude
             --resume …"), so the "$" prompt was redundant chrome.
           */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopyResume();
-            }}
-            className="mt-1.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--surface-hover)] cursor-pointer"
-            style={{ fontFamily: '"Geist Mono", monospace' }}
-            title={resumeCommand ? copyCmdTooltip : copyIdTooltip}
-          >
-            <span className="flex-1 truncate text-[length:var(--text-xs)] text-[var(--text-secondary)]">
-              {resumeCommand ?? sessionId}
-            </span>
-            <svg
-              width="11"
-              height="11"
-              viewBox="0 0 12 12"
-              fill="none"
-              className="shrink-0 text-[var(--text-muted)]"
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onCopyResume();
+              }}
+              className="mt-1.5 flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-[var(--surface-hover)] cursor-pointer"
+              style={{ fontFamily: '"Geist Mono", monospace' }}
+              title={resumeCommand ? copyCmdTooltip : copyIdTooltip}
             >
-              <rect
-                x="3.5"
-                y="1.5"
-                width="6"
-                height="7.5"
-                rx="1"
-                stroke="currentColor"
-                strokeWidth="1.1"
-              />
-              <path
-                d="M2.5 3.5v6.5a1 1 0 001 1H8"
-                stroke="currentColor"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-              />
+              <span className="flex-1 truncate text-[length:var(--text-xs)] text-[var(--text-secondary)]">
+                {resumeCommand ?? sessionId}
+              </span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 12 12"
+                fill="none"
+                className="shrink-0 text-[var(--text-muted)]"
+              >
+                <rect
+                  x="3.5"
+                  y="1.5"
+                  width="6"
+                  height="7.5"
+                  rx="1"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                />
+                <path
+                  d="M2.5 3.5v6.5a1 1 0 001 1H8"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </button>
+          </div>
+          <button
+            className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[length:var(--text-xs)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            style={{
+              color: !resumeDisabled ? "var(--accent)" : "var(--text-muted)",
+              backgroundColor: !resumeDisabled
+                ? "color-mix(in srgb, var(--accent) 12%, transparent)"
+                : "transparent",
+            }}
+            onClick={onResume}
+            disabled={resumeDisabled}
+            title={resumeTooltip}
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 1l6 4-6 4V1z" fill="currentColor" />
             </svg>
+            <span>{resumeLabel}</span>
           </button>
-        </div>
-        <button
-          className="mt-0.5 shrink-0 inline-flex h-6 items-center gap-1 rounded-md px-2 text-[length:var(--text-xs)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          style={{
-            color: !resumeDisabled ? "var(--accent)" : "var(--text-muted)",
-            backgroundColor: !resumeDisabled
-              ? "color-mix(in srgb, var(--accent) 12%, transparent)"
-              : "transparent",
-          }}
-          onClick={onResume}
-          disabled={resumeDisabled}
-          title={resumeTooltip}
-        >
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M2 1l6 4-6 4V1z" fill="currentColor" />
-          </svg>
-          <span>{resumeLabel}</span>
-        </button>
         </div>
       </div>
     </div>
@@ -441,13 +447,7 @@ function railColor(isCurrent: boolean): string {
  *  icon swaps to a check for ~1.2s. Same hover-brighten treatment as
  *  the fork affordance; never opacity-gated. Caller renders it inside
  *  whatever flex/absolute container the row needs. */
-function CopyMessageButton({
-  text,
-  label,
-}: {
-  text: string;
-  label: string;
-}) {
+function CopyMessageButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -562,7 +562,9 @@ function UserPrompt({
         >
           <div
             className={markdownClassName}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+            dangerouslySetInnerHTML={{
+              __html: renderMarkdown(event.textPreview),
+            }}
           />
         </button>
         <div className="mt-1 flex items-center gap-1.5">
@@ -614,10 +616,16 @@ function AssistantTextRow({
         data-current={isCurrent || undefined}
       >
         <div className="relative pl-5 pr-3 py-1 transition-colors">
-          <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
+          <span
+            aria-hidden
+            className={ROW_RAIL_CLS}
+            style={{ backgroundColor: railColor(isCurrent) }}
+          />
           <div
             className={markdownClassName}
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(event.textPreview) }}
+            dangerouslySetInnerHTML={{
+              __html: renderMarkdown(event.textPreview),
+            }}
           />
         </div>
       </button>
@@ -641,7 +649,13 @@ function AssistantTextRow({
                   "var(--text-muted)";
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                aria-hidden
+              >
                 <path
                   d="M4 12V8.5C4 7.4 4.9 6.5 6 6.5H8C9.1 6.5 10 5.6 10 4.5V2"
                   stroke="currentColor"
@@ -660,68 +674,52 @@ function AssistantTextRow({
                 <circle cx="10" cy="2" r="0.9" fill="currentColor" />
               </svg>
             </button>
-          {/* Outer wrapper has pt-1 so the 4px visual gap between the
+            {/* Outer wrapper has pt-1 so the 4px visual gap between the
               icon and the menu sits INSIDE the hover-tracked element.
               Without this, the cursor crossing the gap leaves the
               fork group's bounding box, group-hover/fork flips to
               false, and the menu hides before the cursor reaches it
               — the classic "hover gap" bug. */}
-          <div className="hidden group-hover/fork:block absolute right-0 top-full pt-1 z-10">
-            <div
-              className="flex flex-col rounded-md shadow-lg overflow-hidden whitespace-nowrap"
-              style={{
-                backgroundColor: "var(--surface)",
-                border: "1px solid var(--border)",
-              }}
-            >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFork("claude");
-              }}
-              className="px-3 py-1.5 text-left tc-mono cursor-pointer"
-              style={{
-                fontSize: "var(--text-xs)",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "var(--surface-hover)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "transparent";
-              }}
-            >
-              {forkClaudeLabel ?? "Continue in Claude"}
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onFork("codex");
-              }}
-              className="px-3 py-1.5 text-left tc-mono cursor-pointer"
-              style={{
-                fontSize: "var(--text-xs)",
-                color: "var(--text-primary)",
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "var(--surface-hover)";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-                  "transparent";
-              }}
-            >
-              {forkCodexLabel ?? "Continue in Codex"}
-            </button>
+            <div className="hidden group-hover/fork:block absolute right-0 top-full pt-1 z-10">
+              <div
+                className="flex flex-col rounded-md shadow-lg overflow-hidden whitespace-nowrap"
+                style={{
+                  backgroundColor: "var(--surface)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFork("claude");
+                  }}
+                  className="px-3 py-1.5 text-left tc-mono cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
+                  style={{
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {forkClaudeLabel ?? "Continue in Claude"}
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFork("codex");
+                  }}
+                  className="px-3 py-1.5 text-left tc-mono cursor-pointer hover:bg-[var(--surface-hover)] transition-colors"
+                  style={{
+                    fontSize: "var(--text-xs)",
+                    color: "var(--text-primary)",
+                  }}
+                >
+                  {forkCodexLabel ?? "Continue in Codex"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
     </div>
   );
@@ -746,7 +744,11 @@ function ThinkingRow({
       data-current={isCurrent || undefined}
     >
       <div className="relative pl-9 pr-3 py-0.5 transition-colors">
-        <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isCurrent) }} />
+        <span
+          aria-hidden
+          className={ROW_RAIL_CLS}
+          style={{ backgroundColor: railColor(isCurrent) }}
+        />
         <div
           className="italic whitespace-pre-wrap break-words"
           style={{
@@ -812,7 +814,10 @@ function ToolSubItem({
           onToggle();
         }}
       >
-        <span className="shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}>
+        <span
+          className="shrink-0"
+          style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}
+        >
           {expanded ? "▾" : "▸"}
         </span>
         <span
@@ -894,11 +899,14 @@ function ToolGroup({
     (it) => it.tool.index === currentIndex || it.result?.index === currentIndex,
   );
   const count = items.length;
-  const summary = count === 1
-    ? `${toolVerb(items[0].tool.toolName)}${
-        toolSubjectHint(items[0].tool) ? " " + toolSubjectHint(items[0].tool) : ""
-      }`
-    : summarizeToolNames(items);
+  const summary =
+    count === 1
+      ? `${toolVerb(items[0].tool.toolName)}${
+          toolSubjectHint(items[0].tool)
+            ? " " + toolSubjectHint(items[0].tool)
+            : ""
+        }`
+      : summarizeToolNames(items);
 
   // Tool runs read as subordinate via deeper indent (pl-9 vs pl-5 for
   // prose) + smaller muted mono label. No always-on rail: only the
@@ -908,7 +916,11 @@ function ToolGroup({
       className="group relative pl-9 pr-3 transition-colors"
       data-current={isGroupCurrent || undefined}
     >
-      <span aria-hidden className={ROW_RAIL_CLS} style={{ backgroundColor: railColor(isGroupCurrent) }} />
+      <span
+        aria-hidden
+        className={ROW_RAIL_CLS}
+        style={{ backgroundColor: railColor(isGroupCurrent) }}
+      />
       <button
         className="flex w-full items-center gap-1.5 text-left cursor-pointer py-0.5"
         onClick={(e) => {
@@ -917,11 +929,17 @@ function ToolGroup({
           onToggle();
         }}
       >
-        <span className="shrink-0" style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}>
+        <span
+          className="shrink-0"
+          style={{ fontSize: "var(--text-xs)", color: "var(--text-faint)" }}
+        >
           {expanded ? "▾" : "▸"}
         </span>
         {count > 1 && (
-          <span className="shrink-0 tc-mono tabular-nums" style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}>
+          <span
+            className="shrink-0 tc-mono tabular-nums"
+            style={{ fontSize: "var(--text-xs)", color: "var(--text-muted)" }}
+          >
             {count}
           </span>
         )}
@@ -1228,7 +1246,13 @@ export function SessionReplayView() {
 
   const handleResume = useCallback(() => {
     if (!resumeTarget) return;
-    const base = createTerminal(resumeTarget.provider, undefined, undefined, undefined, "user");
+    const base = createTerminal(
+      resumeTarget.provider,
+      undefined,
+      undefined,
+      undefined,
+      "user",
+    );
     base.sessionId = resumeTarget.sessionId;
 
     const created = createTerminalInScene({
@@ -1342,7 +1366,10 @@ export function SessionReplayView() {
   // Applies to both click-seek and playback. Smooth scroll works well
   // for small gaps; large jumps fall back to "nearest" behaviour.
   useEffect(() => {
-    currentRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    currentRef.current?.scrollIntoView({
+      block: "nearest",
+      behavior: "smooth",
+    });
   }, [currentIndex]);
 
   useEffect(() => {
@@ -1354,13 +1381,18 @@ export function SessionReplayView() {
     }
     const current = events[currentIndex];
     const next = events[currentIndex + 1];
-    const realDelta = new Date(next.timestamp).getTime() - new Date(current.timestamp).getTime();
+    const realDelta =
+      new Date(next.timestamp).getTime() -
+      new Date(current.timestamp).getTime();
     const interval = Math.max(50, Math.min(2000, realDelta / speed));
     const timer = setTimeout(() => stepForward(), interval);
     return () => clearTimeout(timer);
   }, [isPlaying, currentIndex, speed, timeline, stepForward, stopPlayback]);
 
-  const turns = useMemo(() => (timeline ? buildTurns(timeline.events) : []), [timeline]);
+  const turns = useMemo(
+    () => (timeline ? buildTurns(timeline.events) : []),
+    [timeline],
+  );
 
   // Per-turn user-prompt index, parallel to `turns`. The fork backend
   // counts user prompts (zero-indexed) — same predicate the replay
@@ -1380,7 +1412,6 @@ export function SessionReplayView() {
     }
     return indices;
   }, [turns]);
-
 
   // Loading / error panels — same shape as before.
   if (!timeline) {
@@ -1419,15 +1450,11 @@ export function SessionReplayView() {
       "info",
       (resumeCommand
         ? (t.session_replay_resume_cmd_copied as unknown as string)
-        : (t.session_replay_resume_id_copied as unknown as string)) ??
-        "Copied",
+        : (t.session_replay_resume_id_copied as unknown as string)) ?? "Copied",
     );
   };
 
-  const assignCurrentRef = (
-    el: HTMLElement | null,
-    isCurrent: boolean,
-  ) => {
+  const assignCurrentRef = (el: HTMLElement | null, isCurrent: boolean) => {
     if (isCurrent && el) currentRef.current = el;
   };
 
@@ -1454,9 +1481,9 @@ export function SessionReplayView() {
         resumeTooltip={
           resumeTarget
             ? ((t.session_replay_resume_tooltip as unknown as string) ??
-                `Resume in a new ${resumeTarget.provider} terminal (--resume ${resumeTarget.sessionId.slice(0, 8)})`)
+              `Resume in a new ${resumeTarget.provider} terminal (--resume ${resumeTarget.sessionId.slice(0, 8)})`)
             : ((t.session_replay_resume_unavailable as unknown as string) ??
-                "Add this project to the canvas to resume")
+              "Add this project to the canvas to resume")
         }
         resumeLabel={(t.session_replay_resume as unknown as string) ?? "Resume"}
         onBack={exitReplay}
@@ -1464,193 +1491,194 @@ export function SessionReplayView() {
         backLabel={(t.sessions_load_error_back as unknown as string) ?? "Back"}
       />
 
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-3"
-      >
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto px-3">
         <div className="mx-auto max-w-[720px] py-4 space-y-6">
-        {turns.map((turn, turnIdx) => {
-          const nodes = buildAssistantNodes(turn.assistantEvents);
+          {turns.map((turn, turnIdx) => {
+            const nodes = buildAssistantNodes(turn.assistantEvents);
 
-          // Render any single AssistantNode using its existing
-          // component. Used both inside expanded WorkingFolds and as
-          // the answer renderer at the top level — same code path,
-          // identical visual treatment, no per-context branching.
-          const renderNode = (
-            node: AssistantNode,
-            forkProps?: {
-              onFork: (target: "claude" | "codex") => void;
-              forkLabel: string;
-              forkClaudeLabel: string;
-              forkCodexLabel: string;
-            },
-          ) => {
-            if (node.type === "tool_group") {
-              const items = node.items ?? [];
-              const isCurrent = items.some(
-                (it) =>
-                  it.tool.index === currentIndex ||
-                  it.result?.index === currentIndex,
-              );
+            // Render any single AssistantNode using its existing
+            // component. Used both inside expanded WorkingFolds and as
+            // the answer renderer at the top level — same code path,
+            // identical visual treatment, no per-context branching.
+            const renderNode = (
+              node: AssistantNode,
+              forkProps?: {
+                onFork: (target: "claude" | "codex") => void;
+                forkLabel: string;
+                forkClaudeLabel: string;
+                forkCodexLabel: string;
+              },
+            ) => {
+              if (node.type === "tool_group") {
+                const items = node.items ?? [];
+                const isCurrent = items.some(
+                  (it) =>
+                    it.tool.index === currentIndex ||
+                    it.result?.index === currentIndex,
+                );
+                const attachRef = (el: HTMLElement | null) =>
+                  assignCurrentRef(el, isCurrent);
+                return (
+                  <div key={node.index} ref={attachRef}>
+                    <ToolGroup
+                      node={node}
+                      currentIndex={currentIndex}
+                      expanded={expandedGroups.has(node.index)}
+                      onToggle={() => toggleGroup(node.index)}
+                      expandedItems={expandedTools}
+                      onToggleItem={toggleTool}
+                      onSeek={seekTo}
+                    />
+                  </div>
+                );
+              }
+              const isCurrent = node.index === currentIndex;
               const attachRef = (el: HTMLElement | null) =>
                 assignCurrentRef(el, isCurrent);
-              return (
-                <div key={node.index} ref={attachRef}>
-                  <ToolGroup
-                    node={node}
-                    currentIndex={currentIndex}
-                    expanded={expandedGroups.has(node.index)}
-                    onToggle={() => toggleGroup(node.index)}
-                    expandedItems={expandedTools}
-                    onToggleItem={toggleTool}
-                    onSeek={seekTo}
-                  />
-                </div>
-              );
-            }
-            const isCurrent = node.index === currentIndex;
-            const attachRef = (el: HTMLElement | null) =>
-              assignCurrentRef(el, isCurrent);
-            if (node.type === "text") {
-              return (
-                <div key={node.index} ref={attachRef}>
-                  <AssistantTextRow
-                    event={node.primary}
-                    isCurrent={isCurrent}
-                    onClick={() => seekTo(node.index)}
-                    onFork={forkProps?.onFork}
-                    forkLabel={forkProps?.forkLabel}
-                    forkClaudeLabel={forkProps?.forkClaudeLabel}
-                    forkCodexLabel={forkProps?.forkCodexLabel}
-                  />
-                </div>
-              );
-            }
-            if (node.type === "thinking") {
-              if (!showThinking) return null;
-              return (
-                <div key={node.index} ref={attachRef}>
-                  <ThinkingRow
-                    event={node.primary}
-                    isCurrent={isCurrent}
-                    onClick={() => seekTo(node.index)}
-                  />
-                </div>
-              );
-            }
-            if (node.type === "error") {
-              return (
-                <div key={node.index} ref={attachRef}>
-                  <ErrorRow
-                    event={node.primary}
-                    isCurrent={isCurrent}
-                    onClick={() => seekTo(node.index)}
-                  />
-                </div>
-              );
-            }
-            return null;
-          };
+              if (node.type === "text") {
+                return (
+                  <div key={node.index} ref={attachRef}>
+                    <AssistantTextRow
+                      event={node.primary}
+                      isCurrent={isCurrent}
+                      onClick={() => seekTo(node.index)}
+                      onFork={forkProps?.onFork}
+                      forkLabel={forkProps?.forkLabel}
+                      forkClaudeLabel={forkProps?.forkClaudeLabel}
+                      forkCodexLabel={forkProps?.forkCodexLabel}
+                    />
+                  </div>
+                );
+              }
+              if (node.type === "thinking") {
+                if (!showThinking) return null;
+                return (
+                  <div key={node.index} ref={attachRef}>
+                    <ThinkingRow
+                      event={node.primary}
+                      isCurrent={isCurrent}
+                      onClick={() => seekTo(node.index)}
+                    />
+                  </div>
+                );
+              }
+              if (node.type === "error") {
+                return (
+                  <div key={node.index} ref={attachRef}>
+                    <ErrorRow
+                      event={node.primary}
+                      isCurrent={isCurrent}
+                      onClick={() => seekTo(node.index)}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            };
 
-          // The fold only makes sense in a question→answer frame.
-          // For headless turns (system events before the first
-          // user_prompt) just render assistant nodes as-is.
-          if (!turn.userEvent) {
+            // The fold only makes sense in a question→answer frame.
+            // For headless turns (system events before the first
+            // user_prompt) just render assistant nodes as-is.
+            if (!turn.userEvent) {
+              return (
+                <div
+                  key={`turn-${turn.startIndex}-${turnIdx}`}
+                  className="space-y-2"
+                >
+                  {nodes.length > 0 && (
+                    <div className="space-y-1">
+                      {nodes.map((n) => renderNode(n))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            const { working, answer } = determineFoldSplit(nodes);
+            const hasFold = working.length > 0;
+            const foldKey = turn.startIndex;
+            const userExpandedFold = expandedFolds.has(foldKey);
+            // Auto-expand whenever currentIndex falls inside any
+            // working node's range — otherwise the rail would be
+            // hidden inside a collapsed fold during playback. Simple
+            // OR: we don't try to remember "user collapsed while
+            // playing", on purpose. When playback exits the range,
+            // the auto-expand goes away and the fold returns to the
+            // user's preferred state.
+            const playbackInWorking =
+              hasFold &&
+              working.some((n) => nodeContainsIndex(n, currentIndex));
+            const foldExpanded = userExpandedFold || playbackInWorking;
+
+            // End-of-working timestamp for the duration label. Prefer
+            // the answer's timestamp (matches what the reader sees as
+            // "the turn ended here"); fall back to the last working
+            // node when there is no answer.
+            const endIso =
+              answer?.primary.timestamp ??
+              working[working.length - 1]?.primary.timestamp ??
+              turn.userEvent.timestamp;
+            const duration = formatFoldDuration(
+              turn.userEvent.timestamp,
+              endIso,
+            );
+
             return (
               <div
                 key={`turn-${turn.startIndex}-${turnIdx}`}
                 className="space-y-2"
               >
-                {nodes.length > 0 && (
+                <div
+                  ref={(el) =>
+                    assignCurrentRef(el, turn.userEvent!.index === currentIndex)
+                  }
+                >
+                  <UserPrompt
+                    event={turn.userEvent}
+                    isCurrent={turn.userEvent.index === currentIndex}
+                    onClick={() => seekTo(turn.userEvent!.index)}
+                  />
+                </div>
+                {(hasFold || answer) && (
                   <div className="space-y-1">
-                    {nodes.map((n) => renderNode(n))}
+                    {hasFold && (
+                      <WorkingFold
+                        stepCount={working.length}
+                        toolSummary={collectFoldToolSummary(working)}
+                        duration={duration}
+                        expanded={foldExpanded}
+                        onToggle={() => toggleFold(foldKey)}
+                      >
+                        {working.map((n) => renderNode(n))}
+                      </WorkingFold>
+                    )}
+                    {answer &&
+                      renderNode(
+                        answer,
+                        canFork && userPromptIndices[turnIdx] !== null
+                          ? {
+                              onFork: (target) =>
+                                requestFork(
+                                  userPromptIndices[turnIdx]!,
+                                  target,
+                                ),
+                              forkLabel:
+                                (t.session_replay_fork_button as unknown as string) ??
+                                "Fork from here",
+                              forkClaudeLabel:
+                                (t.session_replay_fork_target_claude as unknown as string) ??
+                                "Continue in Claude",
+                              forkCodexLabel:
+                                (t.session_replay_fork_target_codex as unknown as string) ??
+                                "Continue in Codex",
+                            }
+                          : undefined,
+                      )}
                   </div>
                 )}
               </div>
             );
-          }
-
-          const { working, answer } = determineFoldSplit(nodes);
-          const hasFold = working.length > 0;
-          const foldKey = turn.startIndex;
-          const userExpandedFold = expandedFolds.has(foldKey);
-          // Auto-expand whenever currentIndex falls inside any
-          // working node's range — otherwise the rail would be
-          // hidden inside a collapsed fold during playback. Simple
-          // OR: we don't try to remember "user collapsed while
-          // playing", on purpose. When playback exits the range,
-          // the auto-expand goes away and the fold returns to the
-          // user's preferred state.
-          const playbackInWorking =
-            hasFold && working.some((n) => nodeContainsIndex(n, currentIndex));
-          const foldExpanded = userExpandedFold || playbackInWorking;
-
-          // End-of-working timestamp for the duration label. Prefer
-          // the answer's timestamp (matches what the reader sees as
-          // "the turn ended here"); fall back to the last working
-          // node when there is no answer.
-          const endIso =
-            answer?.primary.timestamp ??
-            working[working.length - 1]?.primary.timestamp ??
-            turn.userEvent.timestamp;
-          const duration = formatFoldDuration(
-            turn.userEvent.timestamp,
-            endIso,
-          );
-
-          return (
-            <div
-              key={`turn-${turn.startIndex}-${turnIdx}`}
-              className="space-y-2"
-            >
-              <div
-                ref={(el) =>
-                  assignCurrentRef(el, turn.userEvent!.index === currentIndex)
-                }
-              >
-                <UserPrompt
-                  event={turn.userEvent}
-                  isCurrent={turn.userEvent.index === currentIndex}
-                  onClick={() => seekTo(turn.userEvent!.index)}
-                />
-              </div>
-              {(hasFold || answer) && (
-                <div className="space-y-1">
-                  {hasFold && (
-                    <WorkingFold
-                      stepCount={working.length}
-                      toolSummary={collectFoldToolSummary(working)}
-                      duration={duration}
-                      expanded={foldExpanded}
-                      onToggle={() => toggleFold(foldKey)}
-                    >
-                      {working.map((n) => renderNode(n))}
-                    </WorkingFold>
-                  )}
-                  {answer &&
-                    renderNode(
-                      answer,
-                      canFork && userPromptIndices[turnIdx] !== null
-                        ? {
-                            onFork: (target) =>
-                              requestFork(userPromptIndices[turnIdx]!, target),
-                            forkLabel:
-                              (t.session_replay_fork_button as unknown as string) ??
-                              "Fork from here",
-                            forkClaudeLabel:
-                              (t.session_replay_fork_target_claude as unknown as string) ??
-                              "Continue in Claude",
-                            forkCodexLabel:
-                              (t.session_replay_fork_target_codex as unknown as string) ??
-                              "Continue in Codex",
-                          }
-                        : undefined,
-                    )}
-                </div>
-              )}
-            </div>
-          );
-        })}
+          })}
         </div>
       </div>
 
@@ -1682,8 +1710,22 @@ export function SessionReplayView() {
           >
             {isPlaying ? (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <rect x="2" y="2" width="3" height="8" rx="0.5" fill="currentColor" />
-                <rect x="7" y="2" width="3" height="8" rx="0.5" fill="currentColor" />
+                <rect
+                  x="2"
+                  y="2"
+                  width="3"
+                  height="8"
+                  rx="0.5"
+                  fill="currentColor"
+                />
+                <rect
+                  x="7"
+                  y="2"
+                  width="3"
+                  height="8"
+                  rx="0.5"
+                  fill="currentColor"
+                />
               </svg>
             ) : (
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">

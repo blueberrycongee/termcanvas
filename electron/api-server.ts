@@ -37,6 +37,7 @@ export class ApiServer {
       this.server = http.createServer((req, res) =>
         this.handleRequest(req, res),
       );
+      this.server.timeout = 30_000;
       this.server.listen(0, "127.0.0.1", () => {
         const addr = this.server!.address();
         const port = typeof addr === "object" && addr ? addr.port : 0;
