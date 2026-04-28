@@ -3,11 +3,10 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 export type IconButtonTone = "neutral" | "danger";
 export type IconButtonSize = "sm" | "md";
 
-interface Props
-  extends Omit<
-    ButtonHTMLAttributes<HTMLButtonElement>,
-    "title" | "aria-label" | "children"
-  > {
+interface Props extends Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "title" | "aria-label" | "children"
+> {
   /**
    * Required accessible label. Becomes both `title` (tooltip) and
    * `aria-label`. P6: icon-only buttons must always be labeled.
@@ -51,7 +50,7 @@ const toneClass: Record<IconButtonTone, string> = {
   // Danger tone: red foreground at rest (slightly muted), brighter on hover.
   // This satisfies P4: severity is recognizable without hover.
   danger:
-    "text-red-400/70 hover:text-red-400 hover:bg-[var(--border)]",
+    "text-[var(--red)]/70 hover:text-[var(--red)] hover:bg-[var(--border)]",
 };
 
 /**

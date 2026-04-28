@@ -125,7 +125,7 @@ export function TagManager({
                 {tag.replace(/^custom:/, "")}
                 <button
                   type="button"
-                  className="hover:text-red-400"
+                  className="hover:text-[var(--red)]"
                   onClick={() =>
                     removeTag(projectId, worktreeId, terminalId, tag)
                   }

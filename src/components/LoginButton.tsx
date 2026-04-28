@@ -65,13 +65,17 @@ export function LoginButton() {
         </button>
         {loginError && (
           <div
-            className="flex items-center gap-1 text-[10px] text-red-500"
+            className="flex items-center gap-1 text-[10px] text-[var(--red)]"
             style={{ fontFamily: '"Geist Mono", monospace' }}
           >
-            <span>{t.auth_login_failed}: {loginError}</span>
+            <span>
+              {t.auth_login_failed}: {loginError}
+            </span>
             {loginFallbackUrl && (
               <button
-                onClick={() => void navigator.clipboard.writeText(loginFallbackUrl)}
+                onClick={() =>
+                  void navigator.clipboard.writeText(loginFallbackUrl)
+                }
                 className="underline underline-offset-2"
               >
                 {t.auth_copy_link}

@@ -61,7 +61,10 @@ function normalizeProcessName(token: string): string {
   return baseName.replace(/\.(exe|cmd|bat)$/i, "").toLowerCase();
 }
 
-export function splitCommandLine(args: string): { command: string; rest: string } {
+export function splitCommandLine(args: string): {
+  command: string;
+  rest: string;
+} {
   const match = args.match(/^\s*(?:"([^"]+)"|(\S+))(.*)$/);
   return {
     command: match?.[1] ?? match?.[2] ?? "",
@@ -90,8 +93,8 @@ function collectDetectedClis(
   processes: ProcessEntry[],
   shellPids: number[],
 ): DetectedCli[] {
-  return buildProcessSnapshotFromEntries(processes, shellPids).descendantProcesses
-    .filter((process) => process.cliType)
+  return buildProcessSnapshotFromEntries(processes, shellPids)
+    .descendantProcesses.filter((process) => process.cliType)
     .map((process) => ({
       pid: process.pid,
       cliType: process.cliType!,
@@ -144,11 +147,15 @@ function collectDescendantProcesses(
   return results;
 }
 
-function chooseForegroundTool(descendants: ProcessSnapshotEntry[]): string | null {
+function chooseForegroundTool(
+  descendants: ProcessSnapshotEntry[],
+): string | null {
   if (descendants.length === 0) return null;
   for (let index = descendants.length - 1; index >= 0; index -= 1) {
     const candidate = descendants[index];
-    const baseName = normalizeProcessName(splitCommandLine(candidate.command).command);
+    const baseName = normalizeProcessName(
+      splitCommandLine(candidate.command).command,
+    );
     if (!SHELL_NAMES.has(baseName)) {
       return candidate.command;
     }
@@ -158,7 +165,9 @@ function chooseForegroundTool(descendants: ProcessSnapshotEntry[]): string | nul
   if (cliCandidate) return cliCandidate.command;
 
   const lastProcess = descendants[descendants.length - 1];
-  const baseName = normalizeProcessName(splitCommandLine(lastProcess.command).command);
+  const baseName = normalizeProcessName(
+    splitCommandLine(lastProcess.command).command,
+  );
   return SHELL_NAMES.has(baseName) ? null : lastProcess.command;
 }
 
@@ -178,7 +187,10 @@ export function buildProcessSnapshotFromEntries(
  * among all descendants (not just direct children) of the given shell PIDs.
  * Uses BFS so shallower matches appear first in results.
  */
-export function parsePsOutput(psOutput: string, shellPids: number[]): DetectedCli[] {
+export function parsePsOutput(
+  psOutput: string,
+  shellPids: number[],
+): DetectedCli[] {
   const processes: ProcessEntry[] = [];
   const lines = psOutput.split("\n");
   for (const line of lines) {
@@ -198,7 +210,10 @@ export function parsePsOutput(psOutput: string, shellPids: number[]): DetectedCl
   return collectDetectedClis(processes, shellPids);
 }
 
-export function parsePsSnapshot(psOutput: string, shellPids: number[]): ProcessSnapshot {
+export function parsePsSnapshot(
+  psOutput: string,
+  shellPids: number[],
+): ProcessSnapshot {
   const processes: ProcessEntry[] = [];
   for (const line of psOutput.split("\n")) {
     const trimmed = line.trim();
@@ -218,8 +233,8 @@ export function parseWindowsProcessListOutput(
   processJson: string,
   shellPids: number[],
 ): DetectedCli[] {
-  return buildWindowsProcessSnapshot(processJson, shellPids).descendantProcesses
-    .filter((process) => process.cliType)
+  return buildWindowsProcessSnapshot(processJson, shellPids)
+    .descendantProcesses.filter((process) => process.cliType)
     .map((process) => ({
       pid: process.pid,
       cliType: process.cliType!,
@@ -271,9 +286,10 @@ export function buildWindowsProcessSnapshot(
   return buildProcessSnapshotFromEntries(processes, shellPids);
 }
 
-export function getProcessListCommand(
-  platform = process.platform,
-): { command: string; args: string[] } {
+export function getProcessListCommand(platform = process.platform): {
+  command: string;
+  args: string[];
+} {
   if (platform === "win32") {
     return {
       command: "powershell.exe",
@@ -295,9 +311,7 @@ export function getProcessListCommand(
  * Detect a CLI tool running as a descendant of the given shell PID.
  * Returns the CLI type and optional session name (for tmux).
  */
-export async function detectCli(
-  shellPid: number,
-): Promise<{
+export async function detectCli(shellPid: number): Promise<{
   cliType: string;
   pid?: number;
   sessionName?: string;
@@ -305,15 +319,21 @@ export async function detectCli(
 } | null> {
   const processListCommand = getProcessListCommand();
   const processOutput = await new Promise<string>((resolve, reject) => {
-    execFile(processListCommand.command, processListCommand.args, (err, stdout) => {
-      if (err) return reject(err);
-      resolve(stdout);
-    });
+    execFile(
+      processListCommand.command,
+      processListCommand.args,
+      { timeout: 10_000 },
+      (err, stdout) => {
+        if (err) return reject(err);
+        resolve(stdout);
+      },
+    );
   });
 
-  const results = process.platform === "win32"
-    ? parseWindowsProcessListOutput(processOutput, [shellPid])
-    : parsePsOutput(processOutput, [shellPid]);
+  const results =
+    process.platform === "win32"
+      ? parseWindowsProcessListOutput(processOutput, [shellPid])
+      : parsePsOutput(processOutput, [shellPid]);
   if (results.length === 0) return null;
 
   const first = results[0];
@@ -321,10 +341,15 @@ export async function detectCli(
   if (first.cliType === "tmux") {
     try {
       const sessionName = await new Promise<string>((resolve, reject) => {
-        execFile("tmux", ["display-message", "-p", "#S"], (err, stdout) => {
-          if (err) return reject(err);
-          resolve(stdout.trim());
-        });
+        execFile(
+          "tmux",
+          ["display-message", "-p", "#S"],
+          { timeout: 10_000 },
+          (err, stdout) => {
+            if (err) return reject(err);
+            resolve(stdout.trim());
+          },
+        );
       });
       return { cliType: "tmux", pid: first.pid, sessionName };
     } catch {
@@ -335,16 +360,27 @@ export async function detectCli(
   const approvePattern = AUTO_APPROVE_PATTERNS[first.cliType];
   const autoApprove = approvePattern ? approvePattern.test(first.args) : false;
 
-  return { cliType: first.cliType, pid: first.pid, autoApprove: autoApprove || undefined };
+  return {
+    cliType: first.cliType,
+    pid: first.pid,
+    autoApprove: autoApprove || undefined,
+  };
 }
 
-export async function getProcessSnapshot(shellPid: number): Promise<ProcessSnapshot> {
+export async function getProcessSnapshot(
+  shellPid: number,
+): Promise<ProcessSnapshot> {
   const processListCommand = getProcessListCommand();
   const processOutput = await new Promise<string>((resolve, reject) => {
-    execFile(processListCommand.command, processListCommand.args, (err, stdout) => {
-      if (err) return reject(err);
-      resolve(stdout);
-    });
+    execFile(
+      processListCommand.command,
+      processListCommand.args,
+      { timeout: 10_000 },
+      (err, stdout) => {
+        if (err) return reject(err);
+        resolve(stdout);
+      },
+    );
   });
 
   return process.platform === "win32"

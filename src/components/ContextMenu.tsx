@@ -1,7 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type MenuItem =
-  | { type?: "item"; label: string; active?: boolean; danger?: boolean; onClick: () => void }
+  | {
+      type?: "item";
+      label: string;
+      active?: boolean;
+      danger?: boolean;
+      onClick: () => void;
+    }
   | { type: "separator" };
 
 interface Props {
@@ -63,7 +69,10 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     >
       {items.map((item, i) =>
         item.type === "separator" ? (
-          <div key={`sep-${i}`} className="my-1 border-t border-[var(--border)]" />
+          <div
+            key={`sep-${i}`}
+            className="my-1 border-t border-[var(--border)]"
+          />
         ) : (
           <button
             key={item.label}
@@ -71,7 +80,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
               item.active
                 ? "text-[var(--accent)] bg-[var(--accent)]/10"
                 : item.danger
-                  ? "text-red-400 hover:text-red-300 hover:bg-[var(--border)]"
+                  ? "text-[var(--red)] hover:text-[var(--red-soft)] hover:bg-[var(--border)]"
                   : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]"
             }`}
             style={{ fontFamily: '"Geist Mono", monospace' }}
