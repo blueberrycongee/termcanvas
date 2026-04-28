@@ -268,11 +268,14 @@ export function PetOverlay() {
     };
 
     // First emote arrives sooner the first time so the pet feels alive quickly
-    timeoutId = setTimeout(() => {
-      if (cancelled) return;
-      spawnParticle(spawnIdleEmote());
-      scheduleNext();
-    }, 3500 + Math.random() * 5000);
+    timeoutId = setTimeout(
+      () => {
+        if (cancelled) return;
+        spawnParticle(spawnIdleEmote());
+        scheduleNext();
+      },
+      3500 + Math.random() * 5000,
+    );
 
     return () => {
       cancelled = true;
@@ -440,10 +443,7 @@ export function PetOverlay() {
 
       const dx = event.clientX - grab.downX;
       const dy = event.clientY - grab.downY;
-      if (
-        !grab.movedPastThreshold &&
-        Math.hypot(dx, dy) > DRAG_THRESHOLD_PX
-      ) {
+      if (!grab.movedPastThreshold && Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) {
         grab.movedPastThreshold = true;
       }
 
@@ -576,12 +576,7 @@ export function PetOverlay() {
         onPointerUp={handlePetPointerUp}
         onPointerCancel={handlePetPointerUp}
       >
-        <SpriteRenderer
-          frame={frame}
-          x={0}
-          y={0}
-          flipX={!facingRight}
-        />
+        <SpriteRenderer frame={frame} x={0} y={0} flipX={!facingRight} />
 
         {/* Hit area for click — invisible rect covering the pet */}
         <rect
@@ -597,11 +592,10 @@ export function PetOverlay() {
           <g>
             {zzzOffsets.map((offset, i) => {
               const floatY =
-                offset.dy -
-                Math.sin(Date.now() / 600 + i * 1.2) * 4;
+                offset.dy - Math.sin(Date.now() / 600 + i * 1.2) * 4;
               return (
                 <text
-                  key={i}
+                  key={`zzz-${i}`}
                   x={PET_SIZE + offset.dx}
                   y={floatY}
                   fontSize={8 + i * 2}
@@ -639,7 +633,7 @@ export function PetOverlay() {
               const size = 3 + pulse * 2;
               return (
                 <rect
-                  key={i}
+                  key={`sparkle-${i}`}
                   x={PET_SIZE / 2 + pos.dx - size / 2}
                   y={pos.dy - size / 2}
                   width={size}

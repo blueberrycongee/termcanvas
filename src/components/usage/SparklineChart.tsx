@@ -26,7 +26,12 @@ interface SparklineChartProps {
   heightPx?: number;
 }
 
-export function SparklineChart({ buckets, animate, date, heightPx = 40 }: SparklineChartProps) {
+export function SparklineChart({
+  buckets,
+  animate,
+  date,
+  heightPx = 40,
+}: SparklineChartProps) {
   const t = useT();
   const [hovered, setHovered] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,7 +54,7 @@ export function SparklineChart({ buckets, animate, date, heightPx = 40 }: Sparkl
 
           return (
             <div
-              key={i}
+              key={`bar-${b.hourStart}`}
               className="flex-1 min-w-0 rounded-t-sm cursor-default relative"
               style={{
                 height: `${barH}%`,
@@ -58,12 +63,18 @@ export function SparklineChart({ buckets, animate, date, heightPx = 40 }: Sparkl
                   : isActive
                     ? "var(--accent)"
                     : "var(--border)",
-                opacity: isFuture ? 0.3 : isActive ? 0.5 + (h / 100) * 0.5 : 0.3,
+                opacity: isFuture
+                  ? 0.3
+                  : isActive
+                    ? 0.5 + (h / 100) * 0.5
+                    : 0.3,
                 transformOrigin: "bottom",
                 transform: isHovered && isActive ? "scaleY(1.08)" : "scaleY(1)",
                 filter: isHovered && isActive ? "brightness(1.3)" : "none",
                 transition: "transform 0.15s ease, filter 0.15s ease",
-                animation: animate ? `usage-bar-grow 0.4s ease-out ${i * 15}ms both` : undefined,
+                animation: animate
+                  ? `usage-bar-grow 0.4s ease-out ${i * 15}ms both`
+                  : undefined,
               }}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
@@ -101,7 +112,13 @@ interface SparklineTooltipProps {
   callsLabel: string;
 }
 
-function SparklineTooltip({ bucket, index, totalBars, containerRef, callsLabel }: SparklineTooltipProps) {
+function SparklineTooltip({
+  bucket,
+  index,
+  totalBars,
+  containerRef,
+  callsLabel,
+}: SparklineTooltipProps) {
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -121,7 +138,12 @@ function SparklineTooltip({ bucket, index, totalBars, containerRef, callsLabel }
 
   const barWidth = containerRect.width / totalBars;
   const barCenterX = containerRect.left + (index + 0.5) * barWidth;
-  const totalTokens = bucket.input + bucket.output + bucket.cacheRead + bucket.cacheCreate5m + bucket.cacheCreate1h;
+  const totalTokens =
+    bucket.input +
+    bucket.output +
+    bucket.cacheRead +
+    bucket.cacheCreate5m +
+    bucket.cacheCreate1h;
 
   return createPortal(
     <div
@@ -134,15 +156,23 @@ function SparklineTooltip({ bucket, index, totalBars, containerRef, callsLabel }
       }}
     >
       <div className="rounded-md px-2.5 py-1.5 border border-[var(--border)] bg-[var(--surface)] shadow-lg whitespace-nowrap tc-mono tc-num">
-        <div className="text-[10px] text-[var(--text-secondary)] font-medium">{bucket.label}</div>
+        <div className="text-[10px] text-[var(--text-secondary)] font-medium">
+          {bucket.label}
+        </div>
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[10px] text-[var(--text-primary)]">{fmtCost(bucket.cost)}</span>
+          <span className="text-[10px] text-[var(--text-primary)]">
+            {fmtCost(bucket.cost)}
+          </span>
           <span className="text-[9px] text-[var(--text-faint)]">·</span>
-          <span className="text-[10px] text-[var(--text-muted)]">{bucket.calls} {callsLabel}</span>
+          <span className="text-[10px] text-[var(--text-muted)]">
+            {bucket.calls} {callsLabel}
+          </span>
           {totalTokens > 0 && (
             <>
               <span className="text-[9px] text-[var(--text-faint)]">·</span>
-              <span className="text-[10px] text-[var(--text-muted)]">{fmtTokens(totalTokens)}t</span>
+              <span className="text-[10px] text-[var(--text-muted)]">
+                {fmtTokens(totalTokens)}t
+              </span>
             </>
           )}
         </div>

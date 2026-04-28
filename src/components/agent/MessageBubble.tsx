@@ -20,7 +20,10 @@ function parseCodeBlocks(text: string): ParsedSegment[] {
 
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      segments.push({ type: "text", content: text.slice(lastIndex, match.index) });
+      segments.push({
+        type: "text",
+        content: text.slice(lastIndex, match.index),
+      });
     }
     segments.push({
       type: "code_block",
@@ -65,13 +68,22 @@ function renderInlineMarkdown(text: string): React.ReactNode[] {
       );
     } else if (match[2] !== undefined) {
       nodes.push(
-        <strong key={key++} style={{ fontWeight: "var(--weight-semibold)", color: "var(--text-primary)" }}>
+        <strong
+          key={key++}
+          style={{
+            fontWeight: "var(--weight-semibold)",
+            color: "var(--text-primary)",
+          }}
+        >
           {match[2]}
         </strong>,
       );
     } else if (match[3] !== undefined) {
       nodes.push(
-        <em key={key++} style={{ fontStyle: "italic", color: "var(--text-secondary)" }}>
+        <em
+          key={key++}
+          style={{ fontStyle: "italic", color: "var(--text-secondary)" }}
+        >
           {match[3]}
         </em>,
       );
@@ -131,7 +143,7 @@ export function MessageBubble({ text }: MessageBubbleProps) {
         if (seg.type === "code_block") {
           return (
             <div
-              key={i}
+              key={`seg-${i}`}
               className="my-2.5 rounded-md overflow-hidden"
               style={{
                 background: "var(--bg)",
@@ -164,7 +176,7 @@ export function MessageBubble({ text }: MessageBubbleProps) {
           );
         }
         return (
-          <span key={i} className="whitespace-pre-wrap">
+          <span key={`seg-${i}`} className="whitespace-pre-wrap">
             {renderInlineMarkdown(seg.content)}
           </span>
         );

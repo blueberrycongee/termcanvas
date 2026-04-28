@@ -605,7 +605,7 @@ export function PinDetailDrawer() {
                   <div className="flex flex-col gap-1.5">
                     {pin.links.map((link, i) => (
                       <a
-                        key={i}
+                        key={link.url}
                         href={link.url}
                         target="_blank"
                         rel="noopener noreferrer"
