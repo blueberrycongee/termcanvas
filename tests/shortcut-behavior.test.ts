@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { shouldIgnoreShortcutTarget } from "../src/hooks/shortcutTarget.ts";
+import {
+  isTerminalShortcutTarget,
+  shouldIgnoreShortcutTarget,
+} from "../src/hooks/shortcutTarget.ts";
 import { navigateToTerminalWithViewport } from "../src/hooks/useKeyboardShortcuts.ts";
 import {
   DEFAULT_SHORTCUTS,
@@ -219,6 +222,16 @@ test("editable targets allow command shortcuts to reach the app on macOS", () =>
       true,
     );
   });
+});
+
+test("terminal shortcut target recognizes xterm helper textarea", () => {
+  assert.equal(
+    isTerminalShortcutTarget(
+      createTargetWithClass("TEXTAREA", "xterm-helper-textarea"),
+    ),
+    true,
+  );
+  assert.equal(isTerminalShortcutTarget(createTarget("TEXTAREA")), false);
 });
 
 test("canvas tool defaults to hand for canvas navigation", () => {

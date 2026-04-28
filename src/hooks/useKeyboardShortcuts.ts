@@ -44,6 +44,7 @@ import { pickCloseFocusTarget } from "../canvas/closeFocusTarget";
 import {
   isActivationTarget,
   isEditableTarget,
+  isTerminalShortcutTarget,
   shouldIgnoreShortcutTarget,
 } from "./shortcutTarget";
 import { snapshotStateWithRefresh } from "../snapshotState";
@@ -612,7 +613,7 @@ export function useKeyboardShortcuts() {
 
       if (
         matchesShortcut(e, shortcuts.openTerminalFind) &&
-        !isEditableTarget(e.target)
+        (!isEditableTarget(e.target) || isTerminalShortcutTarget(e.target))
       ) {
         consumeShortcut();
         const list = getAllTerminals();

@@ -10,6 +10,31 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
+function targetHasClass(target: unknown, className: string): boolean {
+  const element = target as { classList?: { contains?: (token: string) => boolean } };
+  return element.classList?.contains?.(className) === true;
+}
+
+export function isTerminalShortcutTarget(target: EventTarget | null): boolean {
+  let element = target as
+    | ({ parentElement?: unknown; parentNode?: unknown } & EventTarget)
+    | null;
+
+  while (element) {
+    if (
+      targetHasClass(element, "xterm-helper-textarea") ||
+      targetHasClass(element, "tc-xterm-host")
+    ) {
+      return true;
+    }
+    element = (element.parentElement ?? element.parentNode ?? null) as
+      | ({ parentElement?: unknown; parentNode?: unknown } & EventTarget)
+      | null;
+  }
+
+  return false;
+}
+
 // Elements that natively activate on Space / Enter. Stealing these
 // keys for app shortcuts would silently break keyboard operation of
 // the focused control.

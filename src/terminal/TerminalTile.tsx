@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
+import { Search } from "lucide-react";
 import type { TerminalData } from "../types";
 import { activateTerminalInScene } from "../actions/sceneSelectionActions";
 import {
@@ -56,6 +57,7 @@ import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
 import { ActivitySparkline } from "./ActivitySparkline";
 import { TerminalFindOverlay } from "./TerminalFindOverlay";
+import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface Props {
@@ -900,6 +902,13 @@ export function TerminalTile({
     closeTerminalInScene(projectId, worktreeId, terminal.id);
   }, [projectId, terminal.id, worktreeId]);
 
+  const handleOpenFind = useCallback(() => {
+    activateTerminalInScene(projectId, worktreeId, terminal.id, {
+      focusInput: false,
+    });
+    useTerminalFindStore.getState().openFor(terminal.id);
+  }, [projectId, terminal.id, worktreeId]);
+
   const isTaskDragEvent = (e: React.DragEvent) =>
     Array.from(e.dataTransfer.types).includes("application/x-termcanvas-pin");
 
@@ -1169,6 +1178,20 @@ export function TerminalTile({
           <ActivitySparkline terminalId={terminal.id} />
         )}
         <div className="flex items-center gap-0.5">
+          {!useAgentRenderer && lodMode === "live" && !terminal.minimized && (
+            <button
+              type="button"
+              className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
+              title={t.shortcut_open_terminal_find}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenFind();
+              }}
+            >
+              <Search size={10} strokeWidth={1.6} aria-hidden="true" />
+            </button>
+          )}
           <button
             className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
             data-pinned={terminal.minimized ? "true" : undefined}
