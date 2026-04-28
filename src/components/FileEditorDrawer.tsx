@@ -1,4 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
@@ -287,7 +294,9 @@ export function FileEditorDrawer() {
           // "too-large" carries a size hint — fold it into the user-
           // visible message so the UI can say "File too large (12 MB)".
           const sizeHint =
-            result.error === "too-large" && result.size ? ` (${result.size})` : "";
+            result.error === "too-large" && result.size
+              ? ` (${result.size})`
+              : "";
           setLoadError((result.error || "read failed") + sizeHint);
         }
         setLoading(false);
@@ -319,7 +328,9 @@ export function FileEditorDrawer() {
   const handleClose = useCallback(() => {
     if (
       dirty &&
-      !window.confirm(t.file_editor_discard_confirm ?? "Discard unsaved changes?")
+      !window.confirm(
+        t.file_editor_discard_confirm ?? "Discard unsaved changes?",
+      )
     ) {
       return;
     }
@@ -367,9 +378,7 @@ export function FileEditorDrawer() {
   // layouts this naturally shrinks.
   // Level-2 width: fills the entire gap between the two panels.
   const gapMax = `calc(100vw - ${leftInset}px - ${rightInset}px)`;
-  const widthStyle = expanded
-    ? gapMax
-    : `min(55vw, ${gapMax})`;
+  const widthStyle = expanded ? gapMax : `min(55vw, ${gapMax})`;
 
   const fileName = path.split("/").pop() ?? path;
   const relPath = path;
@@ -406,10 +415,7 @@ export function FileEditorDrawer() {
               title={t.file_editor_dirty ?? "Unsaved changes"}
             />
           )}
-          <span
-            className="tc-caption tc-mono truncate"
-            title={relPath}
-          >
+          <span className="tc-caption tc-mono truncate" title={relPath}>
             {relPath}
           </span>
         </div>
@@ -428,8 +434,8 @@ export function FileEditorDrawer() {
           title={t.file_editor_save ?? "Save (⌘S)"}
         >
           {saving
-            ? t.file_editor_saving ?? "saving…"
-            : t.file_editor_save ?? "Save"}
+            ? (t.file_editor_saving ?? "saving…")
+            : (t.file_editor_save ?? "Save")}
         </button>
 
         <button
@@ -437,8 +443,8 @@ export function FileEditorDrawer() {
           onClick={toggleExpanded}
           title={
             expanded
-              ? t.file_editor_restore ?? "Restore"
-              : t.file_editor_maximize ?? "Maximize"
+              ? (t.file_editor_restore ?? "Restore")
+              : (t.file_editor_maximize ?? "Maximize")
           }
         >
           {expanded ? (
@@ -499,7 +505,11 @@ export function FileEditorDrawer() {
       {/* Body */}
       <div className="flex-1 min-h-0 relative">
         {loading && (
-          <div className="tc-meta absolute inset-0 flex items-center justify-center">
+          <div
+            className="tc-meta absolute inset-0 flex items-center justify-center"
+            role="status"
+            aria-live="polite"
+          >
             {t.loading}
           </div>
         )}

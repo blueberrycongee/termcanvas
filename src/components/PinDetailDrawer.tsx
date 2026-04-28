@@ -589,7 +589,11 @@ export function PinDetailDrawer() {
                     {t["pin.keyboardHint"]}
                   </span>
                   {uploading && (
-                    <span className="tc-caption ml-auto">
+                    <span
+                      className="tc-caption ml-auto"
+                      role="status"
+                      aria-live="polite"
+                    >
                       {t["pin.uploading"]}
                     </span>
                   )}

@@ -61,21 +61,63 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [onClose]);
 
+  // Focus first menu item on mount
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const first = node.querySelector<HTMLElement>("[role='menuitem']");
+    if (first) {
+      requestAnimationFrame(() => first.focus());
+    }
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    const node = ref.current;
+    if (!node) return;
+    const menuitems = Array.from(
+      node.querySelectorAll<HTMLElement>("[role='menuitem']"),
+    );
+    const active = document.activeElement as HTMLElement | null;
+    const idx = active ? menuitems.indexOf(active) : -1;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = menuitems[(idx + 1) % menuitems.length];
+      next?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const prev = menuitems[(idx - 1 + menuitems.length) % menuitems.length];
+      prev?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      menuitems[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      menuitems[menuitems.length - 1]?.focus();
+    }
+  };
+
   return (
     <div
       ref={ref}
+      role="menu"
+      aria-label="Context menu"
       className="fixed z-[100] py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg min-w-[140px]"
       style={{ left: pos.x, top: pos.y }}
+      onKeyDown={handleKeyDown}
     >
       {items.map((item, i) =>
         item.type === "separator" ? (
           <div
             key={`sep-${i}`}
+            role="separator"
             className="my-1 border-t border-[var(--border)]"
           />
         ) : (
           <button
-            key={item.label}
+            key={`${item.label}-${i}`}
+            role="menuitem"
+            tabIndex={-1}
             className={`w-full px-3 py-1.5 text-left text-[12px] transition-colors duration-100 ${
               item.active
                 ? "text-[var(--accent)] bg-[var(--accent)]/10"

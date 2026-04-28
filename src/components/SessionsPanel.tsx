@@ -372,7 +372,9 @@ function Inspector({
       <div className="px-3 py-2 max-h-[220px] overflow-y-auto">
         <div className="tc-eyebrow tc-mono mb-2">{t.sessions_recent_trace}</div>
         {traceLoading ? (
-          <div className="tc-caption">{t.sessions_trace_loading}</div>
+          <div className="tc-caption" role="status" aria-live="polite">
+            {t.sessions_trace_loading}
+          </div>
         ) : traceItems.length === 0 ? (
           <div className="tc-caption">{t.sessions_trace_empty}</div>
         ) : (
@@ -872,7 +874,11 @@ export function HistorySection({
       {expanded && (
         <div className="pb-2">
           {entries.length === 0 ? (
-            <div className="tc-label px-4 py-3 text-center">
+            <div
+              className="tc-label px-4 py-3 text-center"
+              role="status"
+              aria-live="polite"
+            >
               {loading
                 ? ((t.sessions_history_loading as unknown as string) ??
                   "Loading…")

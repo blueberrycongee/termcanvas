@@ -566,6 +566,8 @@ export function SnapshotHistoryModal() {
               <div
                 className="px-4 py-10 text-center text-[12px]"
                 style={{ ...MONO_STYLE, color: "var(--text-faint)" }}
+                role="status"
+                aria-live="polite"
               >
                 {t["snapshot.modal.list_loading"]}
               </div>

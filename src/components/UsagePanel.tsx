@@ -772,7 +772,13 @@ export function UsagePanel() {
 
       <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !activeSummary ? (
-          <div className="px-3 py-4 tc-caption">{t.loading}</div>
+          <div
+            className="px-3 py-4 tc-caption"
+            role="status"
+            aria-live="polite"
+          >
+            {t.loading}
+          </div>
         ) : activeSummary ? (
           <div key={animKey} className="flex flex-col pb-3">
             <div

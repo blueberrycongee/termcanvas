@@ -77,7 +77,10 @@ function StatCard({
       <div className="tc-eyebrow tc-mono">{label}</div>
       <div className="mt-2 tc-stat-xl">{value}</div>
       {sub && (
-        <div className="mt-1.5 tc-caption tc-mono tc-num" style={{ color: subColor }}>
+        <div
+          className="mt-1.5 tc-caption tc-mono tc-num"
+          style={{ color: subColor }}
+        >
           {sub}
         </div>
       )}
@@ -244,9 +247,7 @@ export function UsageOverlay() {
     const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth;
     const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
     const projection =
-      daysWithData > 0 && isCurrentMonth
-        ? mtd + dailyAvg * remainingDays
-        : mtd;
+      daysWithData > 0 && isCurrentMonth ? mtd + dailyAvg * remainingDays : mtd;
     return { mtd, daysWithData, dailyAvg, projection };
   }, [activeHeatmap, date]);
 
@@ -265,8 +266,7 @@ export function UsageOverlay() {
   // Labels — resolved once up top so both variants below read the
   // same text without peppering `as unknown as string` fallbacks.
   const labelToday = (t.usage_stat_today as unknown as string) ?? "Today";
-  const labelMtd =
-    (t.usage_stat_mtd as unknown as string) ?? "Month to date";
+  const labelMtd = (t.usage_stat_mtd as unknown as string) ?? "Month to date";
   const labelDailyAvg =
     (t.usage_stat_daily_avg as unknown as string) ?? "Daily avg";
   const labelProjection =
@@ -346,7 +346,13 @@ export function UsageOverlay() {
         </div>
 
         {loading && !activeSummary ? (
-          <div className="px-4 py-8 text-center tc-caption">{t.loading}</div>
+          <div
+            className="px-4 py-8 text-center tc-caption"
+            role="status"
+            aria-live="polite"
+          >
+            {t.loading}
+          </div>
         ) : activeSummary ? (
           isCompact ? (
             /*
