@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
+import { Search } from "lucide-react";
 import type { TerminalData } from "../types";
 import { activateTerminalInScene } from "../actions/sceneSelectionActions";
 import {
@@ -55,6 +56,8 @@ import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
 import { ActivitySparkline } from "./ActivitySparkline";
+import { TerminalFindOverlay } from "./TerminalFindOverlay";
+import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 
 interface Props {
@@ -778,6 +781,13 @@ export function TerminalTile({
       // open link, etc.). Don't hijack them.
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       if (useHandoffDragStore.getState().active) return;
+      // While the find overlay is open, the active match is held as a real
+      // xterm selection. Letting the pickup handler fire on that would
+      // prevent the user from drag-selecting new text — which is exactly
+      // the workflow they're trying to do mid-search.
+      if (useTerminalFindStore.getState().openTerminalId === terminal.id) {
+        return;
+      }
 
       const xterm = getTerminalRuntime(terminal.id)?.xterm;
       if (!xterm || !xterm.hasSelection()) return;
@@ -897,6 +907,17 @@ export function TerminalTile({
 
   const handleClose = useCallback(() => {
     closeTerminalInScene(projectId, worktreeId, terminal.id);
+  }, [projectId, terminal.id, worktreeId]);
+
+  const handleOpenFind = useCallback(() => {
+    // Capture the xterm selection BEFORE activation — focus changes
+    // triggered by activateTerminalInScene can drop the selection, which
+    // would break "select text → click magnifier → search box prefilled".
+    const selection = getTerminalRuntime(terminal.id)?.xterm?.getSelection() ?? "";
+    activateTerminalInScene(projectId, worktreeId, terminal.id, {
+      focusInput: false,
+    });
+    useTerminalFindStore.getState().openFor(terminal.id, selection);
   }, [projectId, terminal.id, worktreeId]);
 
   const isTaskDragEvent = (e: React.DragEvent) =>
@@ -1168,6 +1189,20 @@ export function TerminalTile({
           <ActivitySparkline terminalId={terminal.id} />
         )}
         <div className="flex items-center gap-0.5">
+          {!useAgentRenderer && lodMode === "live" && !terminal.minimized && (
+            <button
+              type="button"
+              className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
+              title={t.shortcut_open_terminal_find}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenFind();
+              }}
+            >
+              <Search size={10} strokeWidth={1.6} aria-hidden="true" />
+            </button>
+          )}
           <button
             className="tc-tile-action text-[var(--text-faint)] hover:text-[var(--text-primary)] p-1 rounded-md hover:bg-[var(--border)]"
             data-visible="always"
@@ -1322,6 +1357,7 @@ export function TerminalTile({
               }
             }}
           />
+          <TerminalFindOverlay terminalId={terminal.id} />
         </div>
       ) : (
         <div

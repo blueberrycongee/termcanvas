@@ -14,6 +14,7 @@ export interface ShortcutMap {
   closeFocused: string;
   toggleRightPanel: string;
   toggleStarFocused: string;
+  openTerminalFind: string;
   globalSearch: string;
   commandPalette: string;
   toggleUsageOverlay: string;
@@ -38,7 +39,8 @@ const LEGACY_DEFAULT_SHORTCUTS: ShortcutMap = {
   clearFocus: "mod+e",
   closeFocused: "mod+d",
   toggleRightPanel: "mod+/",
-  toggleStarFocused: "mod+f",
+  toggleStarFocused: "mod+shift+f",
+  openTerminalFind: "mod+f",
   globalSearch: "mod+k",
   commandPalette: "mod+p",
   toggleUsageOverlay: "mod+shift+u",
@@ -63,7 +65,8 @@ const ALT_DEFAULT_SHORTCUTS: ShortcutMap = {
   clearFocus: "alt+e",
   closeFocused: "alt+d",
   toggleRightPanel: "alt+/",
-  toggleStarFocused: "alt+f",
+  toggleStarFocused: "alt+shift+f",
+  openTerminalFind: "alt+f",
   globalSearch: "alt+k",
   commandPalette: "alt+p",
   toggleUsageOverlay: "alt+shift+u",
@@ -139,6 +142,13 @@ function migrateLegacyShortcutKeys(
   const migrated: Record<string, unknown> = { ...raw };
   for (const key of REMOVED_SHORTCUT_KEYS) {
     delete migrated[key];
+  }
+  // Free Cmd/Alt+F for an upcoming in-terminal find feature: bump
+  // toggleStarFocused off the old default if the user never customized it.
+  if (migrated.toggleStarFocused === "mod+f") {
+    migrated.toggleStarFocused = "mod+shift+f";
+  } else if (migrated.toggleStarFocused === "alt+f") {
+    migrated.toggleStarFocused = "alt+shift+f";
   }
   return migrated;
 }
