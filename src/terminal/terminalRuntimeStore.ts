@@ -14,6 +14,7 @@ import {
   installRenderDiagnosticsListeners,
   recordRenderDiagnostic,
 } from "./renderDiagnostics";
+import { getVisibilityObserver } from "./visibilityObserver";
 import {
   registerTerminal,
   serializeTerminal,
@@ -1660,32 +1661,23 @@ function installRenderRecoveryListeners() {
   }
   renderRecoveryInstalled = true;
 
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") {
-      // WebGL canvases lose their framebuffer when the page is hidden
-      // (sleep/wake, minimize, GPU restart). xterm's IntersectionObserver
-      // only repaints if _needsFullRefresh was set during the pause, which
-      // requires terminal output while hidden. Idle terminals stay blank.
-      refreshAllTerminalRenderers("visibility_change_to_visible");
-      rebuildTerminalAtlas(undefined, "visibility_change_to_visible");
+  const observer = getVisibilityObserver({
+    subscribeLifecycleIPC: window.termcanvas?.lifecycle?.onVisible,
+    recordDiagnostic: (event) => {
+      recordRenderDiagnostic({ kind: event.kind, data: event.data });
+    },
+  });
+  observer.install();
+  observer.onRecovery(({ reason, severity }) => {
+    refreshAllTerminalRenderers(reason);
+    if (severity === "heavy") {
+      // WebGL canvases lose their framebuffer when the page is genuinely
+      // hidden (sleep/wake, minimize, OS Space switch). For light triggers
+      // (bare window.focus where the page may have just briefly lost focus)
+      // a refresh is enough — atlas rebuild is GPU-expensive.
+      rebuildTerminalAtlas(undefined, reason);
     }
   });
-
-  window.addEventListener("focus", () => {
-    refreshAllTerminalRenderers("window_focus");
-  });
-
-  // macOS Space switching does not always fire `visibilitychange`, and
-  // `window.focus` only fires when the window actually gains focus. The main
-  // process pings us via IPC on `BrowserWindow.on('focus' | 'show')` as a
-  // more reliable trigger that does not depend on renderer-side throttling.
-  if (window.termcanvas?.lifecycle?.onVisible) {
-    window.termcanvas.lifecycle.onVisible((payload) => {
-      const reason = `lifecycle_ipc_${payload.reason}`;
-      refreshAllTerminalRenderers(reason);
-      rebuildTerminalAtlas(undefined, reason);
-    });
-  }
 }
 
 function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
