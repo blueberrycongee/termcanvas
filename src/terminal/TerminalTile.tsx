@@ -903,10 +903,14 @@ export function TerminalTile({
   }, [projectId, terminal.id, worktreeId]);
 
   const handleOpenFind = useCallback(() => {
+    // Capture the xterm selection BEFORE activation — focus changes
+    // triggered by activateTerminalInScene can drop the selection, which
+    // would break "select text → click magnifier → search box prefilled".
+    const selection = getTerminalRuntime(terminal.id)?.xterm?.getSelection() ?? "";
     activateTerminalInScene(projectId, worktreeId, terminal.id, {
       focusInput: false,
     });
-    useTerminalFindStore.getState().openFor(terminal.id);
+    useTerminalFindStore.getState().openFor(terminal.id, selection);
   }, [projectId, terminal.id, worktreeId]);
 
   const isTaskDragEvent = (e: React.DragEvent) =>

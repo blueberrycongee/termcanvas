@@ -1140,8 +1140,12 @@ function createTerminalRenderer(
 
   xterm.loadAddon(fitAddon);
   xterm.loadAddon(serializeAddon);
-  xterm.loadAddon(searchAddon);
   xterm.open(host);
+  // SearchAddon's DecorationManager registers markers via the live
+  // renderer — load it AFTER `open()` so its `activate()` runs against an
+  // initialized terminal. Loading before `open()` makes findNext silently
+  // produce zero results for some paths under the WebGL renderer pool.
+  xterm.loadAddon(searchAddon);
 
   try {
     xterm.loadAddon(new ImageAddon());

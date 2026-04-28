@@ -17,7 +17,7 @@ interface FindState {
 }
 
 interface FindActions {
-  openFor: (terminalId: string) => void;
+  openFor: (terminalId: string, prefill?: string) => void;
   close: () => void;
   setQuery: (query: string) => void;
   findNext: () => void;
@@ -87,7 +87,7 @@ export const useTerminalFindStore = create<FindState & FindActions>(
       useRegex: false,
       focusNonce: 0,
 
-      openFor: (terminalId) => {
+      openFor: (terminalId, prefill) => {
         const { openTerminalId: prev, focusNonce } = get();
         // Re-press on the same terminal: keep query/results, just nudge the
         // overlay to re-focus + select the input.
@@ -101,9 +101,12 @@ export const useTerminalFindStore = create<FindState & FindActions>(
 
         const runtime = getTerminalRuntime(terminalId);
         const search = runtime?.searchAddon;
-        // Pre-fill from current xterm selection (single-line only — Ghostty's
-        // rule). Replaces the macOS "Use Selection for Find" Cmd+E flow.
-        const rawSelection = runtime?.xterm?.getSelection() ?? "";
+        // Pre-fill from caller-supplied selection (the click-button path
+        // captures it before activation), falling back to a fresh read of
+        // xterm's current selection (the Cmd+F path). Single-line only —
+        // multi-line selections aren't useful as search needles.
+        const rawSelection =
+          prefill ?? runtime?.xterm?.getSelection() ?? "";
         const initialQuery =
           rawSelection.includes("\n") || rawSelection.trim() === ""
             ? ""
