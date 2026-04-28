@@ -16,7 +16,10 @@ import {
   eventToShortcut,
   type ShortcutMap,
 } from "../stores/shortcutStore";
-import { useSettingsModalStore, type SettingsTab } from "../stores/settingsModalStore";
+import {
+  useSettingsModalStore,
+  type SettingsTab,
+} from "../stores/settingsModalStore";
 import { useT } from "../i18n/useT";
 import { FONT_REGISTRY } from "../terminal/fontRegistry";
 import { loadFont } from "../terminal/fontLoader";
@@ -34,6 +37,19 @@ interface Props {
 }
 
 type Tab = SettingsTab;
+
+const SectionHeader = ({
+  title,
+  subtitle,
+}: {
+  title: ReactNode;
+  subtitle?: ReactNode;
+}) => (
+  <div className="mb-6 flex flex-col gap-1">
+    <h3 className="tc-display">{title}</h3>
+    {subtitle && <p className="tc-meta">{subtitle}</p>}
+  </div>
+);
 
 // Shortcut groups make the keybinding list scannable instead of an
 // undifferentiated stack of fifteen rows. Order within a group is by
@@ -64,7 +80,10 @@ const SHORTCUT_GROUPS: Array<{
     eyebrowKey: "settings_shortcut_group_terminal",
     items: [
       { key: "newTerminal", labelKey: "shortcut_new_terminal" },
-      { key: "renameTerminalTitle", labelKey: "shortcut_rename_terminal_title" },
+      {
+        key: "renameTerminalTitle",
+        labelKey: "shortcut_rename_terminal_title",
+      },
       { key: "closeFocused", labelKey: "shortcut_close_focused" },
       { key: "toggleStarFocused", labelKey: "shortcut_toggle_star_focused" },
       { key: "openTerminalFind", labelKey: "shortcut_open_terminal_find" },
@@ -75,10 +94,19 @@ const SHORTCUT_GROUPS: Array<{
     items: [
       { key: "toggleRightPanel", labelKey: "shortcut_toggle_right_panel" },
       { key: "toggleUsageOverlay", labelKey: "shortcut_toggle_usage_overlay" },
-      { key: "toggleSessionsOverlay", labelKey: "shortcut_toggle_sessions_overlay" },
-      { key: "toggleActivityHeatmap", labelKey: "shortcut_toggle_activity_heatmap" },
+      {
+        key: "toggleSessionsOverlay",
+        labelKey: "shortcut_toggle_sessions_overlay",
+      },
+      {
+        key: "toggleActivityHeatmap",
+        labelKey: "shortcut_toggle_activity_heatmap",
+      },
       { key: "commandPalette", labelKey: "shortcut_command_palette" },
-      { key: "toggleSnapshotHistory", labelKey: "shortcut_toggle_snapshot_history" },
+      {
+        key: "toggleSnapshotHistory",
+        labelKey: "shortcut_toggle_snapshot_history",
+      },
       { key: "toggleHub", labelKey: "shortcut_toggle_hub" },
     ],
   },
@@ -122,9 +150,7 @@ function SettingsRow({
     >
       <div className="flex min-w-0 flex-col gap-1">
         <span className="tc-body-sm text-[var(--text-primary)]">{label}</span>
-        {description && (
-          <span className="tc-meta">{description}</span>
-        )}
+        {description && <span className="tc-meta">{description}</span>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -276,7 +302,9 @@ function ShortcutChip({
   return (
     <div className="flex items-center gap-2">
       {conflict && (
-        <span className="text-[11px] text-[var(--red)]">{t.shortcuts_conflict}</span>
+        <span className="text-[11px] text-[var(--red)]">
+          {t.shortcuts_conflict}
+        </span>
       )}
       <button
         type="button"
@@ -389,7 +417,14 @@ function UpdateStatusLine({ appVersion }: { appVersion: string | null }) {
   );
 }
 
-const AGENT_TYPES = ["claude", "codex", "kimi", "gemini", "opencode", "wuu"] as const;
+const AGENT_TYPES = [
+  "claude",
+  "codex",
+  "kimi",
+  "gemini",
+  "opencode",
+  "wuu",
+] as const;
 
 type ValidateResult =
   | { ok: true; resolvedPath: string; version: string | null }
@@ -399,7 +434,9 @@ function CliToolsList() {
   const t = useT();
   const { cliCommands, setCli } = usePreferencesStore();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [statuses, setStatuses] = useState<Record<string, ValidateResult | null>>({});
+  const [statuses, setStatuses] = useState<
+    Record<string, ValidateResult | null>
+  >({});
 
   useEffect(() => {
     for (const agent of AGENT_TYPES) {
@@ -412,7 +449,8 @@ function CliToolsList() {
   }, []);
 
   const handleValidate = (agent: TerminalType) => {
-    const command = drafts[agent]?.trim() || cliCommands[agent]?.command || agent;
+    const command =
+      drafts[agent]?.trim() || cliCommands[agent]?.command || agent;
     setStatuses((prev) => ({ ...prev, [agent]: null }));
     window.termcanvas.cli.validateCommand(command).then((result) => {
       setStatuses((prev) => ({ ...prev, [agent]: result }));
@@ -456,7 +494,9 @@ function CliToolsList() {
                 className="flex-1 min-w-0 px-2 py-1 rounded-md text-[12px] bg-[var(--surface)]/60 border border-transparent text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
                 style={MONO_STYLE}
                 placeholder={
-                  status?.ok ? t.agent_command_placeholder(status.resolvedPath) : agent
+                  status?.ok
+                    ? t.agent_command_placeholder(status.resolvedPath)
+                    : agent
                 }
                 value={draft}
                 onChange={(e) =>
@@ -509,15 +549,23 @@ function CliToolsList() {
   );
 }
 
-function ProviderDropdown({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+function ProviderDropdown({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (id: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const current = PROVIDER_PRESETS.find((p) => p.id === value) ?? PROVIDER_PRESETS[0];
+  const current =
+    PROVIDER_PRESETS.find((p) => p.id === value) ?? PROVIDER_PRESETS[0];
 
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -653,9 +701,13 @@ function ComputerUseSection() {
             {t.computer_use_accessibility}
           </span>
           <div className="flex items-center gap-2">
-            <span className={`inline-flex h-1.5 w-1.5 rounded-full ${statusDot(accessibilityGranted)}`} />
+            <span
+              className={`inline-flex h-1.5 w-1.5 rounded-full ${statusDot(accessibilityGranted)}`}
+            />
             <span className="text-[12px] text-[var(--text-primary)]">
-              {accessibilityGranted ? t.computer_use_granted : t.computer_use_not_granted}
+              {accessibilityGranted
+                ? t.computer_use_granted
+                : t.computer_use_not_granted}
             </span>
           </div>
         </div>
@@ -664,9 +716,13 @@ function ComputerUseSection() {
             {t.computer_use_screen_recording}
           </span>
           <div className="flex items-center gap-2">
-            <span className={`inline-flex h-1.5 w-1.5 rounded-full ${statusDot(screenRecordingGranted)}`} />
+            <span
+              className={`inline-flex h-1.5 w-1.5 rounded-full ${statusDot(screenRecordingGranted)}`}
+            />
             <span className="text-[12px] text-[var(--text-primary)]">
-              {screenRecordingGranted ? t.computer_use_granted : t.computer_use_not_granted}
+              {screenRecordingGranted
+                ? t.computer_use_granted
+                : t.computer_use_not_granted}
             </span>
           </div>
         </div>
@@ -774,26 +830,38 @@ export function SettingsModal({ onClose }: Props) {
   } = usePreferencesStore();
   const [fontSizeDraft, setFontSizeDraft] = useState(terminalFontSize);
   const { shortcuts, setShortcut, resetAll } = useShortcutStore();
-  const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(new Set());
+  const [downloadedFonts, setDownloadedFonts] = useState<Set<string>>(
+    new Set(),
+  );
   const [downloadingFont, setDownloadingFont] = useState<string | null>(null);
   const t = useT();
   const initialTab = useSettingsModalStore((s) => s.initialTab);
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [recordingKey, setRecordingKey] = useState<keyof ShortcutMap | null>(null);
+  const [recordingKey, setRecordingKey] = useState<keyof ShortcutMap | null>(
+    null,
+  );
   const [conflicts, setConflicts] = useState<Set<keyof ShortcutMap>>(new Set());
   const backdropRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
   const [cliRegistered, setCliRegistered] = useState<boolean | null>(null);
   const [cliLoading, setCliLoading] = useState(false);
-  const [cliPendingAction, setCliPendingAction] = useState<"register" | "unregister" | null>(null);
+  const [cliPendingAction, setCliPendingAction] = useState<
+    "register" | "unregister" | null
+  >(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
 
   // Tabs we render in the rail. Computer Use is macOS-only; non-mac
   // platforms get a tighter list rather than a tab that surfaces a
   // useless row.
   const tabs = useMemo<Tab[]>(() => {
-    const base: Tab[] = ["general", "appearance", "features", "agent", "shortcuts"];
+    const base: Tab[] = [
+      "general",
+      "appearance",
+      "features",
+      "agent",
+      "shortcuts",
+    ];
     if (isMac) base.push("computer-use");
     return base;
   }, []);
@@ -803,9 +871,12 @@ export function SettingsModal({ onClose }: Props) {
   }, []);
 
   useEffect(() => {
-    window.termcanvas?.updater.getVersion().then(setAppVersion).catch(() => {
-      setAppVersion(null);
-    });
+    window.termcanvas?.updater
+      .getVersion()
+      .then(setAppVersion)
+      .catch(() => {
+        setAppVersion(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -844,7 +915,9 @@ export function SettingsModal({ onClose }: Props) {
         ? t.cli_unregistering
         : null;
 
-  const cliStatusText = effectiveCliRegistered ? t.cli_registered : t.cli_not_registered;
+  const cliStatusText = effectiveCliRegistered
+    ? t.cli_registered
+    : t.cli_not_registered;
 
   const handleCliIntegrationToggle = useCallback(
     async (nextEnabled: boolean) => {
@@ -855,17 +928,23 @@ export function SettingsModal({ onClose }: Props) {
         if (nextEnabled) {
           const result = await window.termcanvas.cli.register();
           if (!result.ok) {
-            useNotificationStore.getState().notify("error", t.cli_register_failed);
+            useNotificationStore
+              .getState()
+              .notify("error", t.cli_register_failed);
             return;
           }
           if (!result.skillInstalled) {
-            useNotificationStore.getState().notify("warn", t.cli_register_skill_failed);
+            useNotificationStore
+              .getState()
+              .notify("warn", t.cli_register_skill_failed);
           }
           setCliRegistered(true);
         } else {
           const ok = await window.termcanvas.cli.unregister();
           if (!ok) {
-            useNotificationStore.getState().notify("error", t.cli_unregister_failed);
+            useNotificationStore
+              .getState()
+              .notify("error", t.cli_unregister_failed);
             return;
           }
           setCliRegistered(false);
@@ -895,7 +974,9 @@ export function SettingsModal({ onClose }: Props) {
           ([k, v]) => k !== recordingKey && v === shortcut,
         );
         if (conflicting) {
-          setConflicts(new Set([recordingKey, conflicting[0] as keyof ShortcutMap]));
+          setConflicts(
+            new Set([recordingKey, conflicting[0] as keyof ShortcutMap]),
+          );
           setTimeout(() => setConflicts(new Set()), 2000);
           setRecordingKey(null);
           return;
@@ -960,13 +1041,6 @@ export function SettingsModal({ onClose }: Props) {
     [onClose],
   );
 
-  const SectionHeader = ({ title, subtitle }: { title: ReactNode; subtitle?: ReactNode }) => (
-    <div className="mb-6 flex flex-col gap-1">
-      <h3 className="tc-display">{title}</h3>
-      {subtitle && <p className="tc-meta">{subtitle}</p>}
-    </div>
-  );
-
   return (
     <div
       ref={backdropRef}
@@ -988,9 +1062,13 @@ export function SettingsModal({ onClose }: Props) {
           <h2 className="tc-display">{t.settings}</h2>
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)]">
-              <span className="tc-kbd" style={MONO_STYLE}>{isMac ? "⌘ ," : "Ctrl ,"}</span>
+              <span className="tc-kbd" style={MONO_STYLE}>
+                {isMac ? "⌘ ," : "Ctrl ,"}
+              </span>
               <span>·</span>
-              <span className="tc-kbd" style={MONO_STYLE}>Esc</span>
+              <span className="tc-kbd" style={MONO_STYLE}>
+                Esc
+              </span>
             </span>
             <button
               type="button"
@@ -1034,7 +1112,11 @@ export function SettingsModal({ onClose }: Props) {
                     aria-current={active ? "page" : undefined}
                   >
                     <span className="truncate text-left">
-                      {(t as unknown as Record<string, string>)[TAB_LABEL_KEYS[id]]}
+                      {
+                        (t as unknown as Record<string, string>)[
+                          TAB_LABEL_KEYS[id]
+                        ]
+                      }
                     </span>
                   </button>
                 );
@@ -1085,7 +1167,9 @@ export function SettingsModal({ onClose }: Props) {
                     >
                       <OnOffSegment
                         value={!!effectiveCliRegistered}
-                        onChange={(next) => void handleCliIntegrationToggle(next)}
+                        onChange={(next) =>
+                          void handleCliIntegrationToggle(next)
+                        }
                         disabled={{
                           on: cliLoading || effectiveCliRegistered === true,
                           off: cliLoading || effectiveCliRegistered === false,
@@ -1148,7 +1232,9 @@ export function SettingsModal({ onClose }: Props) {
                               {isAvailable && (
                                 <span
                                   className="text-[12px] text-[var(--text-muted)] truncate"
-                                  style={{ fontFamily: `${font.cssFamily}, monospace` }}
+                                  style={{
+                                    fontFamily: `${font.cssFamily}, monospace`,
+                                  }}
                                 >
                                   {"AaBbCc 0123 →→ {}"}
                                 </span>
@@ -1169,47 +1255,69 @@ export function SettingsModal({ onClose }: Props) {
                                   {t.font_downloaded}
                                 </span>
                               )}
-                              {!isBuiltin && !isDownloaded && !isDownloading && (
-                                <button
-                                  type="button"
-                                  className={`${fontBadgeClass} bg-[var(--surface)] text-[var(--accent)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-100`}
-                                  onClick={async (e) => {
-                                    e.stopPropagation();
-                                    setDownloadingFont(font.id);
-                                    try {
-                                      const result = await window.termcanvas.fonts.download(
-                                        font.url,
-                                        font.fileName,
-                                      );
-                                      if (result.ok) {
-                                        const fontsDir = await window.termcanvas.fonts.getPath();
-                                        await loadFont(font, fontsDir);
-                                        setDownloadedFonts((prev) => new Set([...prev, font.fileName]));
-                                      } else {
-                                        useNotificationStore.getState().notify(
-                                          "error",
-                                          `${t.font_download_failed}: ${result.error ?? font.name}`,
-                                        );
+                              {!isBuiltin &&
+                                !isDownloaded &&
+                                !isDownloading && (
+                                  <button
+                                    type="button"
+                                    className={`${fontBadgeClass} bg-[var(--surface)] text-[var(--accent)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-100`}
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setDownloadingFont(font.id);
+                                      try {
+                                        const result =
+                                          await window.termcanvas.fonts.download(
+                                            font.url,
+                                            font.fileName,
+                                          );
+                                        if (result.ok) {
+                                          const fontsDir =
+                                            await window.termcanvas.fonts.getPath();
+                                          await loadFont(font, fontsDir);
+                                          setDownloadedFonts(
+                                            (prev) =>
+                                              new Set([...prev, font.fileName]),
+                                          );
+                                        } else {
+                                          useNotificationStore
+                                            .getState()
+                                            .notify(
+                                              "error",
+                                              `${t.font_download_failed}: ${result.error ?? font.name}`,
+                                            );
+                                        }
+                                      } catch (err) {
+                                        useNotificationStore
+                                          .getState()
+                                          .notify(
+                                            "error",
+                                            `${t.font_download_failed}: ${err instanceof Error ? err.message : font.name}`,
+                                          );
                                       }
-                                    } catch (err) {
-                                      useNotificationStore.getState().notify(
-                                        "error",
-                                        `${t.font_download_failed}: ${err instanceof Error ? err.message : font.name}`,
-                                      );
-                                    }
-                                    setDownloadingFont(null);
-                                  }}
-                                >
-                                  {t.font_download}
-                                </button>
-                              )}
+                                      setDownloadingFont(null);
+                                    }}
+                                  >
+                                    {t.font_download}
+                                  </button>
+                                )}
                               {isDownloading && (
                                 <span
                                   className={`${fontBadgeClass} bg-[var(--surface)] text-[var(--text-muted)] flex items-center gap-1`}
                                   aria-live="polite"
                                 >
-                                  <svg className="animate-spin h-3 w-3" viewBox="0 0 16 16" fill="none">
-                                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+                                  <svg
+                                    className="animate-spin h-3 w-3"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                  >
+                                    <circle
+                                      cx="8"
+                                      cy="8"
+                                      r="6"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      opacity="0.3"
+                                    />
                                     <path
                                       d="M14 8a6 6 0 0 0-6-6"
                                       stroke="currentColor"
@@ -1273,39 +1381,51 @@ export function SettingsModal({ onClose }: Props) {
                 <div className="flex flex-col gap-8">
                   <div className="flex flex-col gap-5">
                     <Eyebrow>
-                      {(t as unknown as Record<string, string>).settings_features_group_canvas ??
-                        "Canvas surfaces"}
+                      {(t as unknown as Record<string, string>)
+                        .settings_features_group_canvas ?? "Canvas surfaces"}
                     </Eyebrow>
                     <SettingsRow
                       label={t.composer_toggle}
                       description={t.composer_toggle_desc}
                     >
-                      <OnOffSegment value={composerEnabled} onChange={setComposerEnabled} />
+                      <OnOffSegment
+                        value={composerEnabled}
+                        onChange={setComposerEnabled}
+                      />
                     </SettingsRow>
                     <SettingsRow
                       label={t.drawing_toggle}
                       description={t.drawing_toggle_desc}
                     >
-                      <OnOffSegment value={drawingEnabled} onChange={setDrawingEnabled} />
+                      <OnOffSegment
+                        value={drawingEnabled}
+                        onChange={setDrawingEnabled}
+                      />
                     </SettingsRow>
                     <SettingsRow
                       label={t.browser_toggle}
                       description={t.browser_toggle_desc}
                     >
-                      <OnOffSegment value={browserEnabled} onChange={setBrowserEnabled} />
+                      <OnOffSegment
+                        value={browserEnabled}
+                        onChange={setBrowserEnabled}
+                      />
                     </SettingsRow>
                   </div>
 
                   <div className="flex flex-col gap-5">
                     <Eyebrow>
-                      {(t as unknown as Record<string, string>).settings_features_group_workflow ??
-                        "Workflow"}
+                      {(t as unknown as Record<string, string>)
+                        .settings_features_group_workflow ?? "Workflow"}
                     </Eyebrow>
                     <SettingsRow
                       label={t.summary_toggle}
                       description={t.summary_toggle_desc}
                     >
-                      <OnOffSegment value={summaryEnabled} onChange={setSummaryEnabled} />
+                      <OnOffSegment
+                        value={summaryEnabled}
+                        onChange={setSummaryEnabled}
+                      />
                     </SettingsRow>
 
                     {summaryEnabled && (
@@ -1337,11 +1457,17 @@ export function SettingsModal({ onClose }: Props) {
 
                   <div className="flex flex-col gap-5">
                     <Eyebrow>
-                      {(t as unknown as Record<string, string>).settings_features_group_ambient ??
-                        "Ambient"}
+                      {(t as unknown as Record<string, string>)
+                        .settings_features_group_ambient ?? "Ambient"}
                     </Eyebrow>
-                    <SettingsRow label={t.pet_toggle} description={t.pet_toggle_desc}>
-                      <OnOffSegment value={petEnabled} onChange={setPetEnabled} />
+                    <SettingsRow
+                      label={t.pet_toggle}
+                      description={t.pet_toggle_desc}
+                    >
+                      <OnOffSegment
+                        value={petEnabled}
+                        onChange={setPetEnabled}
+                      />
                     </SettingsRow>
                     <SettingsRow
                       label={t.completion_glow_toggle}
@@ -1357,8 +1483,8 @@ export function SettingsModal({ onClose }: Props) {
                   {isMac && (
                     <div className="flex flex-col gap-5">
                       <Eyebrow>
-                        {(t as unknown as Record<string, string>).settings_features_group_input ??
-                          "Input"}
+                        {(t as unknown as Record<string, string>)
+                          .settings_features_group_input ?? "Input"}
                       </Eyebrow>
                       <SettingsRow
                         label={t.trackpad_swipe_focus_toggle}
@@ -1392,7 +1518,10 @@ export function SettingsModal({ onClose }: Props) {
                               name: preset.name,
                               type: preset.type,
                               baseURL: preset.baseURL,
-                              apiKey: agentConfig.id === preset.id ? agentConfig.apiKey : "",
+                              apiKey:
+                                agentConfig.id === preset.id
+                                  ? agentConfig.apiKey
+                                  : "",
                               model: preset.defaultModel,
                             });
                           }
@@ -1423,14 +1552,18 @@ export function SettingsModal({ onClose }: Props) {
                         type="password"
                         value={agentConfig.apiKey}
                         onChange={(v) => patchAgentConfig({ apiKey: v })}
-                        placeholder={getPreset(agentConfig.id)?.keyPlaceholder ?? "..."}
+                        placeholder={
+                          getPreset(agentConfig.id)?.keyPlaceholder ?? "..."
+                        }
                       />
                     </SettingsRow>
                     <SettingsRow label={t.agent_model}>
                       <TextInput
                         value={agentConfig.model}
                         onChange={(v) => patchAgentConfig({ model: v })}
-                        placeholder={getPreset(agentConfig.id)?.defaultModel ?? ""}
+                        placeholder={
+                          getPreset(agentConfig.id)?.defaultModel ?? ""
+                        }
                       />
                     </SettingsRow>
                   </div>
@@ -1450,7 +1583,8 @@ export function SettingsModal({ onClose }: Props) {
                   {SHORTCUT_GROUPS.map(({ eyebrowKey, items }) => (
                     <div key={eyebrowKey} className="flex flex-col gap-1">
                       <Eyebrow>
-                        {(t as unknown as Record<string, string>)[eyebrowKey] ?? eyebrowKey}
+                        {(t as unknown as Record<string, string>)[eyebrowKey] ??
+                          eyebrowKey}
                       </Eyebrow>
                       <div className="mt-1 overflow-hidden rounded-md border border-[var(--border)]">
                         {items.map(({ key, labelKey }, idx) => (
@@ -1461,13 +1595,17 @@ export function SettingsModal({ onClose }: Props) {
                             }`}
                           >
                             <span className="text-[13px] text-[var(--text-primary)]">
-                              {(t as unknown as Record<string, string>)[labelKey] ?? labelKey}
+                              {(t as unknown as Record<string, string>)[
+                                labelKey
+                              ] ?? labelKey}
                             </span>
                             <ShortcutChip
                               value={shortcuts[key]}
                               isRecording={recordingKey === key}
                               onClick={() =>
-                                setRecordingKey(recordingKey === key ? null : key)
+                                setRecordingKey(
+                                  recordingKey === key ? null : key,
+                                )
                               }
                               conflict={conflicts.has(key)}
                             />
@@ -1495,7 +1633,9 @@ export function SettingsModal({ onClose }: Props) {
 
             {tab === "computer-use" && (
               <section>
-                <SectionHeader title={t.settings_computer_use ?? "Computer Use"} />
+                <SectionHeader
+                  title={t.settings_computer_use ?? "Computer Use"}
+                />
                 <ComputerUseSection />
               </section>
             )}

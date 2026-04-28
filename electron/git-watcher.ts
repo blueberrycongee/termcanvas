@@ -67,7 +67,10 @@ export class GitFileWatcher {
     }
   }
 
-  watchGitPresence(dirPath: string, callback: (isGitRepo: boolean) => void): void {
+  watchGitPresence(
+    dirPath: string,
+    callback: (isGitRepo: boolean) => void,
+  ): void {
     const state = this.states.get(dirPath);
     if (!state || state.presenceWatcher) return;
 
@@ -76,6 +79,11 @@ export class GitFileWatcher {
         return;
       }
       this.refreshPresenceState(dirPath, callback);
+    });
+    state.presenceWatcher.on("error", (err) => {
+      console.error(`[GitWatcher] presence watch error for ${dirPath}:`, err);
+      state.presenceWatcher?.close();
+      state.presenceWatcher = null;
     });
   }
 
@@ -102,7 +110,10 @@ export class GitFileWatcher {
     }
   }
 
-  private refreshPresenceState(worktreePath: string, callback: (isGitRepo: boolean) => void) {
+  private refreshPresenceState(
+    worktreePath: string,
+    callback: (isGitRepo: boolean) => void,
+  ) {
     const state = this.states.get(worktreePath);
     if (!state) return;
 
@@ -125,7 +136,10 @@ export class GitFileWatcher {
     state.gitDir = null;
   }
 
-  private startGitDirectoryWatch(worktreePath: string, resolvedGitDir?: string) {
+  private startGitDirectoryWatch(
+    worktreePath: string,
+    resolvedGitDir?: string,
+  ) {
     const state = this.states.get(worktreePath);
     if (!state) return;
 
@@ -155,6 +169,14 @@ export class GitFileWatcher {
         if (!name || LOG_SIGNAL_FILES.has(name)) {
           this.scheduleLogEvent(worktreePath);
         }
+      });
+      state.gitDirWatcher.on("error", (err) => {
+        console.error(
+          `[GitWatcher] gitDir watch error for ${worktreePath}:`,
+          err,
+        );
+        state.gitDirWatcher?.close();
+        state.gitDirWatcher = null;
       });
     } catch {
       state.gitDirWatcher = null;

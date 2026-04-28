@@ -87,9 +87,7 @@ export function scanMemoryDir(dirPath: string): MemoryGraph {
 
   let entries: string[];
   try {
-    entries = fs
-      .readdirSync(dirPath)
-      .filter((f) => f.endsWith(".md"));
+    entries = fs.readdirSync(dirPath).filter((f) => f.endsWith(".md"));
   } catch {
     return empty;
   }
@@ -154,20 +152,24 @@ const watchers = new Map<
   { watcher: FSWatcher; timer: ReturnType<typeof setTimeout> | null }
 >();
 
-export function watchMemoryDir(
-  dirPath: string,
-  onChange: () => void,
-): void {
+export function watchMemoryDir(dirPath: string, onChange: () => void): void {
   unwatchMemoryDir(dirPath);
   if (!fs.existsSync(dirPath)) return;
 
-  const entry: { watcher: FSWatcher; timer: ReturnType<typeof setTimeout> | null } = {
+  const entry: {
+    watcher: FSWatcher;
+    timer: ReturnType<typeof setTimeout> | null;
+  } = {
     watcher: fs.watch(dirPath, () => {
       if (entry.timer) clearTimeout(entry.timer);
       entry.timer = setTimeout(onChange, 500);
     }),
     timer: null,
   };
+  entry.watcher.on("error", (err) => {
+    console.error(`[MemoryService] watch error for ${dirPath}:`, err);
+    unwatchMemoryDir(dirPath);
+  });
   watchers.set(dirPath, entry);
 }
 
