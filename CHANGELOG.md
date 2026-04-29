@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.1] - 2026-04-29
+
+### Fixed
+- **Long-running tool calls no longer false-trigger waiting-for-input attention**: the PreToolUse fallback timers now align with Codex's stream idle timeout, so long tests, builds, and large edits stop producing premature red "awaiting input" signals.
+- **Light theme terminal colors are readable again**: the xterm light palette now uses darker ANSI colors where needed, and the `OpenCode` terminal type badge now uses a theme-aware accent with sufficient contrast in both themes.
+
 ## [0.39.0] - 2026-04-29
 
 ### Added
