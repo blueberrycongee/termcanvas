@@ -98,6 +98,28 @@ test("sanitizeEnv drops undefined values and injects a fallback PATH", () => {
   assert.match(env.PATH, /\/usr\/bin/);
 });
 
+test("sanitizeEnv strips inherited TermCanvas runtime identity", () => {
+  const env = sanitizeEnv(
+    {
+      HOME: "/Users/test",
+      PATH: "/custom/bin",
+      TERMCANVAS_SOCKET: "/tmp/termcanvas-prod.sock",
+      TERMCANVAS_TERMINAL_ID: "prod-terminal",
+      TERMCANVAS_TERMINAL_TYPE: "codex",
+      TERMCANVAS_INSTANCE: "prod",
+      TERMCANVAS_PORT_FILE: "/Users/test/.termcanvas/port",
+    },
+    createDeps(),
+  );
+
+  assert.equal(env.HOME, "/Users/test");
+  assert.ok(!("TERMCANVAS_SOCKET" in env));
+  assert.ok(!("TERMCANVAS_TERMINAL_ID" in env));
+  assert.ok(!("TERMCANVAS_TERMINAL_TYPE" in env));
+  assert.ok(!("TERMCANVAS_INSTANCE" in env));
+  assert.ok(!("TERMCANVAS_PORT_FILE" in env));
+});
+
 test("sanitizeEnv reads Windows Path variables case-insensitively and appends common user bins", () => {
   const env = sanitizeEnv(
     {

@@ -62,6 +62,14 @@ const LOGIN_SHELL_ENV_BLOCKED_PREFIXES = [
   "P9K_",
 ] as const;
 
+const TERMCANVAS_RUNTIME_ENV_BLOCKLIST = new Set([
+  "TERMCANVAS_SOCKET",
+  "TERMCANVAS_TERMINAL_ID",
+  "TERMCANVAS_TERMINAL_TYPE",
+  "TERMCANVAS_INSTANCE",
+  "TERMCANVAS_PORT_FILE",
+]);
+
 function getEnvVarCaseInsensitive(
   env: Record<string, string | undefined>,
   key: string,
@@ -172,6 +180,10 @@ export function sanitizeEnv(
     if (typeof value === "string") {
       cleaned[key] = value;
     }
+  }
+
+  for (const key of TERMCANVAS_RUNTIME_ENV_BLOCKLIST) {
+    delete cleaned[key];
   }
 
   cleaned.PATH = mergePathValue(
