@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.0] - 2026-04-29
+
+### Added
+- **In-terminal find (`Cmd+F`)**: Claude, Codex, and shell terminals now expose an inline find bar with next/previous navigation, case-sensitive / whole-word / regex toggles, live match counts, and focus hand-off from the terminal into the search input.
+
+### Changed
+- **Select mode no longer starts drags from text selection**: selecting text inside a terminal no longer hands off into tile dragging, and select mode no longer drags annotations. This removes an interaction conflict that made ordinary selection feel unsafe.
+
+### Fixed
+- **Headless workflow + remote CLI compatibility**: the headless workflow layer now correctly bridges the current Hydra workbench/dispatch API back onto the legacy workflow/node HTTP and CLI contract, so init / dispatch / watch / approve / reset / cleanup work again in server mode.
+- **Telemetry keeps exit-state evidence**: terminal telemetry now preserves the final exit snapshot and contract status after detach, instead of dropping the useful terminal-ended state too early.
+- **Dialog focus and localization regressions**: confirm dialogs now move focus inside the modal reliably, and user-facing / accessibility copy that leaked hardcoded English has been localized again.
+- **Release-gate regressions**: canvas entity-anchored annotations resolve against the current project/worktree positions again, `syncWorktrees` no longer emits a synthetic update on true no-op scans, and stale release tests/docs were brought back in line with the current terminal-level canvas and Pin instruction model.
+
 ## [0.38.4] - 2026-04-28
 
 ### Changed
