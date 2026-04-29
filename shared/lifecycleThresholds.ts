@@ -245,6 +245,11 @@ export const DEFAULT_SESSION_POLL_INTERVAL_MS = 10_000;
  * it. 5 minutes aligns with Codex's DEFAULT_STREAM_IDLE_TIMEOUT_MS so
  * the fallback doesn't fire before the underlying API considers the
  * connection stale.
+ *
+ * TODO: This value is intentionally conservative to eliminate false
+ * positives. Revisit when Claude Code exposes a real approval signal
+ * via hooks, or when we have better heuristics for detecting genuine
+ * user-input waits vs slow tool execution.
  */
 export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 300_000;
 
@@ -263,6 +268,11 @@ export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 300_000;
  * connection stale. This eliminates false positives from long-running
  * tools (tests, builds, large edits) at the cost of delayed pet
  * reactions when a real approval prompt is missed.
+ *
+ * TODO: This value is intentionally conservative to eliminate false
+ * positives. Revisit when Codex exposes a real approval signal via
+ * hooks (similar to Claude's Notification hook), or when we have
+ * better heuristics for detecting genuine user-input waits.
  */
 export const CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS = 300_000;
 
