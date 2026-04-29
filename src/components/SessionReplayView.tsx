@@ -13,10 +13,10 @@ import { ConfirmDialog } from "./ui/ConfirmDialog";
 import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
 
 /*
- * Replay as a chat transcript.
+ * Session transcript.
  *
- * Three layers, in order of importance to a human reading back a
- * session: topic → dialog → playback controls.
+ * Two layers, in order of importance to a human reading back a
+ * session: topic → dialog.
  *
  *   Layer 1 — Topic header.
  *     First user prompt promoted to a big title; meta line beneath.
@@ -24,10 +24,9 @@ import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
  *     about?" without any scrolling.
  *
  *   Layer 2 — Chat body.
- *     One row vocabulary, one rail. Each row is rail (left, 2 px,
- *     accent — only visible when the row is the current event) +
- *     gutter + content. Speakers are differentiated by typography:
- *       User prompt → "›" accent gutter glyph + prose at weight 500
+ *     One row vocabulary. Speakers are differentiated by typography
+ *     and placement:
+ *       User prompt → right-aligned neutral bubble
  *       Assistant   → no glyph, prose at weight 400 (same indent)
  *       Thinking    → italic muted, deeper indent
  *       Tool group  → muted mono label, deeper indent, click-to-expand
@@ -35,16 +34,8 @@ import { markdownClassName, renderMarkdown } from "../utils/markdownClass";
  *     appears at the top level — only inside its parent tool's
  *     expanded detail.
  *
- *   Layer 3 — Playback footer.
- *     Compact play/pause/seek + speed + show-details toggle. Demoted
- *     from "primary UI" to "occasional tool". The progress bar was
- *     removed because the conversation is read-first; users scrub via
- *     the highlighted row, not a slider.
- *
- * The existing currentIndex / isPlaying / seekTo state machine is
- * preserved — this is a presentational rewrite, not a state model
- * change. currentIndex highlights whichever rendered block contains
- * it and auto-scrolls during playback.
+ * The existing currentIndex / seekTo state machine is preserved —
+ * this is a presentational rewrite, not a state model change.
  */
 
 function formatTimestamp(iso: string): string {
@@ -411,26 +402,11 @@ function TopicHeader({
 
 /* ------------ Layer-2: chat content -------------------------------
  *
- * Every row in this layer shares one visual contract:
- *
- *   [ rail ] [ gutter ] [ content                                  ]
- *     ^         ^         ^
- *     │         │         └── prose / label / chevron, indented per
- *     │         │              row kind so subordination reads as
- *     │         │              indent depth, not as container chrome
- *     │         │
- *     │         └── 20 px-wide column. User prompts hang an accent
- *     │              "›" glyph here as a speaker mark, replacing the
- *     │              old "You" / "Assistant" eyebrows.
- *     │
- *     └── the ONE rail in this view. 2 px wide, accent-coloured, only
- *         visible on the current event. Replaces three different rail
- *         widths from the previous design (3 px user, 2 px thinking,
- *         1 px tool group), which were too similar to feel intentional
- *         and too present to feel quiet.
+ * Every row in this layer keeps content quiet: no selected-row accent,
+ * no coloured current marker, and no per-row label chrome.
  *
  * Speaker differentiation is now purely typographic:
- *   - User prompt:   --text-md, weight 500, accent "›" gutter glyph
+ *   - User prompt:   neutral right-aligned bubble
  *   - Assistant:     --text-md, weight 400, no glyph
  *   - Thinking:      --text-xs italic muted, deeper indent
  *   - Tool group:    --text-xs muted mono label, deeper indent
@@ -439,8 +415,8 @@ function TopicHeader({
 
 const ROW_RAIL_CLS = "absolute left-0 top-0 bottom-0 w-[2px] transition-colors";
 
-function railColor(isCurrent: boolean): string {
-  return isCurrent ? "var(--accent)" : "transparent";
+function railColor(_isCurrent: boolean): string {
+  return "transparent";
 }
 
 /** Muted copy button. Click writes `text` to the clipboard and the
@@ -532,12 +508,6 @@ function UserPrompt({
   // is items-end + auto-sized in the cross axis. The bubble never
   // pushes past the column even with very long prompts.
   //
-  // Current event indicator: a 1px accent border on the bubble. The
-  // resting bubble carries a 1px transparent border so flipping the
-  // color doesn't shift the layout. We deliberately do NOT use a bg
-  // tint or accent-soft fill: the resting bubble is supposed to be
-  // the user-picked neutral, not a variable accent.
-  //
   // Timestamp lives BELOW the bubble, right-aligned, muted mono. Below
   // (not above) because the eye lands on the bubble itself first; the
   // timestamp then sits next to where the assistant's reply begins,
@@ -557,7 +527,7 @@ function UserPrompt({
           className="rounded-xl px-3 py-2 text-left cursor-pointer transition-colors min-w-0 max-w-full overflow-hidden"
           style={{
             backgroundColor: "var(--bubble-bg)",
-            border: `1px solid ${isCurrent ? "var(--accent)" : "transparent"}`,
+            border: "1px solid transparent",
           }}
         >
           <div
@@ -909,8 +879,7 @@ function ToolGroup({
       : summarizeToolNames(items);
 
   // Tool runs read as subordinate via deeper indent (pl-9 vs pl-5 for
-  // prose) + smaller muted mono label. No always-on rail: only the
-  // current-event rail (shared with user/assistant rows) is visible.
+  // prose) + smaller muted mono label. No selected-row accent.
   return (
     <div
       className="group relative pl-9 pr-3 transition-colors"
@@ -1045,10 +1014,9 @@ function formatFoldDuration(startIso: string, endIso: string): string {
  * noise. The label users actually want is "the agent did 12 things",
  * not "the agent issued 47 tool calls".
  *
- * No rail: when playback enters the working slice the fold auto-
- * expands (see `effectiveExpanded` in the main render), so a
- * collapsed fold is guaranteed to never hide the active event from
- * the rail.
+ * When playback enters the working slice the fold auto-expands (see
+ * `effectiveExpanded` in the main render), so a collapsed fold is
+ * guaranteed to never hide the active event.
  */
 function WorkingFold({
   stepCount,
@@ -1152,36 +1120,21 @@ function ErrorRow({
 
 /* ------------ Main component -------------------------------------- */
 
-const SPEEDS = [1, 2, 4, 8];
-
 export function SessionReplayView() {
   const timeline = useSessionStore((s) => s.replayTimeline);
   const replayError = useSessionStore((s) => s.replayError);
   const currentIndex = useSessionStore((s) => s.replayCurrentIndex);
-  const isPlaying = useSessionStore((s) => s.replayIsPlaying);
-  const speed = useSessionStore((s) => s.replaySpeed);
   const exitReplay = useSessionStore((s) => s.exitReplay);
   const closeSessionsOverlay = useCanvasStore((s) => s.closeSessionsOverlay);
   const seekTo = useSessionStore((s) => s.seekTo);
-  const stepForward = useSessionStore((s) => s.stepForward);
-  const stepBackward = useSessionStore((s) => s.stepBackward);
-  const togglePlayback = useSessionStore((s) => s.togglePlayback);
-  const stopPlayback = useSessionStore((s) => s.stopPlayback);
-  const setSpeed = useSessionStore((s) => s.setSpeed);
   const { notify } = useNotificationStore();
   const t = useT();
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const currentRef = useRef<HTMLElement | null>(null);
 
-  // View toggles. Kept as local component state (not in the session
-  // store) — they're purely ergonomic read-mode preferences, don't
-  // need to round-trip through IPC or persist across sessions. Tool
-  // pills stay collapsed by default even when "details" is on; the
-  // toggle affects visibility of thinking rows only, plus it auto-
-  // expands pills if the user flips it after already reading the
-  // prose. Same design pattern as Slack's "show more" affordance.
-  const [showThinking, setShowThinking] = useState(false);
+  // Thinking rows stay hidden in this stripped-down transcript view.
+  const showThinking = false;
   // Tool groups (the whole run) vs individual tool items inside an
   // expanded group have independent collapsed/expanded state. Keep
   // them in separate sets keyed by the first-tool's timeline index
@@ -1362,32 +1315,13 @@ export function SessionReplayView() {
     t,
   ]);
 
-  // Scroll the current-highlighted element into view when it changes.
-  // Applies to both click-seek and playback. Smooth scroll works well
-  // for small gaps; large jumps fall back to "nearest" behaviour.
+  // Scroll the current element into view when click-seek changes it.
   useEffect(() => {
     currentRef.current?.scrollIntoView({
       block: "nearest",
       behavior: "smooth",
     });
   }, [currentIndex]);
-
-  useEffect(() => {
-    if (!isPlaying || !timeline) return;
-    const events = timeline.events;
-    if (currentIndex >= events.length - 1) {
-      stopPlayback();
-      return;
-    }
-    const current = events[currentIndex];
-    const next = events[currentIndex + 1];
-    const realDelta =
-      new Date(next.timestamp).getTime() -
-      new Date(current.timestamp).getTime();
-    const interval = Math.max(50, Math.min(2000, realDelta / speed));
-    const timer = setTimeout(() => stepForward(), interval);
-    return () => clearTimeout(timer);
-  }, [isPlaying, currentIndex, speed, timeline, stepForward, stopPlayback]);
 
   const turns = useMemo(
     () => (timeline ? buildTurns(timeline.events) : []),
@@ -1679,103 +1613,6 @@ export function SessionReplayView() {
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* ------------ Layer-3: compact footer --------------------- */}
-      <div className="shrink-0 border-t border-[var(--border)] px-3 py-1.5">
-        <div className="flex items-center gap-1">
-          <button
-            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            onClick={() => seekTo(0)}
-            title="First"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M2 2v6M8 2L4 5l4 3V2z" fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            onClick={stepBackward}
-            title="Previous"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M7 2L3 5l4 3V2z" fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            className="p-1 text-[var(--text-primary)] cursor-pointer"
-            onClick={togglePlayback}
-            title={isPlaying ? "Pause" : "Play"}
-          >
-            {isPlaying ? (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <rect
-                  x="2"
-                  y="2"
-                  width="3"
-                  height="8"
-                  rx="0.5"
-                  fill="currentColor"
-                />
-                <rect
-                  x="7"
-                  y="2"
-                  width="3"
-                  height="8"
-                  rx="0.5"
-                  fill="currentColor"
-                />
-              </svg>
-            ) : (
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                <path d="M3 1.5l7 4.5-7 4.5V1.5z" fill="currentColor" />
-              </svg>
-            )}
-          </button>
-          <button
-            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            onClick={stepForward}
-            title="Next"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
-            </svg>
-          </button>
-          <button
-            className="p-0.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] cursor-pointer"
-            onClick={() => seekTo(timeline.events.length - 1)}
-            title="Last"
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M8 2v6M2 2l4 3-4 3V2z" fill="currentColor" />
-            </svg>
-          </button>
-
-          <div className="flex-1" />
-
-          <button
-            className="tc-mono tc-label hover:text-[var(--text-primary)] cursor-pointer px-1"
-            onClick={() => setShowThinking((v) => !v)}
-            title="Show internal reasoning (thinking blocks)"
-          >
-            {showThinking ? "● thinking" : "○ thinking"}
-          </button>
-
-          <button
-            className="tc-mono tc-label tabular-nums hover:text-[var(--text-primary)] cursor-pointer px-1"
-            onClick={() => {
-              const idx = SPEEDS.indexOf(speed);
-              setSpeed(SPEEDS[(idx + 1) % SPEEDS.length]);
-            }}
-            title="Playback speed"
-          >
-            {speed}x
-          </button>
-
-          <span className="tc-mono tc-caption tabular-nums">
-            {currentIndex + 1}/{timeline.events.length}
-          </span>
         </div>
       </div>
 

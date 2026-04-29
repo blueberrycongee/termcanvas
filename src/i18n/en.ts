@@ -595,7 +595,7 @@ export const en = {
   sessions_history_load_more: "Load more",
   sessions_overlay_empty_title: "Pick a session on the left",
   sessions_overlay_empty_hint:
-    "Browse live or past conversations in the list. Click any row to replay the full transcript here.",
+    "Browse live or past conversations in the list. Click any row to open the full transcript here.",
   sessions_panel_title: "Projects",
   sessions_inspector: "Inspector",
   sessions_recent_trace: "Recent Trace",
@@ -613,7 +613,7 @@ export const en = {
   sessions_trace_turn_aborted: "Turn aborted",
   sessions_trace_process_exited: (code?: number) =>
     code === undefined ? "Process exited" : `Process exited (${code})`,
-  sessions_loading: "Loading replay…",
+  sessions_loading: "Loading session…",
   sessions_load_error_back: "Back to sessions",
   sessions_back: "Back",
 

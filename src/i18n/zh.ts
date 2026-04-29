@@ -586,7 +586,7 @@ export const zh = {
   sessions_history_load_more: "加载更多",
   sessions_overlay_empty_title: "请在左侧选择一个会话",
   sessions_overlay_empty_hint:
-    "左侧可以浏览当前的和历史的会话,点击任意一条,完整对话就会在这里回放。",
+    "左侧可以浏览当前的和历史的会话,点击任意一条,完整对话就会在这里打开。",
   sessions_panel_title: "项目",
   sessions_inspector: "详情",
   sessions_recent_trace: "最近 Trace",
@@ -604,7 +604,7 @@ export const zh = {
   sessions_trace_turn_aborted: "本轮中止",
   sessions_trace_process_exited: (code?: number) =>
     code === undefined ? "进程已退出" : `进程已退出（${code}）`,
-  sessions_loading: "加载回放…",
+  sessions_loading: "加载会话…",
   sessions_load_error_back: "返回会话列表",
   sessions_back: "返回",
 

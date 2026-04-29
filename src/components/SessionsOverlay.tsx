@@ -218,7 +218,7 @@ export function SessionsOverlay() {
             </div>
             <div className="tc-label max-w-sm leading-relaxed">
               {(t.sessions_overlay_empty_hint as unknown as string) ??
-                "Browse past conversations in the left panel's History section. Click any row to replay the full transcript here."}
+                "Browse past conversations in the left panel's History section. Click any row to open the full transcript here."}
             </div>
           </div>
         )}
