@@ -8,7 +8,7 @@ import {
   enableHydraForProject,
 } from "../electron/hydra-project.ts";
 
-test("enableHydraForProject writes Hydra and Task instructions into the project root", () => {
+test("enableHydraForProject writes Hydra and Pin instructions into the project root", () => {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-hydra-enable-"));
 
   const result = enableHydraForProject(repoPath);
@@ -23,8 +23,8 @@ test("enableHydraForProject writes Hydra and Task instructions into the project 
   const agents = fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8");
   assert.match(claude, /## Hydra Orchestration Toolkit/);
   assert.match(agents, /## Hydra Orchestration Toolkit/);
-  assert.match(claude, /## TermCanvas Task System/);
-  assert.match(agents, /## TermCanvas Task System/);
+  assert.match(claude, /## TermCanvas Pin System/);
+  assert.match(agents, /## TermCanvas Pin System/);
 });
 
 test("enableHydraForProject reports unchanged when the current instructions already exist", () => {
@@ -41,27 +41,27 @@ test("enableHydraForProject reports unchanged when the current instructions alre
   }
 
   assert.equal(second.changed, false);
-  // Two sections (Hydra + Task) × two files (CLAUDE.md, AGENTS.md) = four entries.
+  // Two sections (Hydra + Pin) × two files (CLAUDE.md, AGENTS.md) = four entries.
   assert.deepEqual(
     second.files.map((file) => file.status),
     ["unchanged", "unchanged", "unchanged", "unchanged"],
   );
 });
 
-test("checkHydraProjectStatus auto-installs the Task section for projects that already opted into Hydra", () => {
-  const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-task-autoadd-"));
-  // Project opted into Hydra before the Task section existed: install Hydra
-  // instructions cleanly, leaving no Task section anywhere.
+test("checkHydraProjectStatus auto-installs the Pin section for projects that already opted into Hydra", () => {
+  const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-pin-autoadd-"));
+  // Project opted into Hydra before the Pin section existed: install Hydra
+  // instructions cleanly, leaving no Pin section anywhere.
   const first = enableHydraForProject(repoPath);
   assert.equal(first.ok, true);
   for (const fileName of ["CLAUDE.md", "AGENTS.md"]) {
     const filePath = path.join(repoPath, fileName);
     const stripped = fs.readFileSync(filePath, "utf-8").replace(
-      /\n## TermCanvas Task System[\s\S]*$/,
+      /\n## TermCanvas Pin System[\s\S]*$/,
       "\n",
     );
     fs.writeFileSync(filePath, stripped, "utf-8");
-    assert.doesNotMatch(stripped, /## TermCanvas Task System/);
+    assert.doesNotMatch(stripped, /## TermCanvas Pin System/);
   }
 
   const status = checkHydraProjectStatus(repoPath);
@@ -69,11 +69,11 @@ test("checkHydraProjectStatus auto-installs the Task section for projects that a
   assert.equal(status, "current");
   assert.match(
     fs.readFileSync(path.join(repoPath, "CLAUDE.md"), "utf-8"),
-    /## TermCanvas Task System/,
+    /## TermCanvas Pin System/,
   );
   assert.match(
     fs.readFileSync(path.join(repoPath, "AGENTS.md"), "utf-8"),
-    /## TermCanvas Task System/,
+    /## TermCanvas Pin System/,
   );
 });
 

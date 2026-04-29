@@ -14,7 +14,7 @@ import {
   getStatusColor,
   getStatusLabel,
   getVirtualCommitWindow,
-} from "../src/components/LeftPanel/gitContentLayout.ts";
+} from "../src/components/RightPanel/gitContentLayout.ts";
 import { buildGitGraph } from "../src/utils/gitGraph.ts";
 
 test("summarizeBranchInventory prioritizes the current local branch and counts branch groups", () => {

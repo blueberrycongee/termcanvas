@@ -64,9 +64,9 @@ test("light xterm grayscale palette preserves visible hierarchy for CLI roles", 
 });
 
 test("surface overlays do not rely on the removed bg-secondary token", () => {
-  const copiedToastSource = readSourceFile("src/terminal/TerminalTile.tsx");
-  const welcomePopupSource = readSourceFile("src/components/WelcomePopup.tsx");
+  const terminalFindOverlaySource = readSourceFile("src/terminal/TerminalFindOverlay.tsx");
+  const updateModalSource = readSourceFile("src/components/UpdateModal.tsx");
 
-  assert.doesNotMatch(copiedToastSource, /bg-\[var\(--bg-secondary\)\]/);
-  assert.doesNotMatch(welcomePopupSource, /bg-\[var\(--bg-secondary\)\]/);
+  assert.doesNotMatch(terminalFindOverlaySource, /bg-\[var\(--bg-secondary\)\]/);
+  assert.doesNotMatch(updateModalSource, /bg-\[var\(--bg-secondary\)\]/);
 });

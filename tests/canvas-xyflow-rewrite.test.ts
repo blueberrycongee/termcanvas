@@ -86,6 +86,10 @@ function createProjects(): ProjectData[] {
               focused: true,
               ptyId: null,
               status: "idle",
+              x: 180,
+              y: 132,
+              width: 640,
+              height: 480,
               span: { cols: 1, rows: 1 },
             },
           ],
@@ -147,33 +151,23 @@ test("buildSceneDocumentFromLegacyState maps camera, projects, cards, and annota
   });
 });
 
-test("buildCanvasFlowNodes creates project/worktree nodes with parent-child mapping", async () => {
+test("buildCanvasFlowNodes creates terminal nodes with project/worktree ownership", async () => {
   installCanvasProjectionGlobals();
-  const {
-    buildCanvasFlowNodes,
-    projectNodeId,
-    worktreeNodeId,
-  } = await import("../src/canvas/nodeProjection.ts");
-  const [projectNode, worktreeNode] = buildCanvasFlowNodes(createProjects());
+  const { buildCanvasFlowNodes } = await import("../src/canvas/nodeProjection.ts");
+  const [terminalNode] = buildCanvasFlowNodes(createProjects());
 
-  assert.equal(projectNode.id, projectNodeId("project-1"));
-  assert.equal(projectNode.type, "project");
-  assert.deepEqual(projectNode.position, { x: 120, y: 80 });
-  assert.equal(projectNode.data.projectId, "project-1");
-  assert.equal(projectNode.dragHandle, ".tc-project-drag-handle");
-  assert.equal(projectNode.zIndex, 3);
-
-  assert.equal(worktreeNode.id, worktreeNodeId("worktree-1"));
-  assert.equal(worktreeNode.type, "worktree");
-  assert.equal(worktreeNode.parentId, projectNode.id);
-  assert.deepEqual(worktreeNode.position, { x: 36, y: 100 });
-  assert.equal(worktreeNode.data.projectId, "project-1");
-  assert.equal(worktreeNode.data.worktreeId, "worktree-1");
-  assert.equal(worktreeNode.dragHandle, ".tc-worktree-drag-handle");
-  assert.equal(worktreeNode.hidden, false);
+  assert.equal(terminalNode.id, "terminal-1");
+  assert.equal(terminalNode.type, "terminal");
+  assert.deepEqual(terminalNode.position, { x: 180, y: 132 });
+  assert.equal(terminalNode.data.projectId, "project-1");
+  assert.equal(terminalNode.data.worktreeId, "worktree-1");
+  assert.equal(terminalNode.data.terminalId, "terminal-1");
+  assert.deepEqual(terminalNode.style, { width: 640, height: 480 });
+  assert.equal(terminalNode.draggable, true);
+  assert.equal(terminalNode.selectable, true);
 });
 
-test("buildCanvasFlowNodes ignores stashed terminals when sizing nodes", async () => {
+test("buildCanvasFlowNodes ignores stashed terminals", async () => {
   installCanvasProjectionGlobals();
   const { buildCanvasFlowNodes } = await import("../src/canvas/nodeProjection.ts");
 
@@ -187,28 +181,23 @@ test("buildCanvasFlowNodes ignores stashed terminals when sizing nodes", async (
     focused: false,
     ptyId: null,
     status: "idle",
+    x: 300,
+    y: 160,
+    width: 800,
+    height: 480,
     stashed: true,
     span: { cols: 3, rows: 2 },
   });
 
   const visibleOnlyNodes = buildCanvasFlowNodes(visibleOnlyProjects);
   const nodesWithStashed = buildCanvasFlowNodes(projectsWithStashed);
-  const visibleOnlyProjectNode = visibleOnlyNodes.find((node) => node.type === "project");
-  const visibleOnlyWorktreeNode = visibleOnlyNodes.find((node) => node.type === "worktree");
-  const stashedProjectNode = nodesWithStashed.find((node) => node.type === "project");
-  const stashedWorktreeNode = nodesWithStashed.find((node) => node.type === "worktree");
-
-  assert.equal(stashedProjectNode?.width, visibleOnlyProjectNode?.width);
-  assert.equal(stashedProjectNode?.height, visibleOnlyProjectNode?.height);
-  assert.equal(stashedWorktreeNode?.width, visibleOnlyWorktreeNode?.width);
-  assert.equal(stashedWorktreeNode?.height, visibleOnlyWorktreeNode?.height);
+  assert.equal(visibleOnlyNodes.length, 1);
+  assert.equal(nodesWithStashed.length, 1);
+  assert.deepEqual(nodesWithStashed[0], visibleOnlyNodes[0]);
 });
 
 test("sceneState render helpers ignore stashed terminals", async () => {
-  const {
-    getRenderableTerminalLayouts,
-    getRenderableWorktreeSize,
-  } = await loadCanvasModules("renderable-terminals");
+  const { getRenderableTerminals } = await loadCanvasModules("renderable-terminals");
   const worktree = {
     id: "worktree-1",
     name: "main",
@@ -250,15 +239,11 @@ test("sceneState render helpers ignore stashed terminals", async () => {
     ],
   };
 
-  const layouts = getRenderableTerminalLayouts(worktree);
+  const layouts = getRenderableTerminals(worktree);
   assert.deepEqual(
-    layouts.map(({ terminal }) => terminal.id),
+    layouts.map((terminal) => terminal.id),
     ["terminal-visible-1", "terminal-visible-2"],
   );
-
-  const size = getRenderableWorktreeSize(worktree);
-  assert.equal(size.w >= 300, true);
-  assert.equal(size.h > 36, true);
 });
 
 test("filterValidSelectedItems drops removed and stashed scene selections", async () => {

@@ -46,7 +46,8 @@ test("deployment guide covers auth, volumes, callbacks, and remote workflow cont
     "TERMCANVAS_WEBHOOK_URL",
     "RESULT_CALLBACK_URL",
     "TERMCANVAS_URL",
-    "termcanvas workflow run",
+    "termcanvas workflow init",
+    "termcanvas workflow dispatch",
     "/workspace",
   ]) {
     assert.equal(guide.includes(snippet), true, `missing guide snippet: ${snippet}`);
