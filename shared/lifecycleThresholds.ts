@@ -242,10 +242,11 @@ export const DEFAULT_SESSION_POLL_INTERVAL_MS = 10_000;
  *
  * Because it's a backstop — not the primary signal — we keep it wide
  * enough that ordinary long tools (slow Bash, large edits) don't trip
- * it. If Notification coverage is high, you can raise this further or
- * remove the timer entirely.
+ * it. 5 minutes aligns with Codex's DEFAULT_STREAM_IDLE_TIMEOUT_MS so
+ * the fallback doesn't fire before the underlying API considers the
+ * connection stale.
  */
-export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 30_000;
+export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 300_000;
 
 /**
  * Codex: PreToolUse silence window before we flag `turn_state` as
@@ -257,14 +258,13 @@ export const CLAUDE_PRE_TOOL_USE_FALLBACK_MS = 30_000;
  * from observing "Codex ran PreToolUse, then nothing happened for a
  * while".
  *
- * 20 s is a compromise: fast enough that a real approval prompt makes
- * the pet react within a sensible window, slow enough that ordinary
- * Codex Bash commands (tests, long builds) don't false-positive too
- * often. If you want to eliminate false positives, raise this to 30s+
- * at the cost of delayed pet reactions; if you can wire up a real
- * Codex approval signal, delete this timer in favor of that signal.
+ * 5 minutes aligns with Codex's DEFAULT_STREAM_IDLE_TIMEOUT_MS so the
+ * fallback doesn't fire before the underlying API considers the
+ * connection stale. This eliminates false positives from long-running
+ * tools (tests, builds, large edits) at the cost of delayed pet
+ * reactions when a real approval prompt is missed.
  */
-export const CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS = 20_000;
+export const CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS = 300_000;
 
 /**
  * Fallback cleanup: if a PreToolUse has been pending for this long
