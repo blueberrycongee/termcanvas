@@ -4,7 +4,6 @@ import {
   addAnnotationToScene,
   setAnnotationToolInScene,
   setDraftAnnotationInScene,
-  updateAnnotationInScene,
 } from "../actions/annotationSceneActions";
 import {
   activateAnnotationInScene,
@@ -13,7 +12,6 @@ import {
 import {
   getDrawingElementBounds,
   resolveDrawingElementForRender,
-  translateDrawingElement,
 } from "./annotationGeometry";
 import {
   useDrawingStore,
@@ -377,31 +375,8 @@ export function DrawingLayer() {
       event.preventDefault();
       event.stopPropagation();
       activateAnnotationInScene(element.id);
-
-      const start = toCanvas(event);
-      const initialElement = element;
-
-      const handleMove = (moveEvent: MouseEvent) => {
-        const current = toCanvas(moveEvent);
-        updateAnnotationInScene(
-          initialElement.id,
-          translateDrawingElement(
-            initialElement,
-            current.x - start.x,
-            current.y - start.y,
-          ),
-        );
-      };
-
-      const handleUp = () => {
-        window.removeEventListener("mousemove", handleMove);
-        window.removeEventListener("mouseup", handleUp);
-      };
-
-      window.addEventListener("mousemove", handleMove);
-      window.addEventListener("mouseup", handleUp);
     },
-    [toCanvas, tool],
+    [tool],
   );
 
   useEffect(() => {
@@ -470,7 +445,7 @@ export function DrawingLayer() {
             <g
               key={element.id}
               style={{
-                cursor: tool === "select" ? "move" : undefined,
+                cursor: tool === "select" ? "pointer" : undefined,
                 pointerEvents: tool === "select" ? "auto" : "none",
               }}
               onMouseDown={(event) => handleElementMouseDown(element, event)}
