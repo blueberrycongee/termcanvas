@@ -271,8 +271,8 @@ export function StashBox() {
       )}
       <ConfirmDialog
         open={confirmDestroyId !== null}
-        title="Delete Stashed Terminal"
-        body="Permanently delete this stashed terminal and its history?"
+        title={t.stash_destroy_dialog_title}
+        body={t.stash_destroy_dialog_body}
         confirmLabel={t.stash_destroy}
         confirmTone="danger"
         onCancel={() => setConfirmDestroyId(null)}
@@ -283,8 +283,8 @@ export function StashBox() {
       />
       <ConfirmDialog
         open={confirmClearAll}
-        title="Delete All Stashed Terminals"
-        body="Permanently delete all stashed terminals?"
+        title={t.stash_clear_all_dialog_title}
+        body={t.stash_clear_all_dialog_body}
         confirmLabel={t.stash_clear_all}
         confirmTone="danger"
         onCancel={() => setConfirmClearAll(false)}

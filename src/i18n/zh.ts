@@ -1,5 +1,6 @@
 export const zh = {
   cancel: "取消",
+  close: "关闭",
   save: "保存",
   settings: "设置",
   reset: "重置",
@@ -239,6 +240,8 @@ export const zh = {
   tool_text: "文字",
   tool_rect: "矩形",
   tool_arrow: "箭头",
+  drawing_select_color: (color: string) => `选择颜色 ${color}`,
+  drawing_clear_all: "清除全部标注",
   layout_horizontal: "横向布局",
   layout_vertical: "纵向布局",
 
@@ -638,6 +641,11 @@ export const zh = {
   stash_clear_all: "全部清除",
   stash_terminal: "暂存",
   stash_destroy: "销毁",
+  stash_destroy_dialog_title: "删除暂存终端",
+  stash_destroy_dialog_body: "永久删除这个暂存终端及其历史记录？",
+  stash_clear_all_dialog_title: "删除全部暂存终端",
+  stash_clear_all_dialog_body: "永久删除全部暂存终端？",
+  context_menu_aria_label: "上下文菜单",
 
   canvas_empty_eyebrow: "空白画布",
   canvas_empty_line_lead: "画布空着。",

@@ -3,6 +3,63 @@ import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "../../hooks/useBodyScrollLock";
 import { useT } from "../../i18n/useT";
 
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusableElements(dialog: HTMLElement): HTMLElement[] {
+  return Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
+export function focusInitialDialogTarget(
+  dialog: HTMLElement,
+  confirmButton: HTMLButtonElement | null,
+): void {
+  const active = document.activeElement;
+  if (active instanceof Node && dialog.contains(active)) return;
+
+  const autoFocusTarget = dialog.querySelector<HTMLElement>("[autofocus]");
+  autoFocusTarget?.focus();
+  if (
+    document.activeElement instanceof Node &&
+    dialog.contains(document.activeElement)
+  ) {
+    return;
+  }
+
+  confirmButton?.focus();
+  if (
+    document.activeElement instanceof Node &&
+    dialog.contains(document.activeElement)
+  ) {
+    return;
+  }
+
+  getFocusableElements(dialog)[0]?.focus();
+}
+
+export function trapDialogTabKey(
+  dialog: HTMLElement,
+  event: Pick<KeyboardEvent, "key" | "shiftKey" | "preventDefault">,
+): void {
+  if (event.key !== "Tab") return;
+  const focusable = getFocusableElements(dialog);
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const activeInside = active instanceof Node && dialog.contains(active);
+  if (!activeInside) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  } else if (event.shiftKey && active === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 export type ConfirmTone = "neutral" | "danger";
 
 interface Props {
@@ -61,6 +118,7 @@ export function ConfirmDialog({
 }: Props) {
   useBodyScrollLock(open);
   const t = useT();
+  const dialogRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -76,46 +134,27 @@ export function ConfirmDialog({
   }, [open, busy, onCancel]);
 
   useEffect(() => {
-    if (open) {
-      // Defer one tick so any caller-provided body input can grab focus
-      // first if it autoFocuses; otherwise focus lands on the confirm button.
-      const id = window.setTimeout(() => {
-        if (
-          document.activeElement === document.body ||
-          document.activeElement === null
-        ) {
-          confirmRef.current?.focus();
-        }
-      }, 0);
-      return () => window.clearTimeout(id);
-    }
+    if (!open) return;
+    // Defer one tick so any caller-provided body input can grab focus
+    // first if it autoFocuses; otherwise focus lands on the confirm button.
+    const id = window.setTimeout(() => {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      focusInitialDialogTarget(dialog, confirmRef.current);
+    }, 0);
+    return () => window.clearTimeout(id);
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
-    const dialog = confirmRef.current?.closest(
-      '[role="dialog"]',
-    ) as HTMLElement | null;
+    const dialog = dialogRef.current;
     if (!dialog) return;
 
     const trap = (e: KeyboardEvent) => {
-      if (e.key !== "Tab") return;
-      const focusable = dialog.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
+      trapDialogTabKey(dialog, e);
     };
-    dialog.addEventListener("keydown", trap);
-    return () => dialog.removeEventListener("keydown", trap);
+    window.addEventListener("keydown", trap, true);
+    return () => window.removeEventListener("keydown", trap, true);
   }, [open]);
 
   if (!open) return null;
@@ -129,6 +168,7 @@ export function ConfirmDialog({
 
   return createPortal(
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={title}
@@ -150,7 +190,7 @@ export function ConfirmDialog({
             disabled={busy}
             onClick={onCancel}
             className="shrink-0 p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-quick disabled:opacity-50"
-            aria-label="Close"
+            aria-label={t.close}
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path

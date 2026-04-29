@@ -223,7 +223,7 @@ export function DrawingPanel() {
           {colors.map((c) => (
             <button
               key={c}
-              aria-label={`Select color ${c}`}
+              aria-label={t.drawing_select_color(c)}
               aria-pressed={color === c}
               className="w-4 h-4 rounded-full transition-all duration-quick"
               style={{
@@ -255,8 +255,8 @@ export function DrawingPanel() {
           <button
             className={`${btnBase} text-[var(--text-muted)] hover:text-[var(--red)]`}
             onClick={clearAnnotationsInScene}
-            title="Clear all annotations"
-            aria-label="Clear all annotations"
+            title={t.drawing_clear_all}
+            aria-label={t.drawing_clear_all}
           >
             ✕
           </button>

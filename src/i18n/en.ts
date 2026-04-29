@@ -1,5 +1,6 @@
 export const en = {
   cancel: "Cancel",
+  close: "Close",
   save: "Save",
   settings: "Settings",
   reset: "Reset",
@@ -244,6 +245,8 @@ export const en = {
   tool_text: "Text",
   tool_rect: "Rect",
   tool_arrow: "Arrow",
+  drawing_select_color: (color: string) => `Select color ${color}`,
+  drawing_clear_all: "Clear all annotations",
   layout_horizontal: "Horizontal layout",
   layout_vertical: "Vertical layout",
 
@@ -647,6 +650,13 @@ export const en = {
   stash_clear_all: "Clear All",
   stash_terminal: "Stash",
   stash_destroy: "Destroy",
+  stash_destroy_dialog_title: "Delete stashed terminal",
+  stash_destroy_dialog_body:
+    "Permanently delete this stashed terminal and its history?",
+  stash_clear_all_dialog_title: "Delete all stashed terminals",
+  stash_clear_all_dialog_body:
+    "Permanently delete all stashed terminals?",
+  context_menu_aria_label: "Context menu",
 
   canvas_empty_eyebrow: "Empty Canvas",
   canvas_empty_line_lead: "An empty canvas.",

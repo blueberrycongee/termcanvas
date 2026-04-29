@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useT } from "../i18n/useT";
 
 export type MenuItem =
   | {
@@ -20,6 +21,7 @@ interface Props {
 const VIEWPORT_MARGIN = 8;
 
 export function ContextMenu({ x, y, items, onClose }: Props) {
+  const t = useT();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ x: number; y: number }>({ x, y });
 
@@ -101,7 +103,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     <div
       ref={ref}
       role="menu"
-      aria-label="Context menu"
+      aria-label={t.context_menu_aria_label}
       className="fixed z-[100] py-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg min-w-[140px]"
       style={{ left: pos.x, top: pos.y }}
       onKeyDown={handleKeyDown}
