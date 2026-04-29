@@ -455,6 +455,36 @@ test("telemetry service ignores stale PTY exits after a terminal respawns", () =
   assert.equal(snapshot?.derived_status, "exited");
 });
 
+test("telemetry service preserves exited snapshots after session detach", () => {
+  const service = new TelemetryService({ processPollIntervalMs: 0 });
+  service.registerTerminal({
+    terminalId: "terminal-1",
+    worktreePath: "/tmp/project",
+    provider: "codex",
+  });
+
+  service.attachSessionSource({
+    terminalId: "terminal-1",
+    provider: "codex",
+    confidence: "medium",
+    sessionId: "session-1",
+    sessionFile: "/tmp/session-1.jsonl",
+  });
+  service.recordPtyCreated({
+    terminalId: "terminal-1",
+    ptyId: 7,
+    shellPid: 700,
+  });
+
+  service.recordPtyExit("terminal-1", 0, "2026-03-26T00:00:04.000Z");
+  service.detachSessionSource("terminal-1");
+
+  const snapshot = service.getTerminalSnapshot("terminal-1");
+  assert.equal(snapshot?.pty_alive, false);
+  assert.equal(snapshot?.exit_code, 0);
+  assert.equal(snapshot?.derived_status, "exited");
+});
+
 test("workflow snapshot reads contract truth from Hydra assignment run", () => {
   const repoPath = createRepoFixture();
   try {

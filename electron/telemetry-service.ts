@@ -730,7 +730,6 @@ export class TelemetryService {
       exit_code: exitCode,
     });
     this.updateDerivedStatus(state);
-    this.terminals.delete(terminalId);
   }
 
   recordPtyExitByPtyId(ptyId: number, exitCode: number, at?: string): void {
