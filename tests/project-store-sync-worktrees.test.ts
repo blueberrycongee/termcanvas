@@ -33,6 +33,7 @@ function createProject(): ProjectData {
         id: "worktree-main",
         name: "main",
         path: "/tmp/project-1",
+        isPrimary: true,
         terminals: [createTerminalFixture("terminal-1", "Terminal 1")],
       },
     ],

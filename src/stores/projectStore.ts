@@ -584,8 +584,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   syncWorktrees: (projectPath, worktrees) => {
+    const currentState = get();
+    const targetProject = currentState.projects.find(
+      (project) => project.path === projectPath,
+    );
+    if (!targetProject) {
+      return;
+    }
+
+    const nextProject = syncProjectWorktrees(targetProject, worktrees);
+    if (nextProject === targetProject) {
+      return;
+    }
+
     let removedTerminalIds: string[] = [];
-    let didChange = false;
     set((state) => {
       const updatedProjects = state.projects.map((project) => {
         if (project.path !== projectPath) return project;
@@ -595,14 +607,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             .filter((worktree) => !nextPaths.has(worktree.path))
             .flatMap((worktree) => collectWorktreeTerminalIds(worktree)),
         );
-        const syncedProject = syncProjectWorktrees(project, worktrees);
-        if (syncedProject !== project) didChange = true;
-        return syncedProject;
+        return nextProject;
       });
-
-      if (!didChange) {
-        return state;
-      }
 
       const nextFocus = resolveStructuralFocus(updatedProjects, {
         projectId: state.focusedProjectId,
@@ -616,9 +622,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       };
     });
     cleanupRemovedTerminalIds(removedTerminalIds);
-    if (didChange) {
-      markDirty();
-    }
+    markDirty();
   },
 
   addTerminal: (projectId, worktreeId, terminal) => {

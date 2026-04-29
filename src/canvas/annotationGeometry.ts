@@ -10,6 +10,27 @@ interface Rect {
   h: number;
 }
 
+function readPosition(
+  value: unknown,
+): { x: number; y: number } | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const candidate = value as { position?: { x?: unknown; y?: unknown } };
+  if (
+    typeof candidate.position?.x !== "number" ||
+    typeof candidate.position?.y !== "number"
+  ) {
+    return null;
+  }
+
+  return {
+    x: candidate.position.x,
+    y: candidate.position.y,
+  };
+}
+
 function translateAnchor(
   anchor: AnnotationAnchor | undefined,
   dx: number,
@@ -107,36 +128,30 @@ function resolveEntityAnchorWorldPoint(
   }
 
   for (const project of projects) {
-    // For project-level anchors, use the bounding box origin of all terminals
     if (project.id === entityId) {
-      const allTerminals = project.worktrees.flatMap((w) =>
-        w.terminals.filter((t) => !t.stashed),
-      );
-      const originX =
-        allTerminals.length > 0 ? Math.min(...allTerminals.map((t) => t.x)) : 0;
-      const originY =
-        allTerminals.length > 0 ? Math.min(...allTerminals.map((t) => t.y)) : 0;
+      const projectPosition = readPosition(project);
+      if (!projectPosition) {
+        return null;
+      }
       return {
-        x: originX + offset.x,
-        y: originY + offset.y,
+        x: projectPosition.x + offset.x,
+        y: projectPosition.y + offset.y,
       };
     }
 
     for (const worktree of project.worktrees) {
-      // For worktree-level anchors, use bounding box origin of worktree terminals
       if (worktree.id === entityId) {
-        const wtTerminals = worktree.terminals.filter((t) => !t.stashed);
-        const originX =
-          wtTerminals.length > 0 ? Math.min(...wtTerminals.map((t) => t.x)) : 0;
-        const originY =
-          wtTerminals.length > 0 ? Math.min(...wtTerminals.map((t) => t.y)) : 0;
+        const projectPosition = readPosition(project);
+        const worktreePosition = readPosition(worktree);
+        if (!projectPosition || !worktreePosition) {
+          return null;
+        }
         return {
-          x: originX + offset.x,
-          y: originY + offset.y,
+          x: projectPosition.x + worktreePosition.x + offset.x,
+          y: projectPosition.y + worktreePosition.y + offset.y,
         };
       }
 
-      // For terminal-level anchors, use terminal x/y directly
       const terminal = worktree.terminals.find((t) => t.id === entityId);
       if (terminal) {
         return {
