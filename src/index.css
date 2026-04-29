@@ -72,6 +72,7 @@
   --amber: #d4a24e;
   --cyan: #6cc4b0;
   --cyan-soft: rgba(108, 196, 176, 0.16);
+  --opencode-color: #5bbfad;
   --green: #4ade80;
   --purple: #9b7ad8;
   /* User-prompt bubble fill in the replay view. Reads as a soft
@@ -130,6 +131,7 @@
   --amber: #d97706;
   --cyan: #0d9488;
   --cyan-soft: rgba(13, 148, 136, 0.14);
+  --opencode-color: #0f6b5f;
   --green: #16a34a;
   --purple: #7c3aed;
   /* See dark-theme block for rationale. The exact value (#F3F3F4) was

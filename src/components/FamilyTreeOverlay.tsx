@@ -25,7 +25,7 @@ const TYPE_COLORS: Record<string, string> = {
   codex: "#7928ca",
   kimi: "#0070f3",
   gemini: "#4285f4",
-  opencode: "#50e3c2",
+  opencode: "var(--opencode-color)",
   wuu: "#ff6b9d",
   lazygit: "#e84d31",
   tmux: "#1bb91f",
