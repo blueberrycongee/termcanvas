@@ -2,6 +2,13 @@
 @import "@xyflow/react/dist/style.css";
 @import "@xterm/xterm/css/xterm.css";
 
+@theme {
+  --duration-instant: 80ms;
+  --duration-quick: 140ms;
+  --duration-natural: 220ms;
+  --duration-deliberate: 320ms;
+}
+
 @font-face {
   font-family: "Geist Sans";
   src: url("/node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2")

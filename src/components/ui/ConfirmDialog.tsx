@@ -121,7 +121,7 @@ export function ConfirmDialog({
   if (!open) return null;
 
   const confirmBaseClass =
-    "text-[11px] px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150";
+    "text-[11px] px-2.5 py-1 rounded disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-quick";
   const confirmToneClass =
     confirmTone === "danger"
       ? "bg-[var(--red-soft)] text-[var(--red)] border border-[var(--red)]/25 hover:bg-[var(--red)]/20 hover:border-[var(--red)]/40"
@@ -149,7 +149,7 @@ export function ConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="shrink-0 p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-150 disabled:opacity-50"
+            className="shrink-0 p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] transition-colors duration-quick disabled:opacity-50"
             aria-label="Close"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -170,7 +170,7 @@ export function ConfirmDialog({
             type="button"
             disabled={busy}
             onClick={onCancel}
-            className="text-[11px] px-2.5 py-1 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] transition-colors duration-150 disabled:opacity-50"
+            className="text-[11px] px-2.5 py-1 rounded border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] transition-colors duration-quick disabled:opacity-50"
           >
             {cancelLabel ?? t.cancel}
           </button>

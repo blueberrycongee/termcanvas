@@ -405,7 +405,7 @@ export function TokenHeatmap({
                         ref={(el) => {
                           if (el) cellRefs.current.set(cell.dateStr, el);
                         }}
-                        className={`rounded-[2px] transition-[filter] duration-100 ${animate ? "heatmap-cell-enter" : ""}`}
+                        className={`rounded-[2px] transition-[filter] duration-quick ${animate ? "heatmap-cell-enter" : ""}`}
                         style={{
                           backgroundColor: COLOR_LEVELS[cell.level],
                           animationDelay: animate

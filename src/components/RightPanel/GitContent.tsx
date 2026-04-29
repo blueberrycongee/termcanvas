@@ -201,7 +201,7 @@ function IconChevron({
       strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="transition-transform duration-150"
+      className="transition-transform duration-quick"
       style={{ transform: expanded ? "rotate(90deg)" : "rotate(0deg)" }}
     >
       <path d="M6 4l4 4-4 4" />
@@ -343,7 +343,7 @@ function CollapsibleGroup({
   return (
     <div className={className}>
       <button
-        className="group flex w-full shrink-0 items-center gap-1 px-2 py-2 text-left hover:bg-[var(--surface-hover)] transition-colors duration-150"
+        className="group flex w-full shrink-0 items-center gap-1 px-2 py-2 text-left hover:bg-[var(--surface-hover)] transition-colors duration-quick"
         onClick={() => setExpanded((prev) => !prev)}
       >
         <IconChevron expanded={expanded} />
@@ -633,7 +633,7 @@ function FileListItem({
   return (
     <div>
       <div
-        className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors duration-150 cursor-pointer"
+        className="group flex items-center gap-1.5 mx-1 px-3 py-1 rounded-md hover:bg-[var(--surface-hover)] transition-colors duration-quick cursor-pointer"
         style={{ minHeight: 26 }}
         onClick={onToggle}
       >
@@ -1424,7 +1424,7 @@ export function GitContent({
             {t.git_not_repository_hint}
           </p>
           <button
-            className="mt-2 inline-flex h-7 items-center rounded-md border px-3 text-[11px] text-[var(--text-primary)] transition-colors duration-150 hover:bg-[var(--surface-hover)] disabled:opacity-60"
+            className="mt-2 inline-flex h-7 items-center rounded-md border px-3 text-[11px] text-[var(--text-primary)] transition-colors duration-quick hover:bg-[var(--surface-hover)] disabled:opacity-60"
             style={{ ...MONO_STYLE, borderColor: "var(--border)" }}
             disabled={initializingRepo}
             onClick={async () => {
@@ -1843,7 +1843,7 @@ export function GitContent({
                 return (
                   <div key={c.hash}>
                     <button
-                      className="flex w-full items-center gap-2 pr-3 text-left transition-colors duration-150"
+                      className="flex w-full items-center gap-2 pr-3 text-left transition-colors duration-quick"
                       style={{
                         position: "absolute",
                         top: rowTop,

@@ -25,7 +25,7 @@ const colors = [
 ];
 
 const btnBase =
-  "px-2 py-1.5 rounded-md text-[13px] transition-colors duration-150 active:scale-[0.97]";
+  "px-2 py-1.5 rounded-md text-[13px] transition-colors duration-quick active:scale-[0.97]";
 
 export function DrawingPanel() {
   const t = useT();
@@ -116,7 +116,7 @@ export function DrawingPanel() {
         <span className="text-[10px] text-[var(--text-muted)]">⠿</span>
         <div className="flex-1" />
         <button
-          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-150 p-0.5 rounded"
+          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors duration-quick p-0.5 rounded"
           onClick={(e) => {
             e.stopPropagation();
             setVertical(!vertical);
@@ -225,7 +225,7 @@ export function DrawingPanel() {
               key={c}
               aria-label={`Select color ${c}`}
               aria-pressed={color === c}
-              className="w-4 h-4 rounded-full transition-all duration-150"
+              className="w-4 h-4 rounded-full transition-all duration-quick"
               style={{
                 backgroundColor: c,
                 outline:

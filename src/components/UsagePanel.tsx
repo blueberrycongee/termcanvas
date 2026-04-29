@@ -197,7 +197,7 @@ function CollapsibleSection({
           height="8"
           viewBox="0 0 8 8"
           fill="none"
-          className="text-[var(--text-faint)] shrink-0 transition-transform duration-150"
+          className="text-[var(--text-faint)] shrink-0 transition-transform duration-quick"
           style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
         >
           <path
@@ -485,7 +485,7 @@ export function ProjectsContent({
         >
           <div className="flex items-center gap-2 group">
             <span
-              className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-150"
+              className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
               style={{ maxWidth: "45%" }}
             >
               {p.name}
@@ -553,7 +553,7 @@ export function ModelsContent({
           >
             <div className="flex items-center gap-2 group">
               <span
-                className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-150"
+                className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
                 style={{ maxWidth: "45%" }}
               >
                 {shortName}

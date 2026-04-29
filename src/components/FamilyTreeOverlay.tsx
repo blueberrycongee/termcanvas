@@ -73,7 +73,7 @@ function FamilyTreeNodeRow({
   return (
     <button
       key={liveTerminal.id}
-      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--border)] transition-colors duration-100 ${
+      className={`w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-[var(--border)] transition-colors duration-quick ${
         isHovered ? "bg-[var(--border)]" : ""
       }`}
       onClick={() => {

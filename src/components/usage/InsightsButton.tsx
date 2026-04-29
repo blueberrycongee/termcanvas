@@ -123,7 +123,7 @@ export function InsightsButton({
           <div className="absolute top-full left-0 mt-1 rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-50 min-w-[140px]">
             {reportPath && !running && (
               <button
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--green)] hover:bg-[var(--border)]/20 transition-colors duration-100 cursor-pointer border-b border-[var(--border)]"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--green)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer border-b border-[var(--border)]"
                 onClick={() => {
                   setShowPicker(false);
                   openReport();
@@ -135,7 +135,7 @@ export function InsightsButton({
             {(["claude", "codex"] as const).map((tool) => (
               <button
                 key={tool}
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-100 cursor-pointer"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
                 onClick={() => handleSelect(tool)}
               >
                 {t.insights_select_cli}{" "}
@@ -211,7 +211,7 @@ export function InsightsButton({
       {running && progress && progress.total > 0 && (
         <div className="mb-2 h-1 rounded-full bg-[var(--border)] overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+            className="h-full rounded-full bg-[var(--accent)] transition-all duration-deliberate"
             style={{
               width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
             }}
@@ -225,7 +225,7 @@ export function InsightsButton({
             {(["claude", "codex"] as const).map((tool) => (
               <button
                 key={tool}
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-100 cursor-pointer"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
                 onClick={() => handleSelect(tool)}
               >
                 {t.insights_select_cli}{" "}
@@ -236,7 +236,7 @@ export function InsightsButton({
         )}
         <button
           disabled={running || !insightsApi}
-          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors duration-150 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors duration-quick cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowPicker((v) => !v)}
         >
           {t.insights_generate}

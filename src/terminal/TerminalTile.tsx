@@ -87,7 +87,7 @@ function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
     <>
       {parentInfo && (
         <button
-          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
+          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-quick shrink-0"
           title={`Parent: ${parentInfo.terminal.title} (${parentInfo.terminal.type})`}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -110,7 +110,7 @@ function HierarchyBadges({ terminal }: { terminal: TerminalData }) {
       )}
       {children.length > 0 && (
         <button
-          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-150 shrink-0"
+          className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] transition-colors duration-quick shrink-0"
           title={`${children.length} agent${children.length > 1 ? "s" : ""}`}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -1055,7 +1055,7 @@ export function TerminalTile({
         </span>
         <HierarchyBadges terminal={terminal} />
         <span
-          className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] rounded px-1 py-0.5 transition-colors duration-150 cursor-pointer"
+          className="shrink-0 whitespace-nowrap text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--border)] rounded px-1 py-0.5 transition-colors duration-quick cursor-pointer"
           style={{ fontFamily: '"Geist Mono", monospace' }}
           title={headerContextLabel}
           onMouseDown={(e) => e.stopPropagation()}
@@ -1259,7 +1259,7 @@ export function TerminalTile({
         <div className="shrink-0 flex items-center px-3 pb-1.5 -mt-1">
           <button
             type="button"
-            className="group/badge inline-flex items-center gap-1 max-w-[200px] px-1.5 py-0.5 rounded-sm text-[10px] leading-none cursor-pointer bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 hover:border-[var(--accent)]/45 transition-colors duration-150"
+            className="group/badge inline-flex items-center gap-1 max-w-[200px] px-1.5 py-0.5 rounded-sm text-[10px] leading-none cursor-pointer bg-[var(--accent)]/10 text-[var(--accent)] border border-[var(--accent)]/25 hover:border-[var(--accent)]/45 transition-colors duration-quick"
             title={t["pin.terminalBadge.tooltip"](
               terminalTaskAssignment.title,
             )}

@@ -169,7 +169,7 @@ function OnOffSegment({
 }) {
   const t = useT();
   const base =
-    "inline-flex min-w-[52px] justify-center px-3 py-1 text-[13px] rounded-md transition-colors duration-150 disabled:cursor-not-allowed";
+    "inline-flex min-w-[52px] justify-center px-3 py-1 text-[13px] rounded-md transition-colors duration-quick disabled:cursor-not-allowed";
   const active = "bg-[var(--accent-soft)] text-[var(--text-primary)]";
   const inactive =
     "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]";
@@ -212,7 +212,7 @@ function ChoiceSegment<T extends string>({
           <button
             key={opt.value}
             type="button"
-            className={`min-w-[64px] px-3 py-1 text-[13px] rounded-md transition-colors duration-150 ${
+            className={`min-w-[64px] px-3 py-1 text-[13px] rounded-md transition-colors duration-quick ${
               selected
                 ? "bg-[var(--accent-soft)] text-[var(--text-primary)]"
                 : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
@@ -247,7 +247,7 @@ function TextInput({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       style={{ ...MONO_STYLE, width }}
-      className="rounded-md border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition-colors duration-150 focus:border-[var(--accent)] focus:bg-[var(--surface)]"
+      className="rounded-md border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-faint)] outline-none transition-colors duration-quick focus:border-[var(--accent)] focus:bg-[var(--surface)]"
     />
   );
 }
@@ -353,7 +353,7 @@ function UpdateStatusLine({ appVersion }: { appVersion: string | null }) {
   let statusEl: ReactNode = (
     <button
       type="button"
-      className="text-[11px] text-[var(--text-metadata)] hover:text-[var(--text-primary)] transition-colors duration-150"
+      className="text-[11px] text-[var(--text-metadata)] hover:text-[var(--text-primary)] transition-colors duration-quick"
       onClick={handleCheck}
     >
       {t.update_check}
@@ -492,7 +492,7 @@ function CliToolsList() {
 
               <input
                 type="text"
-                className="flex-1 min-w-0 px-2 py-1 rounded-md text-[12px] bg-[var(--surface)]/60 border border-transparent text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-150"
+                className="flex-1 min-w-0 px-2 py-1 rounded-md text-[12px] bg-[var(--surface)]/60 border border-transparent text-[var(--text-primary)] placeholder:text-[var(--text-faint)] focus:outline-none focus:border-[var(--accent)] transition-colors duration-quick"
                 style={MONO_STYLE}
                 placeholder={
                   status?.ok
@@ -511,7 +511,7 @@ function CliToolsList() {
 
               <button
                 type="button"
-                className="px-2 py-1 rounded-md text-[11px] text-[var(--text-metadata)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150 shrink-0"
+                className="px-2 py-1 rounded-md text-[11px] text-[var(--text-metadata)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-quick shrink-0"
                 onClick={() => handleValidate(agent)}
               >
                 {t.agent_validate}
@@ -576,7 +576,7 @@ function ProviderDropdown({
     <div ref={ref} className="relative w-[220px]">
       <button
         type="button"
-        className="w-full flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition-colors duration-150 hover:border-[var(--border-hover)] focus:border-[var(--accent)]"
+        className="w-full flex items-center justify-between rounded-md border border-[var(--border)] bg-[var(--surface)]/60 px-2.5 py-1.5 text-[12px] text-[var(--text-primary)] outline-none transition-colors duration-quick hover:border-[var(--border-hover)] focus:border-[var(--accent)]"
         onClick={() => setOpen((v) => !v)}
       >
         <span>{current.name}</span>
@@ -588,7 +588,7 @@ function ProviderDropdown({
           stroke="currentColor"
           strokeWidth="1.4"
           strokeLinecap="round"
-          className={`transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          className={`transition-transform duration-quick ${open ? "rotate-180" : ""}`}
         >
           <path d="M2 3.5L5 6.5L8 3.5" />
         </svg>
@@ -599,7 +599,7 @@ function ProviderDropdown({
             <button
               key={p.id}
               type="button"
-              className={`w-full text-left px-3 py-1.5 text-[12px] transition-colors duration-100 ${
+              className={`w-full text-left px-3 py-1.5 text-[12px] transition-colors duration-quick ${
                 p.id === value
                   ? "bg-[var(--accent-soft)] text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
@@ -774,7 +774,7 @@ function ComputerUseSection() {
         <div className="border-t border-[var(--border)] pt-5">
           <button
             type="button"
-            className="px-3 py-1.5 rounded-md text-[12px] bg-[var(--red-soft)] text-[var(--red)] hover:brightness-110 transition-all duration-150"
+            className="px-3 py-1.5 rounded-md text-[12px] bg-[var(--red-soft)] text-[var(--red)] hover:brightness-110 transition-all duration-quick"
             onClick={() => void cuStop()}
           >
             {t.computer_use_stop_btn}
@@ -1074,7 +1074,7 @@ export function SettingsModal({ onClose }: Props) {
             </span>
             <button
               type="button"
-              className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
+              className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-quick"
               onClick={onClose}
               aria-label="Close settings"
             >
@@ -1155,7 +1155,7 @@ export function SettingsModal({ onClose }: Props) {
                         <span className="flex items-center gap-2">
                           {t.cli_label}
                           <span
-                            className={`inline-flex h-1.5 w-1.5 rounded-full transition-opacity duration-150 motion-safe:animate-pulse ${
+                            className={`inline-flex h-1.5 w-1.5 rounded-full transition-opacity duration-quick motion-safe:animate-pulse ${
                               cliBusyLabel
                                 ? "bg-[var(--accent)] opacity-100"
                                 : "opacity-0"
@@ -1218,7 +1218,7 @@ export function SettingsModal({ onClose }: Props) {
                         return (
                           <div
                             key={font.id}
-                            className={`flex items-center justify-between px-3 py-2 rounded-md text-left transition-colors duration-100 ${
+                            className={`flex items-center justify-between px-3 py-2 rounded-md text-left transition-colors duration-quick ${
                               isSelected
                                 ? "bg-[var(--accent-soft)] text-[var(--text-primary)]"
                                 : isAvailable
@@ -1262,7 +1262,7 @@ export function SettingsModal({ onClose }: Props) {
                                 !isDownloading && (
                                   <button
                                     type="button"
-                                    className={`${fontBadgeClass} bg-[var(--surface)] text-[var(--accent)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-100`}
+                                    className={`${fontBadgeClass} bg-[var(--surface)] text-[var(--accent)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-quick`}
                                     onClick={async (e) => {
                                       e.stopPropagation();
                                       setDownloadingFont(font.id);
@@ -1620,7 +1620,7 @@ export function SettingsModal({ onClose }: Props) {
                   <div className="flex justify-end">
                     <button
                       type="button"
-                      className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-150"
+                      className="text-[12px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors duration-quick"
                       onClick={() => {
                         resetAll();
                         setConflicts(new Set());

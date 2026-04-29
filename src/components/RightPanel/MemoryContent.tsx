@@ -545,7 +545,7 @@ function MemoryGraph({
         <div
           className="absolute top-2 right-2 max-w-[200px] px-3 py-2 rounded-lg text-xs
             backdrop-blur-md border border-[var(--border)]
-            shadow-lg pointer-events-none transition-opacity duration-150"
+            shadow-lg pointer-events-none transition-opacity duration-quick"
           style={{ backgroundColor: "color-mix(in srgb, var(--surface) 90%, transparent)" }}
         >
           <div className="font-medium text-[var(--text-primary)] truncate">

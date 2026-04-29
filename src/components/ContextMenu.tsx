@@ -118,7 +118,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
             key={`${item.label}-${i}`}
             role="menuitem"
             tabIndex={-1}
-            className={`w-full px-3 py-1.5 text-left text-[12px] transition-colors duration-100 ${
+            className={`w-full px-3 py-1.5 text-left text-[12px] transition-colors duration-quick ${
               item.active
                 ? "text-[var(--accent)] bg-[var(--accent)]/10"
                 : item.danger

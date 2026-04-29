@@ -45,7 +45,7 @@ export function SlashCommandMenu({
             <button
               key={cmd.command}
               ref={isSelected ? selectedRef : undefined}
-              className={`w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors duration-75 ${
+              className={`w-full flex items-center gap-3 px-3 py-1.5 text-left transition-colors duration-instant ${
                 isSelected
                   ? "bg-[var(--accent)]/15 text-[var(--text-primary)]"
                   : "text-[var(--text-secondary)] hover:bg-[var(--border)]/50 hover:text-[var(--text-primary)]"

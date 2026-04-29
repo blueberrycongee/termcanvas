@@ -55,7 +55,7 @@ export function ShortcutHints() {
 
   return (
     <div
-      className="fixed z-50 flex flex-col gap-1.5 pointer-events-none select-none transition-opacity duration-150"
+      className="fixed z-50 flex flex-col gap-1.5 pointer-events-none select-none transition-opacity duration-quick"
       style={{
         top: 52,
         right: platform === "win32" ? rightOffset + 132 : rightOffset,

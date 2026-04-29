@@ -166,7 +166,7 @@ function MiniCalendar({
                 onClose();
               }}
               className={`
-                relative flex flex-col items-center justify-center h-6 rounded text-[10px] transition-all duration-100
+                relative flex flex-col items-center justify-center h-6 rounded text-[10px] transition-all duration-quick
                 ${isFuture ? "text-[var(--text-faint)] cursor-default opacity-40" : "cursor-pointer hover:bg-[var(--surface-hover)]"}
                 ${isSelected ? "bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]" : ""}
                 ${isToday && !isSelected ? "text-[var(--accent)] font-bold" : ""}

@@ -111,7 +111,7 @@ export function UpdateModal({ onClose }: Props) {
           <div className="px-5 py-2">
             <div className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden">
               <div
-                className="h-full rounded-full bg-[var(--accent)] transition-all duration-300"
+                className="h-full rounded-full bg-[var(--accent)] transition-all duration-deliberate"
                 style={{ width: `${downloadPercent}%` }}
               />
             </div>

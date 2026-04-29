@@ -655,7 +655,7 @@ export function ComposerBar() {
       <div
         data-handoff-composer="true"
         data-handoff-target={isHandoffTarget ? "true" : undefined}
-        className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_-12px_color-mix(in_srgb,var(--shadow-color)_36%,transparent)] transition-colors duration-150 ${
+        className={`pointer-events-auto w-full max-w-4xl rounded-xl border bg-[var(--surface)] shadow-[0_18px_48px_-12px_color-mix(in_srgb,var(--shadow-color)_36%,transparent)] transition-colors duration-quick ${
           isDragOver
             ? "border-[var(--accent)] bg-[var(--accent)]/5"
             : isHandoffTarget
@@ -714,7 +714,7 @@ export function ComposerBar() {
                   className="h-full w-full object-cover"
                 />
                 <button
-                  className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white transition-colors duration-150 hover:bg-black/80"
+                  className="absolute right-0.5 top-0.5 rounded-full bg-black/60 p-0.5 text-white transition-colors duration-quick hover:bg-black/80"
                   onClick={() => removeImage(image.id)}
                   disabled={isSubmitting}
                 >
