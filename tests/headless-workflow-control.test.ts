@@ -85,7 +85,7 @@ function writeSlimResult(
     JSON.stringify(
       {
         schema_version: "hydra/result/v0.1",
-        workflow_id: payload.workflowId,
+        workbench_id: payload.workflowId,
         assignment_id: payload.assignmentId,
         run_id: payload.runId,
         outcome: payload.outcome ?? "completed",
@@ -329,7 +329,7 @@ test("Lead-driven workflow HTTP routes init, dispatch, watch, approve, complete,
       );
       assert.equal(cleaned.status, 200);
       assert.equal(
-        fs.existsSync(path.join(repoPath, ".hydra", "workflows", workflowId)),
+        fs.existsSync(path.join(repoPath, ".hydra", "workbenches", workflowId)),
         false,
       );
     });

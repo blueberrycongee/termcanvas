@@ -7,8 +7,8 @@ import { ProjectStore, generateId, type ProjectData } from "../headless-runtime/
 import type { ProjectScanner } from "../electron/project-scanner.ts";
 import { TelemetryService } from "../electron/telemetry-service.ts";
 import {
-  WORKFLOW_STATE_SCHEMA_VERSION,
-  type WorkflowRecord,
+  WORKBENCH_STATE_SCHEMA_VERSION,
+  type WorkbenchRecord as WorkflowRecord,
 } from "../hydra/src/workflow-store.ts";
 
 type PtyDataListener = (data: string) => void;
@@ -176,11 +176,11 @@ export function writeWorkflowFixture(
   overrides: Partial<WorkflowRecord> = {},
 ): WorkflowRecord {
   const workflowId = overrides.id ?? `workflow-${generateId()}`;
-  const workflowDir = path.join(repoPath, ".hydra", "workflows", workflowId);
+  const workflowDir = path.join(repoPath, ".hydra", "workbenches", workflowId);
   fs.mkdirSync(workflowDir, { recursive: true });
 
   const workflow: WorkflowRecord = {
-    schema_version: WORKFLOW_STATE_SCHEMA_VERSION,
+    schema_version: WORKBENCH_STATE_SCHEMA_VERSION,
     id: workflowId,
     lead_terminal_id: "terminal-test-helper",
     intent_file: "inputs/intent.md",
@@ -192,18 +192,15 @@ export function writeWorkflowFixture(
     created_at: "2026-03-31T00:00:00.000Z",
     updated_at: "2026-03-31T00:00:00.000Z",
     status: "active",
-    nodes: {},
-    node_statuses: {},
-    assignment_ids: ["assignment-test"],
+    dispatches: {},
     default_timeout_minutes: 15,
     default_max_retries: 3,
-    default_agent_type: "claude",
     auto_approve: false,
     ...overrides,
   };
 
   fs.writeFileSync(
-    path.join(workflowDir, "workflow.json"),
+    path.join(workflowDir, "workbench.json"),
     JSON.stringify(workflow, null, 2),
     "utf-8",
   );

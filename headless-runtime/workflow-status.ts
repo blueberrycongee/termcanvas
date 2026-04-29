@@ -1,8 +1,8 @@
 import path from "node:path";
 import {
-  listWorkflows,
-  type WorkflowRecord,
-  type WorkflowStatus,
+  listWorkbenches as listWorkflows,
+  type WorkbenchRecord as WorkflowRecord,
+  type WorkbenchStatus as WorkflowStatus,
 } from "../hydra/src/workflow-store.ts";
 
 const ACTIVE_WORKFLOW_STATUSES = new Set<WorkflowStatus>([
@@ -20,8 +20,8 @@ export interface ActiveWorkflowSummary {
 }
 
 function summarizeWorkflow(workflow: WorkflowRecord): ActiveWorkflowSummary {
-  const activeNodeIds = Object.entries(workflow.node_statuses ?? {})
-    .filter(([, s]) => s === "dispatched" || s === "eligible")
+  const activeNodeIds = Object.entries(workflow.dispatches ?? {})
+    .filter(([, dispatch]) => dispatch.status === "dispatched" || dispatch.status === "eligible")
     .map(([id]) => id);
   return {
     id: workflow.id,

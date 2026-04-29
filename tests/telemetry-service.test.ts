@@ -13,6 +13,7 @@ import {
   CLAUDE_PRE_TOOL_USE_FALLBACK_MS,
   CODEX_PRE_TOOL_USE_AWAITING_INPUT_MS,
 } from "../shared/lifecycleThresholds.ts";
+import { WORKBENCH_STATE_SCHEMA_VERSION } from "../hydra/src/workflow-store.ts";
 
 function createRepoFixture() {
   const repoPath = fs.mkdtempSync(path.join(os.tmpdir(), "telemetry-repo-"));
@@ -491,19 +492,22 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
     const workflowId = "workflow-telemetry";
     const assignmentId = "assignment-telemetry";
     const runId = "run-telemetry";
-    const workflowDir = path.join(repoPath, ".hydra", "workflows", workflowId);
-    const runDir = path.join(workflowDir, "assignments", assignmentId, "runs", runId);
+    const workflowDir = path.join(repoPath, ".hydra", "workbenches", workflowId);
+    const dispatchDir = path.join(workflowDir, "dispatches", assignmentId);
+    const runDir = path.join(dispatchDir, "runs", runId);
     const artifactsDir = path.join(runDir, "artifacts");
     fs.mkdirSync(artifactsDir, { recursive: true });
 
     const resultFile = path.join(runDir, "result.json");
+    const reportFile = path.join(runDir, "report.md");
     const taskFile = path.join(runDir, "task.md");
     fs.writeFileSync(taskFile, "# Task\n", "utf-8");
+    fs.writeFileSync(reportFile, "# Report\n", "utf-8");
 
     const assignment = {
       schema_version: "hydra/assignment-state/v0.1",
       id: assignmentId,
-      workflow_id: workflowId,
+      workbench_id: workflowId,
       created_at: "2026-03-26T00:00:00.000Z",
       updated_at: "2026-03-26T00:00:00.000Z",
       role: "reviewer",
@@ -529,13 +533,13 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       ],
     };
     fs.writeFileSync(
-      path.join(workflowDir, "assignments", assignmentId, "assignment.json"),
+      path.join(dispatchDir, "assignment.json"),
       JSON.stringify(assignment, null, 2),
       "utf-8",
     );
 
     const workflow = {
-      schema_version: "hydra/workflow-state/v0.1",
+      schema_version: WORKBENCH_STATE_SCHEMA_VERSION,
       id: workflowId,
       lead_terminal_id: "terminal-telemetry-test",
       intent_file: "inputs/intent.md",
@@ -547,21 +551,21 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       created_at: "2026-03-26T00:00:00.000Z",
       updated_at: "2026-03-26T00:00:00.000Z",
       status: "active",
-      nodes: {
-        dev: {
-          id: "dev", role: "reviewer", depends_on: [], agent_type: "codex",
-          assignment_id: assignmentId, intent_file: "nodes/dev/intent.md",
+      dispatches: {
+        [assignmentId]: {
+          id: assignmentId,
+          role: "reviewer",
+          agent_type: "codex",
+          status: "dispatched",
+          intent_file: "dispatches/assignment-telemetry/intent.md",
         },
       },
-      node_statuses: { dev: "dispatched" },
-      assignment_ids: [assignmentId],
       default_timeout_minutes: 15,
       default_max_retries: 3,
-      default_agent_type: "codex",
       auto_approve: false,
     };
     fs.writeFileSync(
-      path.join(workflowDir, "workflow.json"),
+      path.join(workflowDir, "workbench.json"),
       JSON.stringify(workflow, null, 2),
       "utf-8",
     );
@@ -570,13 +574,11 @@ test("workflow snapshot reads contract truth from Hydra assignment run", () => {
       resultFile,
       JSON.stringify({
         schema_version: "hydra/result/v0.1",
-        workflow_id: workflowId,
+        workbench_id: workflowId,
         assignment_id: assignmentId,
         run_id: runId,
         outcome: "completed",
-        summary: "done",
-        outputs: [],
-        evidence: ["test"],
+        report_file: reportFile,
       }, null, 2),
       "utf-8",
     );

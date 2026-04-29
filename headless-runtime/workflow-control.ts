@@ -13,34 +13,33 @@ import { AssignmentManager } from "../hydra/src/assignment/manager.ts";
 import type { AgentType } from "../hydra/src/assignment/types.ts";
 import { listRoles as listRoleRegistry, type RoleDefinition } from "../hydra/src/roles/loader.ts";
 import {
-  initWorkflow,
-  dispatchNode,
-  redispatchNode,
+  initWorkbench as initWorkflow,
+  dispatch as dispatchNode,
+  redispatch as redispatchNode,
   watchUntilDecision,
-  approveNode,
-  resetNode,
+  approveDispatch,
+  resetDispatch as resetNode,
   mergeWorktrees,
-  completeWorkflow,
-  failWorkflow,
-  getWorkflowStatus,
-  askNode,
-  type WorkflowStatusView,
-  type InitWorkflowOptions,
-  type InitWorkflowResult,
-  type DispatchNodeOptions,
-  type DispatchNodeResult,
-  type ResetNodeResult,
+  completeWorkbench as completeWorkflow,
+  failWorkbench as failWorkflow,
+  getWorkbenchStatus as getWorkflowStatus,
+  askDispatch as askNode,
+  type WorkbenchStatusView as WorkflowStatusView,
+  type InitWorkbenchOptions as BaseInitWorkflowOptions,
+  type InitWorkbenchResult as BaseInitWorkflowResult,
+  type DispatchOptions as BaseDispatchNodeOptions,
+  type DispatchResult as BaseDispatchNodeResult,
+  type ResetDispatchResult as ResetNodeResult,
   type MergeOutcome,
-  type WatchOptions,
-  type AskNodeOptions,
-  type AskNodeResult,
+  type AskDispatchOptions as BaseAskNodeOptions,
+  type AskDispatchResult as AskNodeResult,
 } from "../hydra/src/workflow-lead.ts";
-import type { DecisionPoint } from "../hydra/src/decision.ts";
+import type { DecisionPoint as HydraDecisionPoint } from "../hydra/src/decision.ts";
 import {
-  deleteWorkflow,
-  listWorkflows,
-  loadWorkflow,
-  type WorkflowRecord,
+  deleteWorkbench as deleteWorkflow,
+  listWorkbenches as listWorkflows,
+  loadWorkbench as loadWorkflow,
+  type WorkbenchRecord as WorkflowRecord,
 } from "../hydra/src/workflow-store.ts";
 import type { ServerEventBus } from "./event-bus.ts";
 import { ensureProjectTracked } from "./project-sync.ts";
@@ -108,6 +107,54 @@ export interface WorkflowControl {
   cleanup(repoPath: string, workflowId: string, force?: boolean): { ok: true };
 }
 
+export interface DecisionPoint {
+  type:
+    | HydraDecisionPoint["type"]
+    | "node_completed"
+    | "node_failed"
+    | "node_failed_final";
+  workbench_id: string;
+  timestamp: string;
+  completed?: HydraDecisionPoint["completed"] & { node_id?: string };
+  failed?: HydraDecisionPoint["failed"] & { node_id?: string };
+  advisory?: HydraDecisionPoint["advisory"];
+  dispatches: HydraDecisionPoint["dispatches"];
+}
+
+type InitWorkflowOptions = BaseInitWorkflowOptions & {
+  defaultAgentType?: AgentType;
+};
+
+type InitWorkflowResult = BaseInitWorkflowResult & {
+  workflow_id: string;
+};
+
+type DispatchNodeOptions = Omit<BaseDispatchNodeOptions, "repoPath" | "workbenchId" | "dispatchId"> & {
+  repoPath: string;
+  workflowId: string;
+  nodeId: string;
+  dependsOn?: string[];
+};
+
+type DispatchNodeResult = BaseDispatchNodeResult & {
+  assignment_id: string;
+  node_id: string;
+};
+
+type AskNodeOptions = Omit<BaseAskNodeOptions, "repoPath" | "workbenchId" | "dispatchId"> & {
+  repoPath: string;
+  workflowId: string;
+  nodeId: string;
+};
+
+type WorkflowStatusViewCompat = WorkflowStatusView & {
+  workflow: WorkflowStatusView["workbench"];
+};
+
+type ResetNodeResultCompat = ResetNodeResult & {
+  reset_node_ids: string[];
+};
+
 interface WorkflowControlDeps extends TerminalLaunchDeps {
   projectScanner: ProjectScanner;
   /**
@@ -131,6 +178,40 @@ function buildWorkflowSummary(record: WorkflowRecord): WorkflowSummary {
     worktree_path: record.worktree_path,
     updated_at: record.updated_at,
   };
+}
+
+function mapDecisionPoint(decision: HydraDecisionPoint): DecisionPoint {
+  if (decision.type === "dispatch_completed") {
+    return {
+      ...decision,
+      type: "node_completed",
+      completed: decision.completed
+        ? { ...decision.completed, node_id: decision.completed.dispatch_id }
+        : undefined,
+    };
+  }
+
+  if (decision.type === "dispatch_failed") {
+    return {
+      ...decision,
+      type: "node_failed",
+      failed: decision.failed
+        ? { ...decision.failed, node_id: decision.failed.dispatch_id }
+        : undefined,
+    };
+  }
+
+  if (decision.type === "dispatch_failed_final") {
+    return {
+      ...decision,
+      type: "node_failed_final",
+      failed: decision.failed
+        ? { ...decision.failed, node_id: decision.failed.dispatch_id }
+        : undefined,
+    };
+  }
+
+  return decision;
 }
 
 export function createWorkflowControl(
@@ -247,61 +328,105 @@ export function createWorkflowControl(
 
   return {
     async init(request) {
-      return initWorkflow(request, workflowDependencies);
+      const result = await initWorkflow(
+        { ...request, repoPath: path.resolve(request.repoPath) },
+        workflowDependencies,
+      );
+      return {
+        ...result,
+        workflow_id: result.workbench_id,
+      };
     },
     async dispatch(request) {
-      return dispatchNode(request, workflowDependencies);
+      const result = await dispatchNode(
+        {
+          repoPath: path.resolve(request.repoPath),
+          workbenchId: request.workflowId,
+          dispatchId: request.nodeId,
+          role: request.role,
+          intent: request.intent,
+          model: request.model,
+          contextRefs: request.contextRefs,
+          feedback: request.feedback,
+          worktreePath: request.worktreePath,
+          worktreeBranch: request.worktreeBranch,
+          timeoutMinutes: request.timeoutMinutes,
+          maxRetries: request.maxRetries,
+          retryPolicy: request.retryPolicy,
+          assessment: request.assessment,
+        },
+        workflowDependencies,
+      );
+      return {
+        ...result,
+        assignment_id: request.nodeId,
+        node_id: request.nodeId,
+      };
     },
     async redispatch(repoPath, workflowId, nodeId, intent) {
       return redispatchNode(
-        { repoPath: path.resolve(repoPath), workflowId, nodeId, intent },
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, dispatchId: nodeId, intent },
         workflowDependencies,
       );
     },
     async watchDecision(repoPath, workflowId) {
-      return watchUntilDecision(
-        { repoPath: path.resolve(repoPath), workflowId },
+      const decision = await watchUntilDecision(
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId },
         workflowDependencies,
       );
+      return mapDecisionPoint(decision);
     },
     async resetNode(repoPath, workflowId, nodeId, feedback) {
-      return resetNode(
-        { repoPath: path.resolve(repoPath), workflowId, nodeId, feedback },
+      const result = await resetNode(
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, dispatchId: nodeId, feedback: feedback ?? "" },
         workflowDependencies,
       );
+      return {
+        ...result,
+        reset_node_ids: [nodeId],
+      } satisfies ResetNodeResultCompat;
     },
     async askNode(input) {
       return askNode(
-        { ...input, repoPath: path.resolve(input.repoPath) },
+        {
+          ...input,
+          repoPath: path.resolve(input.repoPath),
+          workbenchId: input.workflowId,
+          dispatchId: input.nodeId,
+        },
         workflowDependencies,
       );
     },
     async mergeNodes(repoPath, workflowId, nodeIds) {
       return mergeWorktrees(
-        { repoPath: path.resolve(repoPath), workflowId, sourceNodeIds: nodeIds },
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, sourceDispatchIds: nodeIds },
         workflowDependencies,
       );
     },
     async approveNode(repoPath, workflowId, nodeId) {
-      return approveNode(
-        { repoPath: path.resolve(repoPath), workflowId, nodeId },
+      return approveDispatch(
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, dispatchId: nodeId },
         workflowDependencies,
       );
     },
     async complete(repoPath, workflowId, summary) {
       return completeWorkflow(
-        { repoPath: path.resolve(repoPath), workflowId, summary },
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, summary },
         workflowDependencies,
       );
     },
     async fail(repoPath, workflowId, reason) {
       return failWorkflow(
-        { repoPath: path.resolve(repoPath), workflowId, reason },
+        { repoPath: path.resolve(repoPath), workbenchId: workflowId, reason },
         workflowDependencies,
       );
     },
     status(repoPath, workflowId) {
-      return getWorkflowStatus(path.resolve(repoPath), workflowId);
+      const status = getWorkflowStatus(path.resolve(repoPath), workflowId);
+      return {
+        ...status,
+        workflow: status.workbench,
+      } satisfies WorkflowStatusViewCompat;
     },
     list(repoPath) {
       return listWorkflows(path.resolve(repoPath))
@@ -330,7 +455,7 @@ export function createWorkflowControl(
       }
 
       const manager = new AssignmentManager(resolvedRepo, workflowId);
-      for (const assignmentId of workflow.assignment_ids) {
+      for (const assignmentId of Object.keys(workflow.dispatches)) {
         const assignment = manager.load(assignmentId);
         const activeRun = assignment?.active_run_id
           ? assignment.runs.find((run) => run.id === assignment.active_run_id)

@@ -169,7 +169,7 @@ test("termcanvas workflow CLI drives a Lead-driven workflow init→dispatch→wa
       JSON.stringify(
         {
           schema_version: "hydra/result/v0.1",
-          workflow_id: workflowId,
+          workbench_id: workflowId,
           assignment_id: assignment.id,
           run_id: run.id,
           outcome: "completed",
@@ -212,7 +212,7 @@ test("termcanvas workflow CLI drives a Lead-driven workflow init→dispatch→wa
     );
     assert.equal(cleaned.ok, true);
     assert.equal(
-      fs.existsSync(path.join(repoPath, ".hydra", "workflows", workflowId)),
+      fs.existsSync(path.join(repoPath, ".hydra", "workbenches", workflowId)),
       false,
     );
   } finally {
@@ -287,7 +287,7 @@ test("termcanvas workflow reset CLI sends a reset feedback to the headless serve
 
     // Verify the feedback file was actually written by the server
     const feedbackPath = path.join(
-      repoPath, ".hydra", "workflows", workflowId, "nodes", "dev", "feedback.md",
+      repoPath, ".hydra", "workbenches", workflowId, "dispatches", "dev", "feedback.md",
     );
     assert.ok(fs.existsSync(feedbackPath));
     assert.match(fs.readFileSync(feedbackPath, "utf-8"), /Try again with extra care/);

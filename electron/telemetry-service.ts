@@ -1177,13 +1177,13 @@ export class TelemetryService {
     const workflow = loadWorkbench(repoPath, workflowId);
     if (!workflow) return null;
 
-    // Find the currently dispatched node's assignment
-    const dispatchedNodeId = Object.entries(workflow.node_statuses ?? {}).find(
-      ([, s]) => s === "dispatched",
+    // Dispatch ids and assignment ids are the same in the current Hydra
+    // schema, so derive the active assignment from the current dispatch map.
+    const activeDispatchId = Object.entries(workflow.dispatches ?? {}).find(
+      ([, dispatch]) => dispatch.status === "dispatched",
     )?.[0];
-    const assignmentId = dispatchedNodeId
-      ? workflow.nodes?.[dispatchedNodeId]?.assignment_id
-      : workflow.assignment_ids?.[workflow.assignment_ids.length - 1];
+    const assignmentId = activeDispatchId
+      ?? Object.keys(workflow.dispatches ?? {}).at(-1);
     if (!assignmentId) return null;
 
     const assignment = new AssignmentManager(repoPath, workflowId).load(

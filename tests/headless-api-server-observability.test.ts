@@ -55,7 +55,7 @@ test("health endpoints expose detailed observability data with workspace-scoped 
   });
   const repoPath = path.join(workspaceDir, "repo");
   fs.mkdirSync(repoPath, { recursive: true });
-  writeWorkflowFixture(repoPath, { id: "workflow-active", status: "running" });
+  writeWorkflowFixture(repoPath, { id: "workflow-active", status: "active" });
   writeWorkflowFixture(repoPath, { id: "workflow-done", status: "completed" });
 
   const projectStore = new ProjectStore();
@@ -133,7 +133,7 @@ test("status stays authenticated and excludes secrets plus terminal-private outp
       const workspaceDir = createWorkspaceFixture({ "workspace.txt": "workspace" });
       const repoPath = path.join(workspaceDir, "repo");
       fs.mkdirSync(repoPath, { recursive: true });
-      writeWorkflowFixture(repoPath, { id: "workflow-live", status: "waiting_for_approval" });
+      writeWorkflowFixture(repoPath, { id: "workflow-live", status: "active" });
 
       const projectStore = new ProjectStore();
       const { projectId, worktreeId } = addProjectWithMainWorktree(
