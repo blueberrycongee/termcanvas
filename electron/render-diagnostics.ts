@@ -7,6 +7,9 @@ import {
   type RenderDiagnosticsLogInfo,
 } from "../shared/render-diagnostics";
 
+const MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_BACKUPS = 2;
+
 type RenderDiagnosticSource = RenderDiagnosticLogEntry["source"];
 
 export class RenderDiagnosticsLogger {
@@ -37,6 +40,27 @@ export class RenderDiagnosticsLogger {
     });
   }
 
+  private rotateIfNeeded(): void {
+    try {
+      const stats = fs.statSync(this.filePath);
+      if (stats.size < MAX_LOG_SIZE_BYTES) return;
+    } catch {
+      return;
+    }
+
+    for (let i = MAX_BACKUPS - 1; i >= 0; i--) {
+      const src = i === 0 ? this.filePath : `${this.filePath}.${i}`;
+      const dst = `${this.filePath}.${i + 1}`;
+      try {
+        if (fs.existsSync(src)) {
+          fs.renameSync(src, dst);
+        }
+      } catch {
+        // Best-effort rotation; never disturb app behavior.
+      }
+    }
+  }
+
   private record(
     source: RenderDiagnosticSource,
     input: RenderDiagnosticEventInput,
@@ -55,6 +79,7 @@ export class RenderDiagnosticsLogger {
 
     try {
       fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+      this.rotateIfNeeded();
       fs.appendFileSync(this.filePath, `${JSON.stringify(entry)}\n`, "utf-8");
     } catch {
       // Diagnostics logging must never disturb app behavior.
