@@ -47,10 +47,7 @@ import {
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
 import { usePinDragStore } from "../stores/pinDragStore";
 import { usePinStore } from "../stores/pinStore";
-import {
-  startHandoffDrag,
-  useHandoffDragStore,
-} from "../stores/handoffDragStore";
+import { useHandoffDragStore } from "../stores/handoffDragStore";
 import { useNotificationStore } from "../stores/notificationStore";
 import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
@@ -735,105 +732,6 @@ export function TerminalTile({
       worktreePath,
     ],
   );
-
-  // Pickup: when the user has a non-empty xterm selection and presses inside
-  // it, swallow the mousedown so xterm doesn't clear the selection, then start
-  // a synthetic handoff drag that the global controller turns into a chip-
-  // follows-cursor gesture. We can't use native HTML5 drag because xterm's
-  // selection isn't a real DOM Selection — it's painted on canvas.
-  useEffect(() => {
-    const container = containerEl;
-    if (!container || lodMode !== "live") return;
-
-    const isPointInSelection = (
-      xterm: NonNullable<ReturnType<typeof getTerminalRuntime>>["xterm"],
-      screenEl: Element,
-      clientX: number,
-      clientY: number,
-      scale: number,
-    ): boolean => {
-      if (!xterm) return false;
-      const sel = xterm.getSelectionPosition();
-      if (!sel) return false;
-      const rect = screenEl.getBoundingClientRect();
-      const cellW = rect.width / xterm.cols;
-      const cellH = rect.height / xterm.rows;
-      if (cellW <= 0 || cellH <= 0) return false;
-      const mx = (clientX - rect.left) / scale;
-      const my = (clientY - rect.top) / scale;
-      const visibleRow = Math.floor(my / cellH);
-      const col = Math.floor(mx / cellW);
-      const viewportY = xterm.buffer.active.viewportY;
-      const row = visibleRow + viewportY;
-
-      if (row < sel.start.y || row > sel.end.y) return false;
-      if (sel.start.y === sel.end.y) {
-        return col >= sel.start.x && col < sel.end.x;
-      }
-      if (row === sel.start.y) return col >= sel.start.x;
-      if (row === sel.end.y) return col < sel.end.x;
-      return true;
-    };
-
-    const onPickupPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      // Modifier-held clicks have established meanings (extend selection,
-      // open link, etc.). Don't hijack them.
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      if (useHandoffDragStore.getState().active) return;
-      // While the find overlay is open, the active match is held as a real
-      // xterm selection. Letting the pickup handler fire on that would
-      // prevent the user from drag-selecting new text — which is exactly
-      // the workflow they're trying to do mid-search.
-      if (useTerminalFindStore.getState().openTerminalId === terminal.id) {
-        return;
-      }
-
-      const xterm = getTerminalRuntime(terminal.id)?.xterm;
-      if (!xterm || !xterm.hasSelection()) return;
-
-      const screenEl = container.querySelector(".xterm-screen") ?? container;
-      const { scale } = useCanvasStore.getState().viewport;
-      if (!isPointInSelection(xterm, screenEl, e.clientX, e.clientY, scale)) {
-        return;
-      }
-
-      const text = xterm.getSelection();
-      if (!text) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-
-      startHandoffDrag(
-        {
-          text,
-          sourceTerminalId: terminal.id,
-          sourceTitle:
-            terminal.customTitle?.trim() ||
-            terminal.title?.trim() ||
-            terminal.type,
-        },
-        { x: e.clientX, y: e.clientY },
-      );
-    };
-
-    container.addEventListener("pointerdown", onPickupPointerDown, true);
-    return () => {
-      container.removeEventListener(
-        "pointerdown",
-        onPickupPointerDown,
-        true,
-      );
-    };
-  }, [
-    containerEl,
-    lodMode,
-    terminal.customTitle,
-    terminal.id,
-    terminal.title,
-    terminal.type,
-  ]);
 
   // Intercept drag events on the xterm container in the capture phase so they
   // are not swallowed by xterm's own handlers.
