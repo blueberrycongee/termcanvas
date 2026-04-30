@@ -99,6 +99,7 @@ export const en = {
   git_up_to_date: "Up to date",
   git_staged_changes: "Staged Changes",
   git_changes: "Changes",
+  git_resize_history: "Resize Changes and History",
   git_commit_message_placeholder: "Message (Ctrl+Enter to commit)",
   git_commit: "Commit",
   git_push: "Push",

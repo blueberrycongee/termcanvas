@@ -98,6 +98,7 @@ export const zh = {
   git_up_to_date: "已同步",
   git_staged_changes: "已暂存",
   git_changes: "更改",
+  git_resize_history: "调整更改与历史高度",
   git_commit_message_placeholder: "提交信息（Ctrl+Enter 提交）",
   git_commit: "提交",
   git_push: "推送",

@@ -27,6 +27,25 @@ import {
 
 const MONO_STYLE = { fontFamily: '"Geist Mono", monospace' } as const;
 const ROW_HEIGHT = 40;
+const DEFAULT_CHANGES_PANE_MAX_HEIGHT = "40%";
+const MIN_CHANGES_PANE_HEIGHT = 72;
+const MIN_HISTORY_PANE_HEIGHT = 140;
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
+function getMaxChangesPaneHeight(
+  rootEl: HTMLElement,
+  changesEl: HTMLElement,
+): number {
+  const rootRect = rootEl.getBoundingClientRect();
+  const changesRect = changesEl.getBoundingClientRect();
+  return Math.max(
+    MIN_CHANGES_PANE_HEIGHT,
+    rootRect.bottom - changesRect.top - MIN_HISTORY_PANE_HEIGHT,
+  );
+}
 
 function IconGitBranch({ size = 14 }: { size?: number }) {
   return (
@@ -1154,6 +1173,7 @@ export function GitContent({
     ? buildAheadBehindLabel(currentBranch.ahead, currentBranch.behind)
     : null;
   const syncing = refreshing || statusRefreshing || loadingMore;
+  const totalChanges = stagedFiles.length + changedFiles.length;
 
   const [commitMessage, setCommitMessage] = useState("");
   const [committing, setCommitting] = useState(false);
@@ -1176,9 +1196,16 @@ export function GitContent({
 
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const gitContentRef = useRef<HTMLDivElement>(null);
+  const changesPaneRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [detailHeight, setDetailHeight] = useState(0);
   const detailRef = useRef<HTMLDivElement>(null);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+  const [changesPaneHeight, setChangesPaneHeight] = useState<number | null>(
+    null,
+  );
+  const [resizingChangesPane, setResizingChangesPane] = useState(false);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1202,6 +1229,38 @@ export function GitContent({
     ro.observe(el);
     return () => ro.disconnect();
   }, [selectedCommitHash]);
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (totalChanges > 0) return;
+    setChangesPaneHeight(null);
+  }, [totalChanges]);
+
+  useEffect(() => {
+    if (changesPaneHeight === null) return;
+    const rootEl = gitContentRef.current;
+    const changesEl = changesPaneRef.current;
+    if (!rootEl || !changesEl) return;
+
+    const clampCurrentHeight = () => {
+      const maxHeight = getMaxChangesPaneHeight(rootEl, changesEl);
+      setChangesPaneHeight((current) =>
+        current === null
+          ? null
+          : clampNumber(current, MIN_CHANGES_PANE_HEIGHT, maxHeight),
+      );
+    };
+
+    clampCurrentHeight();
+    const observer = new ResizeObserver(clampCurrentHeight);
+    observer.observe(rootEl);
+    return () => observer.disconnect();
+  }, [changesPaneHeight]);
 
   const selectedIndex = useMemo(
     () =>
@@ -1422,6 +1481,49 @@ export function GitContent({
     [worktreePath, refreshAll, notify, t],
   );
 
+  const handleChangesPaneResizePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLButtonElement>) => {
+      const rootEl = gitContentRef.current;
+      const changesEl = changesPaneRef.current;
+      if (!rootEl || !changesEl) return;
+
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = changesEl.getBoundingClientRect().height;
+      const maxHeight = getMaxChangesPaneHeight(rootEl, changesEl);
+      const previousCursor = document.body.style.cursor;
+      const previousUserSelect = document.body.style.userSelect;
+
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
+      setResizingChangesPane(true);
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const nextHeight = startHeight + moveEvent.clientY - startY;
+        setChangesPaneHeight(
+          clampNumber(nextHeight, MIN_CHANGES_PANE_HEIGHT, maxHeight),
+        );
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+        document.body.style.cursor = previousCursor;
+        document.body.style.userSelect = previousUserSelect;
+        setResizingChangesPane(false);
+        resizeCleanupRef.current = null;
+      };
+
+      resizeCleanupRef.current?.();
+      resizeCleanupRef.current = cleanup;
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", cleanup);
+      window.addEventListener("pointercancel", cleanup);
+    },
+    [],
+  );
+
   if (loading && !isGitRepo) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -1482,10 +1584,8 @@ export function GitContent({
     );
   }
 
-  const totalChanges = stagedFiles.length + changedFiles.length;
-
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={gitContentRef} className="flex min-h-0 flex-1 flex-col">
       <div
         className="relative shrink-0 border-b px-3 py-2"
         style={{ borderColor: "var(--border)" }}
@@ -1640,7 +1740,16 @@ export function GitContent({
 
       {/* ── Changes area — shrinkable with cap ── */}
       {totalChanges > 0 ? (
-        <div className="shrink-0 overflow-auto" style={{ maxHeight: "40%" }}>
+        <>
+          <div
+            ref={changesPaneRef}
+            className="shrink-0 overflow-auto"
+            style={
+              changesPaneHeight === null
+                ? { maxHeight: DEFAULT_CHANGES_PANE_MAX_HEIGHT }
+                : { height: changesPaneHeight }
+            }
+          >
           {stagedFiles.length > 0 && (
             <CollapsibleGroup
               title={t.git_staged_changes}
@@ -1785,7 +1894,29 @@ export function GitContent({
               ))}
             </CollapsibleGroup>
           )}
-        </div>
+          </div>
+          <button
+            type="button"
+            aria-label={t.git_resize_history}
+            title={t.git_resize_history}
+            onPointerDown={handleChangesPaneResizePointerDown}
+            className="group flex h-2 shrink-0 cursor-row-resize items-center justify-center border-b border-[var(--border)] transition-colors hover:bg-[var(--surface-hover)]"
+            style={{
+              backgroundColor: resizingChangesPane
+                ? "color-mix(in srgb, var(--surface-hover) 80%, transparent)"
+                : undefined,
+            }}
+          >
+            <span
+              className="h-px w-9 rounded-full transition-colors"
+              style={{
+                backgroundColor: resizingChangesPane
+                  ? "var(--border-hover)"
+                  : "var(--border)",
+              }}
+            />
+          </button>
+        </>
       ) : !statusLoading ? (
         <div
           className="shrink-0 px-4 py-6 text-center text-[11px]"
