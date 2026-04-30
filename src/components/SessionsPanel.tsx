@@ -877,7 +877,7 @@ export function HistorySection({
         <div className="pb-2">
           {entries.length === 0 ? (
             <div
-              className="tc-label px-4 py-3 text-center"
+              className="tc-label px-4 py-6 text-center"
               role="status"
               aria-live="polite"
             >
