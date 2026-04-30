@@ -676,6 +676,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     heatmap: () => ipcRenderer.invoke("usage:heatmap"),
     queryCloud: (dateStr: string) =>
       ipcRenderer.invoke("usage:query-cloud", dateStr),
+    queryRangeCloud: (startDate: string, endDate: string) =>
+      ipcRenderer.invoke("usage:query-range-cloud", startDate, endDate),
     heatmapCloud: () => ipcRenderer.invoke("usage:heatmap-cloud"),
   },
   quota: {

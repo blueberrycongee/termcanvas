@@ -327,6 +327,10 @@ export interface UsageRangeSummary {
   models: ModelUsage[];
 }
 
+export interface CloudUsageRangeSummary extends UsageRangeSummary {
+  devices: DeviceUsage[];
+}
+
 export interface QuotaData {
   fiveHour: { utilization: number; resetsAt: string };
   sevenDay: { utilization: number; resetsAt: string };
@@ -981,7 +985,13 @@ export interface TermCanvasAPI {
       startDate: string,
       endDate: string,
     ) => Promise<UsageRangeSummary>;
+    queryCloud?: (dateStr: string) => Promise<CloudUsageSummary | null>;
+    queryRangeCloud?: (
+      startDate: string,
+      endDate: string,
+    ) => Promise<CloudUsageRangeSummary | null>;
     heatmap: () => Promise<Record<string, { tokens: number; cost: number }>>;
+    heatmapCloud?: () => Promise<Record<string, { tokens: number; cost: number }> | null>;
   };
   quota: {
     fetch: () => Promise<QuotaFetchResult>;

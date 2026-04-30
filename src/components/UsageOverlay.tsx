@@ -24,6 +24,7 @@ import {
   totalSummaryTokens,
 } from "./UsagePanel";
 import type { UsageRangeSummary } from "../types";
+import type { HeatmapEntry } from "../stores/usageStore";
 
 /*
  * Usage, full-screen.
@@ -93,6 +94,73 @@ function totalRangeTokens(summary: UsageRangeSummary): number {
     summary.totalCacheCreate5m +
     summary.totalCacheCreate1h
   );
+}
+
+function enumerateDateKeys(startDate: string, endDate: string): string[] {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  const dates: string[] = [];
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return dates;
+  }
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dates.push(dateKey(d));
+  }
+  return dates;
+}
+
+function withHeatmapDays(
+  summary: UsageRangeSummary,
+  heatmap: Record<string, HeatmapEntry> | null,
+): UsageRangeSummary {
+  if (!heatmap) return summary;
+  return {
+    ...summary,
+    days: enumerateDateKeys(summary.startDate, summary.endDate).map((date) => {
+      const entry = heatmap[date];
+      return {
+        date,
+        input: 0,
+        output: entry?.tokens ?? 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: entry?.cost ?? 0,
+        calls: 0,
+      };
+    }),
+  };
+}
+
+function chooseRangeSummary({
+  local,
+  cloud,
+  cloudHeatmap,
+  range,
+}: {
+  local: UsageRangeSummary | null;
+  cloud: UsageRangeSummary | null;
+  cloudHeatmap: Record<string, HeatmapEntry> | null;
+  range: { startDate: string; endDate: string } | null;
+}): UsageRangeSummary | null {
+  const matchingLocal =
+    range &&
+    local?.startDate === range.startDate &&
+    local.endDate === range.endDate
+      ? local
+      : null;
+  const matchingCloud =
+    range &&
+    cloud?.startDate === range.startDate &&
+    cloud.endDate === range.endDate
+      ? withHeatmapDays(cloud, cloudHeatmap)
+      : null;
+  if (matchingCloud && matchingLocal) {
+    return matchingCloud.totalCost >= matchingLocal.totalCost
+      ? matchingCloud
+      : matchingLocal;
+  }
+  return matchingCloud ?? matchingLocal;
 }
 
 function StatCard({
@@ -283,8 +351,10 @@ export function UsageOverlay() {
     heatmapData,
     fetchHeatmap,
     cloudSummary,
+    cloudRangeSummary,
     cloudHeatmapData,
     fetchCloud,
+    fetchCloudRange,
     fetchCloudHeatmap,
   } = useUsageStore();
   const { user, deviceId } = useAuthStore();
@@ -320,7 +390,18 @@ export function UsageOverlay() {
   useEffect(() => {
     if (!open || !activeRange) return;
     void fetchRange(activeRange.startDate, activeRange.endDate);
-  }, [open, activeRange, fetchRange]);
+    if (isLoggedIn) {
+      void fetchCloudRange(activeRange.startDate, activeRange.endDate);
+      void fetchCloudHeatmap();
+    }
+  }, [
+    open,
+    activeRange,
+    isLoggedIn,
+    fetchRange,
+    fetchCloudRange,
+    fetchCloudHeatmap,
+  ]);
 
   const lastFetchRef = useRef(0);
   useEffect(() => {
@@ -462,12 +543,12 @@ export function UsageOverlay() {
   const activeTotalTokens = activeSummary
     ? totalSummaryTokens(activeSummary)
     : 0;
-  const activeRangeSummary =
-    activeRange &&
-    rangeSummary?.startDate === activeRange.startDate &&
-    rangeSummary.endDate === activeRange.endDate
-      ? rangeSummary
-      : null;
+  const activeRangeSummary = chooseRangeSummary({
+    local: rangeSummary,
+    cloud: isLoggedIn ? cloudRangeSummary : null,
+    cloudHeatmap: isLoggedIn ? cloudHeatmapData : null,
+    range: activeRange,
+  });
   const periodLabel =
     periodMode === "day"
       ? labelPeriodDay

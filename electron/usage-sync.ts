@@ -21,6 +21,7 @@ import {
   computeCost,
   type UsageRecord,
   type UsageSummary,
+  type UsageRangeSummary,
   type UsageBucket,
 } from "./usage-collector";
 
@@ -48,6 +49,10 @@ interface DeviceUsage {
 }
 
 export interface CloudUsageSummary extends UsageSummary {
+  devices: DeviceUsage[];
+}
+
+export interface CloudUsageRangeSummary extends UsageRangeSummary {
   devices: DeviceUsage[];
 }
 
@@ -573,6 +578,100 @@ export async function queryCloudUsage(
     };
   } catch (err) {
     console.error(PREFIX, "Cloud usage query error:", err);
+    return null;
+  }
+}
+
+export async function queryCloudUsageRange(
+  startDate: string,
+  endDate: string,
+): Promise<CloudUsageRangeSummary | null> {
+  if (!isLoggedIn()) return null;
+
+  const supabase = getSupabase();
+  if (!supabase || !getAuthUser()) return null;
+
+  const startMs = new Date(`${startDate}T00:00:00`).getTime();
+  const endMs = new Date(`${endDate}T00:00:00`).getTime() + 86_400_000;
+  const utcStart = new Date(startMs).toISOString();
+  const utcEnd = new Date(endMs).toISOString();
+
+  try {
+    const { data, error } = await supabase.rpc("get_cloud_usage_summary", {
+      p_utc_start: utcStart,
+      p_utc_end: utcEnd,
+      p_tz_offset_minutes: getLocalTzOffsetMinutes(),
+      p_bucket_hours: 24,
+    });
+
+    if (error) {
+      console.error(PREFIX, "Cloud usage range query failed:", error.message);
+      return null;
+    }
+
+    const payload = parseRpcPayload<RpcSummary>(data);
+    if (!payload) {
+      return {
+        startDate,
+        endDate,
+        days: [],
+        sessions: 0,
+        totalInput: 0,
+        totalOutput: 0,
+        totalCacheRead: 0,
+        totalCacheCreate5m: 0,
+        totalCacheCreate1h: 0,
+        totalCost: 0,
+        projects: [],
+        models: [],
+        devices: [],
+      };
+    }
+
+    const currentDeviceId = getDeviceId();
+    return {
+      startDate,
+      endDate,
+      days: [],
+      sessions: Number(payload.sessions) || 0,
+      totalInput: Number(payload.totalInput) || 0,
+      totalOutput: Number(payload.totalOutput) || 0,
+      totalCacheRead: 0,
+      totalCacheCreate5m: 0,
+      totalCacheCreate1h: 0,
+      totalCost: Number(payload.totalCost) || 0,
+      projects: (payload.projects ?? []).map((p) => ({
+        path: p.path || "unknown",
+        name: p.path && p.path !== "unknown" ? path.basename(p.path) : "Other",
+        input: Number(p.input) || 0,
+        output: Number(p.output) || 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: Number(p.cost) || 0,
+        calls: Number(p.calls) || 0,
+      })),
+      models: (payload.models ?? []).map((m) => ({
+        model: m.model || "unknown",
+        input: Number(m.input) || 0,
+        output: Number(m.output) || 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: Number(m.cost) || 0,
+        calls: Number(m.calls) || 0,
+      })),
+      devices: (payload.devices ?? []).map((d) => ({
+        deviceId: d.deviceId || "unknown",
+        isCurrentDevice: d.deviceId === currentDeviceId,
+        input: Number(d.input) || 0,
+        output: Number(d.output) || 0,
+        cost: Number(d.cost) || 0,
+        calls: Number(d.calls) || 0,
+      })),
+    };
+  } catch (err) {
+    console.error(PREFIX, "Cloud usage range query error:", err);
     return null;
   }
 }

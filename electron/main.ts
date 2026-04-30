@@ -81,6 +81,7 @@ import {
 import { toFileUrl } from "./file-url";
 import {
   queryCloudUsage,
+  queryCloudUsageRange,
   queryCloudHeatmap,
   backfillHistory,
   flushSyncQueue,
@@ -1872,6 +1873,13 @@ function setupIpc() {
   ipcMain.handle("usage:query-cloud", async (_event, dateStr: string) => {
     return await queryCloudUsage(dateStr);
   });
+
+  ipcMain.handle(
+    "usage:query-range-cloud",
+    async (_event, startDate: string, endDate: string) => {
+      return await queryCloudUsageRange(startDate, endDate);
+    },
+  );
 
   ipcMain.handle("usage:heatmap-cloud", async () => {
     return await queryCloudHeatmap();
