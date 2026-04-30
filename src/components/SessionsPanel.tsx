@@ -661,12 +661,14 @@ export function HistorySection({
   projectDirs,
   onOpen,
   t,
+  showHeader = true,
 }: {
   projectDirs: string[];
   onOpen: (filePath: string) => void;
   t: ReturnType<typeof useT>;
+  showHeader?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(showHeader);
   const [entries, setEntries] = useState<HistorySessionEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -842,34 +844,36 @@ export function HistorySection({
     loading && entries.length === 0 ? "…" : `${entries.length}`;
 
   return (
-    <div className="border-t border-[var(--border)]">
-      <button
-        type="button"
-        className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left"
-        onClick={() => setExpanded((v) => !v)}
-      >
-        <svg
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          className={`shrink-0 ${expanded ? "rotate-90" : ""}`}
-          style={{
-            color: "var(--text-muted)",
-            transition:
-              "transform var(--duration-quick) var(--ease-out-soft)",
-          }}
+    <div className={showHeader ? "border-t border-[var(--border)]" : ""}>
+      {showHeader && (
+        <button
+          type="button"
+          className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left"
+          onClick={() => setExpanded((v) => !v)}
         >
-          <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
-        </svg>
-        <span className="tc-eyebrow tc-mono">
-          {(t.sessions_history_title as unknown as string) ?? "History"}
-        </span>
-        <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
-          {countLabel}
-        </span>
-      </button>
-      {expanded && (
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 10 10"
+            fill="none"
+            className={`shrink-0 ${expanded ? "rotate-90" : ""}`}
+            style={{
+              color: "var(--text-muted)",
+              transition:
+                "transform var(--duration-quick) var(--ease-out-soft)",
+            }}
+          >
+            <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
+          </svg>
+          <span className="tc-eyebrow tc-mono">
+            {(t.sessions_history_title as unknown as string) ?? "History"}
+          </span>
+          <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
+            {countLabel}
+          </span>
+        </button>
+      )}
+      {(expanded || !showHeader) && (
         <div className="pb-2">
           {entries.length === 0 ? (
             <div

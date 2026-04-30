@@ -12,36 +12,77 @@ import {
   PANEL_TRANSITION_DURATION_MS,
   PANEL_TRANSITION_EASING_FN,
 } from "../utils/panelAnimation";
+import type { LeftPanelTab } from "../stores/canvasStore";
 import { promptAndAddProjectToScene } from "../canvas/sceneCommands";
 import { buildProjectTree, type CanvasTerminalItem } from "./sessionPanelModel";
 import { ProjectTree } from "./ProjectTree";
 import { TerminalCard, HistorySection, StashedSection } from "./SessionsPanel";
-import { IconButton } from "./ui/IconButton";
 import { PinDrawer } from "./PinDrawer";
 
 /*
  * Left panel — project management + session history.
  *
- * Two stacked sections:
- *   1. ProjectTree: live projects / worktrees / terminals. Click a
- *      terminal row to pan the canvas to it. Header has the "+"
- *      add-project button.
- *   2. HistorySection: past Claude/Codex sessions. Click a row to
- *      open the replay drawer (slides out from this panel's right
- *      edge, occupies the canvas gap).
- *
- * The list-of-past-sessions used to live in the full-screen
- * SessionsOverlay alongside the replay. Surfacing it here makes
- * browse→replay a one-click journey and gives the replay drawer
- * more room for the transcript.
+ * Two tabbed surfaces:
+ *   1. Sessions: live projects / worktrees / terminals. Click a
+ *      terminal row to pan the canvas to it.
+ *   2. History: past Claude/Codex sessions. Click a row to open
+ *      the replay drawer.
  */
+
+function IconSessions({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 3.5h10v9H3z" />
+      <path d="M5 6h6M5 8.5h4" />
+    </svg>
+  );
+}
+
+function IconHistory({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M8 3a5 5 0 1 1-4.2 2.3" />
+      <path d="M3.2 3.5v2.2h2.2" />
+      <path d="M8 5.5V8l1.8 1.2" />
+    </svg>
+  );
+}
+
+const LEFT_TAB_CONFIG: {
+  id: LeftPanelTab;
+  icon: typeof IconSessions;
+  labelKey: "left_panel_sessions" | "left_panel_history";
+}[] = [
+  { id: "sessions", icon: IconSessions, labelKey: "left_panel_sessions" },
+  { id: "history", icon: IconHistory, labelKey: "left_panel_history" },
+];
 
 export function LeftPanel() {
   const t = useT();
   const collapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const width = useCanvasStore((s) => s.leftPanelWidth);
+  const activeTab = useCanvasStore((s) => s.leftPanelActiveTab);
   const setCollapsed = useCanvasStore((s) => s.setLeftPanelCollapsed);
   const setWidth = useCanvasStore((s) => s.setLeftPanelWidth);
+  const setActiveTab = useCanvasStore((s) => s.setLeftPanelActiveTab);
 
   const projects = useProjectStore((s) => s.projects);
   const runtimeTerminals = useTerminalRuntimeStore((s) => s.terminals);
@@ -244,18 +285,38 @@ export function LeftPanel() {
         }}
       >
         {collapsed ? (
-          // Collapsed strip — narrow bar with a "+" and a chevron hint.
+          // Collapsed strip — keep the same tab affordance as the right panel.
           <div
             className="tc-row-hover absolute inset-y-0 left-0 flex flex-col items-center pt-3 gap-1 cursor-pointer"
             style={{ width: COLLAPSED_TAB_WIDTH }}
             onClick={() => setCollapsed(false)}
-            title={t.sessions_panel_title}
+            title={t.left_panel_sessions}
           >
+            {LEFT_TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => (
+              <button
+                key={id}
+                className={`tc-row-icon flex items-center justify-center w-6 h-6 rounded-md ${
+                  activeTab === id
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                }`}
+                title={t[labelKey]}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTab(id);
+                  setCollapsed(false);
+                }}
+              >
+                <Icon size={14} />
+              </button>
+            ))}
             <button
               className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:opacity-50"
               disabled={addingProject}
               onClick={(e) => {
                 e.stopPropagation();
+                setActiveTab("sessions");
+                setCollapsed(false);
                 void handleAddProject();
               }}
               title={t.shortcut_add_project}
@@ -291,17 +352,33 @@ export function LeftPanel() {
             className="absolute inset-y-0 left-0 flex flex-col"
             style={{ width }}
           >
-            <div className="tc-row-divider flex items-center justify-between px-3 py-2 shrink-0">
-              <span className="tc-eyebrow tc-mono">
-                {t.sessions_panel_title}
-              </span>
-              <div className="flex items-center gap-1">
-                <IconButton
-                  size="md"
-                  tone="neutral"
-                  label={t.shortcut_add_project}
-                  busy={addingProject}
-                  onClick={handleAddProject}
+            <div className="shrink-0 px-2 pt-2 pb-2">
+              <div className="flex items-center gap-0.5 rounded-lg bg-[var(--bg)] p-0.5">
+                {LEFT_TAB_CONFIG.map(({ id, icon: Icon, labelKey }) => {
+                  const isActive = activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      className={`tc-row-icon flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium ${
+                        isActive
+                          ? "bg-[var(--surface-hover)] text-[var(--text-primary)]"
+                          : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                      }`}
+                      onClick={() => setActiveTab(id)}
+                    >
+                      <Icon size={13} />
+                      {width > 260 && <span>{t[labelKey]}</span>}
+                    </button>
+                  );
+                })}
+                <button
+                  className="tc-row-icon flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-50 ml-0.5 shrink-0"
+                  disabled={addingProject}
+                  onClick={() => {
+                    setActiveTab("sessions");
+                    void handleAddProject();
+                  }}
+                  title={t.shortcut_add_project}
                 >
                   <svg
                     width="12"
@@ -317,9 +394,9 @@ export function LeftPanel() {
                       strokeLinecap="round"
                     />
                   </svg>
-                </IconButton>
+                </button>
                 <button
-                  className="tc-row-icon flex items-center justify-center w-6 h-6 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
+                  className="tc-row-icon flex items-center justify-center w-7 h-7 rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] shrink-0"
                   onClick={() => setCollapsed(true)}
                   title={t.right_panel_collapse}
                 >
@@ -338,21 +415,27 @@ export function LeftPanel() {
             </div>
 
             <div className="tc-sidebar-tree-font flex-1 min-h-0 overflow-y-auto">
-              <ProjectTree
-                projects={projectTree}
-                renderTerminal={renderTerminal}
-              />
-              {!hasAnyProjects && (
-                <div className="tc-label flex-1 px-4 py-6 text-center">
-                  {t.sessions_no_canvas_items}
-                </div>
+              {activeTab === "sessions" ? (
+                <>
+                  <ProjectTree
+                    projects={projectTree}
+                    renderTerminal={renderTerminal}
+                  />
+                  {!hasAnyProjects && (
+                    <div className="tc-label flex-1 px-4 py-6 text-center">
+                      {t.sessions_no_canvas_items}
+                    </div>
+                  )}
+                  <StashedSection items={stashedItems} t={t} />
+                </>
+              ) : (
+                <HistorySection
+                  projectDirs={canvasProjectDirs}
+                  onOpen={handleOpenReplay}
+                  t={t}
+                  showHeader={false}
+                />
               )}
-              <StashedSection items={stashedItems} t={t} />
-              <HistorySection
-                projectDirs={canvasProjectDirs}
-                onOpen={handleOpenReplay}
-                t={t}
-              />
             </div>
 
             <div

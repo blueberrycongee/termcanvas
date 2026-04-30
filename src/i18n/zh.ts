@@ -75,6 +75,8 @@ export const zh = {
   left_panel_preview: "预览",
   left_panel_git: "Git",
   left_panel_memory: "记忆",
+  left_panel_sessions: "会话",
+  left_panel_history: "历史",
   left_panel_repo: "仓库",
   left_panel_enable_hydra: "Hydra",
   left_panel_enable_hydra_busy: "启用中…",
