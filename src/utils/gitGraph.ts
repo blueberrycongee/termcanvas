@@ -1,10 +1,10 @@
 export const GRAPH_COLORS = [
-  "color-mix(in srgb, var(--accent) 88%, var(--surface) 12%)",
-  "color-mix(in srgb, var(--cyan) 84%, var(--surface) 16%)",
-  "color-mix(in srgb, var(--amber) 82%, var(--surface) 18%)",
-  "color-mix(in srgb, var(--text-secondary) 90%, var(--surface) 10%)",
-  "color-mix(in srgb, var(--accent) 56%, var(--cyan) 44%)",
-  "color-mix(in srgb, var(--amber) 58%, var(--text-secondary) 42%)",
+  "var(--git-graph-blue)",
+  "var(--git-graph-purple)",
+  "var(--git-graph-cyan)",
+  "var(--git-graph-amber)",
+  "var(--git-graph-pink)",
+  "var(--git-graph-green)",
 ];
 
 export interface GitGraphInputCommit {

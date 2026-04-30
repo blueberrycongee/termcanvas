@@ -75,6 +75,21 @@
   --opencode-color: #5bbfad;
   --green: #4ade80;
   --purple: #9b7ad8;
+  --git-graph-blue: #6aa7ff;
+  --git-graph-purple: #b889f6;
+  --git-graph-cyan: #5cc8b2;
+  --git-graph-amber: #e0b75b;
+  --git-graph-pink: #ec7aa8;
+  --git-graph-green: #82d96d;
+  --usage-primary: #5ea1ff;
+  --usage-secondary: #65d6ad;
+  --usage-tertiary: #b889f6;
+  --usage-cache: #e0b75b;
+  --usage-danger: #ef7d7d;
+  --usage-heatmap-1: color-mix(in srgb, var(--usage-primary) 22%, transparent);
+  --usage-heatmap-2: color-mix(in srgb, var(--usage-primary) 42%, transparent);
+  --usage-heatmap-3: color-mix(in srgb, var(--usage-primary) 66%, transparent);
+  --usage-heatmap-4: color-mix(in srgb, var(--usage-primary) 92%, transparent);
   /* User-prompt bubble fill in the replay view. Reads as a soft
      surface lift above --bg, never as a colored "you" highlight. The
      dark value (#2a2928) matches --surface-hover by intent — same
@@ -135,6 +150,21 @@
   --opencode-color: #0f6b5f;
   --green: #16a34a;
   --purple: #7c3aed;
+  --git-graph-blue: #2563eb;
+  --git-graph-purple: #7c3aed;
+  --git-graph-cyan: #0f766e;
+  --git-graph-amber: #b45309;
+  --git-graph-pink: #be185d;
+  --git-graph-green: #15803d;
+  --usage-primary: #2563eb;
+  --usage-secondary: #0f766e;
+  --usage-tertiary: #7c3aed;
+  --usage-cache: #b45309;
+  --usage-danger: #dc2626;
+  --usage-heatmap-1: color-mix(in srgb, var(--usage-primary) 18%, transparent);
+  --usage-heatmap-2: color-mix(in srgb, var(--usage-primary) 34%, transparent);
+  --usage-heatmap-3: color-mix(in srgb, var(--usage-primary) 56%, transparent);
+  --usage-heatmap-4: color-mix(in srgb, var(--usage-primary) 78%, transparent);
   /* See dark-theme block for rationale. The exact value (#F3F3F4) was
      picked deliberately for the user-prompt bubble; it sits a touch
      cooler than --surface (#f3f2ef) and reads as "soft container" on

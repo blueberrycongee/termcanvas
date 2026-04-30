@@ -1010,7 +1010,7 @@ function GitGraphRail({
           {node.isSelected && (
             <circle
               r={8}
-              fill="color-mix(in srgb, var(--accent) 16%, transparent)"
+              fill={`color-mix(in srgb, ${node.color} 20%, transparent)`}
             />
           )}
           {node.isMerge && (
@@ -1058,6 +1058,42 @@ function GitGraphRail({
       )}
     </svg>
   );
+}
+
+function getCommitRefColors(ref: string): {
+  backgroundColor: string;
+  color: string;
+  borderColor: string;
+} {
+  if (ref.startsWith("HEAD")) {
+    return {
+      backgroundColor: "var(--git-graph-blue)",
+      borderColor: "var(--git-graph-blue)",
+      color: "var(--bg)",
+    };
+  }
+
+  if (ref.startsWith("origin/")) {
+    return {
+      backgroundColor: "color-mix(in srgb, var(--git-graph-purple) 16%, transparent)",
+      borderColor: "color-mix(in srgb, var(--git-graph-purple) 44%, transparent)",
+      color: "var(--git-graph-purple)",
+    };
+  }
+
+  if (ref.startsWith("tag:")) {
+    return {
+      backgroundColor: "color-mix(in srgb, var(--git-graph-amber) 16%, transparent)",
+      borderColor: "color-mix(in srgb, var(--git-graph-amber) 44%, transparent)",
+      color: "var(--git-graph-amber)",
+    };
+  }
+
+  return {
+    backgroundColor: "color-mix(in srgb, var(--git-graph-blue) 15%, transparent)",
+    borderColor: "color-mix(in srgb, var(--git-graph-blue) 42%, transparent)",
+    color: "var(--git-graph-blue)",
+  };
 }
 
 export function GitContent({
@@ -1893,15 +1929,10 @@ export function GitContent({
                           {visibleRefs.map((ref) => (
                             <span
                               key={ref}
-                              className="shrink-0 rounded px-1 text-[9px]"
+                              className="shrink-0 rounded border px-1 text-[9px]"
                               style={{
                                 ...MONO_STYLE,
-                                color: ref.startsWith("HEAD")
-                                  ? "var(--bg)"
-                                  : "var(--accent)",
-                                backgroundColor: ref.startsWith("HEAD")
-                                  ? "var(--accent)"
-                                  : "color-mix(in srgb, var(--accent) 14%, transparent)",
+                                ...getCommitRefColors(ref),
                               }}
                             >
                               {ref}
