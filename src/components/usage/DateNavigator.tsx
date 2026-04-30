@@ -168,15 +168,15 @@ function MiniCalendar({
               className={`
                 relative flex flex-col items-center justify-center h-6 rounded text-[10px] transition-all duration-quick
                 ${isFuture ? "text-[var(--text-faint)] cursor-default opacity-40" : "cursor-pointer hover:bg-[var(--surface-hover)]"}
-                ${isSelected ? "bg-[var(--accent)] text-[var(--accent-foreground)] hover:bg-[var(--accent)]" : ""}
-                ${isToday && !isSelected ? "text-[var(--accent)] font-bold" : ""}
+                ${isSelected ? "bg-[var(--usage-primary)] text-[var(--bg)] hover:bg-[var(--usage-primary)]" : ""}
+                ${isToday && !isSelected ? "text-[var(--usage-primary)] font-bold" : ""}
                 ${!isSelected && !isToday && !isFuture ? "text-[var(--text-secondary)]" : ""}
               `}
             >
               <span>{day}</span>
               {hasData && !isSelected && (
                 <span
-                  className="absolute bottom-0 w-1 h-1 rounded-full bg-[var(--accent)]"
+                  className="absolute bottom-0 w-1 h-1 rounded-full bg-[var(--usage-primary)]"
                   style={{ opacity: 0.7 }}
                 />
               )}
@@ -314,7 +314,7 @@ export function DateNavigator({
         {!isToday && (
           <button
             onClick={() => onDateChange(today)}
-            className="text-[10px] text-[var(--accent)] hover:text-[var(--text-primary)] transition-colors ml-0.5 px-1 py-0.5 rounded hover:bg-[var(--surface-hover)]"
+            className="text-[10px] text-[var(--usage-primary)] hover:text-[var(--text-primary)] transition-colors ml-0.5 px-1 py-0.5 rounded hover:bg-[var(--surface-hover)]"
           >
             {t.usage_today}
           </button>

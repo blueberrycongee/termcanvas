@@ -18,11 +18,9 @@ function formatCountdown(resetsAt: string): string {
 }
 
 function barColor(utilization: number): string {
-  // Semantic thresholds: red ≥80%, amber ≥50%, green below. Tokens
-  // come from index.css so light/dark themes get matched hues.
-  if (utilization > 0.8) return "var(--red)";
-  if (utilization > 0.5) return "var(--amber)";
-  return "var(--green)";
+  if (utilization > 0.8) return "var(--usage-danger)";
+  if (utilization > 0.5) return "var(--usage-cache)";
+  return "var(--usage-secondary)";
 }
 
 function QuotaBar({ utilization }: { utilization: number }) {

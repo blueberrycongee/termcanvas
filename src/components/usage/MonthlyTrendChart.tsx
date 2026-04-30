@@ -105,7 +105,7 @@ export function MonthlyTrendChart({
                 backgroundColor: b.isFuture
                   ? "var(--border)"
                   : active
-                    ? "var(--accent)"
+                    ? "var(--usage-secondary)"
                     : "var(--border)",
                 opacity: b.isFuture ? 0.3 : active ? 0.55 + (h / 100) * 0.45 : 0.35,
                 transformOrigin: "bottom",

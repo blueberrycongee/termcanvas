@@ -95,7 +95,7 @@ export function InsightsButton({
           title={t.insights_generate}
         >
           {running ? (
-            <div className="w-3 h-3 border-[1.5px] border-[var(--accent)] border-t-transparent rounded-full animate-spin" />
+            <div className="w-3 h-3 border-[1.5px] border-[var(--usage-primary)] border-t-transparent rounded-full animate-spin" />
           ) : (
             <svg
               width="13"
@@ -104,7 +104,7 @@ export function InsightsButton({
               fill="none"
               className={
                 reportPath && !error
-                  ? "text-[var(--green)]"
+                  ? "text-[var(--usage-secondary)]"
                   : error
                     ? "text-[var(--red)]"
                     : ""
@@ -123,7 +123,7 @@ export function InsightsButton({
           <div className="absolute top-full left-0 mt-1 rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-lg overflow-hidden z-50 min-w-[140px]">
             {reportPath && !running && (
               <button
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--green)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer border-b border-[var(--border)]"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--usage-secondary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer border-b border-[var(--border)]"
                 onClick={() => {
                   setShowPicker(false);
                   openReport();
@@ -178,20 +178,20 @@ export function InsightsButton({
       )}
 
       {reportPath && !running && (
-        <div className="mb-2 p-2 rounded-md bg-green-500/10 border border-green-500/20">
+        <div className="mb-2 p-2 rounded-md bg-[color-mix(in_srgb,var(--usage-secondary)_10%,transparent)] border border-[color-mix(in_srgb,var(--usage-secondary)_22%,transparent)]">
           <div className="flex items-center justify-between">
-            <div className="text-[11px] text-green-400 font-medium">
+            <div className="text-[11px] text-[var(--usage-secondary)] font-medium">
               {t.insights_done}
             </div>
             <button
-              className="shrink-0 text-[10px] text-green-400/60 hover:text-green-400 cursor-pointer"
+              className="shrink-0 text-[10px] text-[color-mix(in_srgb,var(--usage-secondary)_60%,transparent)] hover:text-[var(--usage-secondary)] cursor-pointer"
               onClick={() => setReportPath(null)}
             >
               ✕
             </button>
           </div>
           <button
-            className="text-[10px] text-green-400/80 hover:text-green-400 underline mt-0.5 cursor-pointer"
+            className="text-[10px] text-[color-mix(in_srgb,var(--usage-secondary)_80%,transparent)] hover:text-[var(--usage-secondary)] underline mt-0.5 cursor-pointer"
             onClick={openReport}
           >
             {t.insights_open}
@@ -201,7 +201,7 @@ export function InsightsButton({
 
       {running && (
         <div className="mb-2 flex items-center gap-2">
-          <div className="w-3 h-3 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin shrink-0" />
+          <div className="w-3 h-3 border-2 border-[var(--usage-primary)] border-t-transparent rounded-full animate-spin shrink-0" />
           <span className="text-[11px] text-[var(--text-muted)] truncate">
             {progress?.message ?? t.insights_generating}
           </span>
@@ -211,7 +211,7 @@ export function InsightsButton({
       {running && progress && progress.total > 0 && (
         <div className="mb-2 h-1 rounded-full bg-[var(--border)] overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--accent)] transition-all duration-deliberate"
+            className="h-full rounded-full bg-[var(--usage-primary)] transition-all duration-deliberate"
             style={{
               width: `${Math.min(100, (progress.current / progress.total) * 100)}%`,
             }}
@@ -236,7 +236,7 @@ export function InsightsButton({
         )}
         <button
           disabled={running || !insightsApi}
-          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--accent)] transition-colors duration-quick cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--usage-primary)] transition-colors duration-quick cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowPicker((v) => !v)}
         >
           {t.insights_generate}

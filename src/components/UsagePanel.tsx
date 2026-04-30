@@ -78,7 +78,7 @@ function useAnimatedNumber(target: number, duration = 400): number {
 function Bar({
   value,
   max,
-  color = "var(--accent)",
+  color = "var(--usage-primary)",
   animate,
   delay = 0,
 }: {
@@ -425,7 +425,7 @@ export function CacheRateSection({
             <Bar
               value={row.rate * 100}
               max={100}
-              color="var(--amber)"
+              color="var(--usage-cache)"
               animate={animate}
               delay={i * 60}
             />
@@ -493,7 +493,7 @@ export function ProjectsContent({
             <Bar
               value={p.cost}
               max={maxCost}
-              color="var(--accent)"
+              color="var(--usage-primary)"
               animate={animate}
               delay={i * 60}
             />
@@ -525,8 +525,8 @@ export function ModelsContent({
   // agree, and so theme tweaks can adjust all of them in one spot.
   const MODEL_COLORS: Record<string, string> = {
     "claude-opus-4-6": "#f97316",
-    "claude-sonnet-4-6": "var(--purple)",
-    "claude-haiku-4-5": "var(--cyan)",
+    "claude-sonnet-4-6": "var(--usage-tertiary)",
+    "claude-haiku-4-5": "var(--usage-secondary)",
     codex: "#8b5cf6",
     kimi: "#ef4444",
     wuu: "#22c55e",

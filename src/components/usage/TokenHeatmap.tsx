@@ -33,10 +33,10 @@ const HEATMAP_WIDTH_MEDIUM = 420;
 
 const COLOR_LEVELS = [
   "var(--border)", // level 0: no data
-  "color-mix(in srgb, var(--accent) 20%, transparent)", // level 1
-  "color-mix(in srgb, var(--accent) 40%, transparent)", // level 2
-  "color-mix(in srgb, var(--accent) 65%, transparent)", // level 3
-  "color-mix(in srgb, var(--accent) 90%, transparent)", // level 4
+  "var(--usage-heatmap-1)", // level 1
+  "var(--usage-heatmap-2)", // level 2
+  "var(--usage-heatmap-3)", // level 3
+  "var(--usage-heatmap-4)", // level 4
 ];
 
 interface CellData {

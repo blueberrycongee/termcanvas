@@ -61,7 +61,7 @@ export function SparklineChart({
                 backgroundColor: isFuture
                   ? "var(--border)"
                   : isActive
-                    ? "var(--accent)"
+                    ? "var(--usage-primary)"
                     : "var(--border)",
                 opacity: isFuture
                   ? 0.3

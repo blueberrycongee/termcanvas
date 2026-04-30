@@ -68,7 +68,7 @@ function StatCard({
 }) {
   const subColor =
     subTone === "accent"
-      ? "var(--accent)"
+      ? "var(--usage-primary)"
       : subTone === "muted"
         ? "var(--text-muted)"
         : "var(--text-faint)";

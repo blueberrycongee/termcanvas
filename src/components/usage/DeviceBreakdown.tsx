@@ -31,7 +31,7 @@ export function DeviceBreakdown({ devices, localDeviceId }: DeviceBreakdownProps
             >
               {shortId}
               {isLocal && (
-                <span className="text-[var(--accent)] ml-1">{t.auth_this_device}</span>
+                <span className="text-[var(--usage-secondary)] ml-1">{t.auth_this_device}</span>
               )}
             </span>
             <div className="h-1.5 rounded-full bg-[var(--border)] flex-1 min-w-0 overflow-hidden">
@@ -39,10 +39,10 @@ export function DeviceBreakdown({ devices, localDeviceId }: DeviceBreakdownProps
                 className="h-full rounded-full"
                 style={{
                   width: `${w}%`,
-                  backgroundColor: isLocal ? "var(--accent)" : "var(--text-muted)",
+                  backgroundColor: isLocal ? "var(--usage-secondary)" : "var(--usage-tertiary)",
                   transition: "width 0.5s cubic-bezier(0.4, 0, 0.2, 1)",
                   animation: `usage-bar-fill 0.5s ease-out ${i * 60}ms both`,
-                  opacity: isLocal ? 1 : 0.55,
+                  opacity: isLocal ? 1 : 0.5,
                 }}
               />
             </div>
