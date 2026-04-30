@@ -50,6 +50,11 @@ test("buildPinComposerPayload extracts image refs and strips them from text", as
 
   assert.ok(!result.text.includes("abc123.png"));
   assert.ok(!result.text.includes("def456.jpg"));
+  assert.ok(
+    result.text.startsWith(
+      "This is an existing TermCanvas pin provided as context",
+    ),
+  );
   assert.ok(result.text.includes("Here is the bug."));
   assert.ok(result.text.includes("Some prose between images."));
   // Non-image links must survive untouched.
@@ -65,7 +70,7 @@ test("buildPinComposerPayload prepends the pin title as h1 markdown", async () =
   );
   assert.equal(
     result.text,
-    `# fix the layout\n\nJust some prose.\n\nWith another paragraph.`,
+    `This is an existing TermCanvas pin provided as context for the current conversation. Do not create or record it as a new pin; use the user's surrounding instructions to decide whether to execute, investigate, or discuss it. If the intent is unclear, ask what to do next.\n\n# fix the layout\n\nJust some prose.\n\nWith another paragraph.`,
   );
   assert.deepEqual(result.images, []);
 });
@@ -79,7 +84,11 @@ test("buildPinComposerPayload prepends the title even when the body has image re
     { id: pinId, title: "broken button", body },
     dir,
   );
-  assert.ok(result.text.startsWith("# broken button\n\n"));
+  assert.ok(
+    result.text.startsWith(
+      "This is an existing TermCanvas pin provided as context for the current conversation. Do not create or record it as a new pin; use the user's surrounding instructions to decide whether to execute, investigate, or discuss it. If the intent is unclear, ask what to do next.\n\n# broken button\n\n",
+    ),
+  );
   assert.ok(result.text.includes("Look:"));
   assert.ok(!result.text.includes("shot.png"));
   assert.equal(result.images.length, 1);
@@ -91,7 +100,23 @@ test("buildPinComposerPayload omits the title prefix when the title is blank", a
     { id: "untitled-dd44", title: "   ", body: "Just body." },
     dir,
   );
-  assert.equal(result.text, "Just body.");
+  assert.equal(
+    result.text,
+    "This is an existing TermCanvas pin provided as context for the current conversation. Do not create or record it as a new pin; use the user's surrounding instructions to decide whether to execute, investigate, or discuss it. If the intent is unclear, ask what to do next.\n\nJust body.",
+  );
+});
+
+test("buildPinComposerPayload uses Chinese task framing for Chinese pins", async () => {
+  const dir = freshAttachmentsDir("zh-pin-ee55");
+  const result = await buildPinComposerPayload(
+    { id: "zh-pin-ee55", title: "修复保存问题", body: "保存工作区时失败。" },
+    dir,
+  );
+
+  assert.equal(
+    result.text,
+    "这是一个已有的 TermCanvas pin，作为当前对话的上下文提供。不要把它再次记录为新的 pin；请根据用户的后续说明判断是执行、研究还是讨论。如果意图不明确，先询问下一步。\n\n# 修复保存问题\n\n保存工作区时失败。",
+  );
 });
 
 test("buildPinComposerPayload skips image refs whose file is missing", async () => {

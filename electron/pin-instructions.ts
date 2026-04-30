@@ -19,19 +19,24 @@ When to record a pin:
 
 Do NOT silently nod — capture the pin with \`termcanvas pin add\` so it survives the session.
 
+When existing pin content is pasted or dropped into the conversation:
+- Treat it as context from an existing TermCanvas pin, not as a request to create another pin.
+- Use the user's surrounding instruction to decide whether to execute, investigate, or discuss it.
+- If the intent is unclear, ask what to do next instead of assuming the pin should be solved immediately.
+
 Recording a pin:
 \`\`\`
 termcanvas pin add --title "<short imperative>" --body "<detail>" [--link <url>]
 \`\`\`
-- \`--title\`: short, scannable. Rephrase the user's words into imperative mood.
-- \`--body\`: preserve enough context for a future agent or the user to resume without re-asking basic questions. Do not store only the user's raw sentence unless it is truly just a lightweight memo.
-- For bugs, feature requests, research threads, design feedback, or follow-up engineering work, write the body like a compact issue. Prefer sections such as:
+- \`--title\`: short, scannable. Rephrase the user's words into imperative mood. Use the same language the user used (e.g. Chinese input → Chinese title, English input → English title).
+- \`--body\`: preserve enough context for a future agent or the user to resume without re-asking basic questions. Use the same language the user used.
+- Keep the body neutral and task-centered. Do not write "the user said/用户说..." as the main framing; describe the request, symptom, evidence, and next step directly. Quote the user's exact words only under Evidence / References when the wording itself matters.
+- For bugs, feature requests, research threads, design feedback, or follow-up engineering work, use a compact template. Include only sections that have real content; do not fill sections with guesses:
   \`Background\`: what prompted this and where it came from.
   \`Observed / Request\`: the concrete symptom, ask, or idea.
   \`Expected / Goal\`: what should be true when this is handled.
   \`Evidence / References\`: user quote, screenshot, link, file path, command output, or code location if available.
-  \`Next action\`: the first useful step when someone picks it up.
-  \`Why pinned\`: why this is being saved instead of handled immediately.
+  \`Next action\`: the first useful concrete step when someone picks it up.
   \`Unknowns\`: missing decisions or facts that still need confirmation.
 - If the information is thin, choose deliberately:
   If local context can answer it cheaply, inspect the relevant code, state, logs, or files before recording and include what you found.
