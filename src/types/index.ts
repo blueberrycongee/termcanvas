@@ -238,6 +238,11 @@ export interface UsageBucket {
 export interface ProjectUsage {
   path: string;
   name: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
   cost: number;
   calls: number;
 }

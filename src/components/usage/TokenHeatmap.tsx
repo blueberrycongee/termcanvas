@@ -2,7 +2,11 @@ import { useEffect, useState, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { useUsageStore, type HeatmapEntry } from "../../stores/usageStore";
 import { useT } from "../../i18n/useT";
-import { HEATMAP_LAYOUT } from "./heatmap-layout";
+import {
+  HEATMAP_LAYOUT,
+  heatmapNaturalWidth,
+  maxHeatmapWeeksForDaySpan,
+} from "./heatmap-layout";
 
 function toDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -24,12 +28,6 @@ function fmtTokens(n: number): string {
 const HEATMAP_DAYS = 91; // ≈13 weeks, sidebar / narrow overlay
 const HEATMAP_DAYS_MEDIUM = 182; // ≈26 weeks, mid-width overlay
 const HEATMAP_DAYS_LARGE = 364; // ≈52 weeks, wide overlay
-
-// Approximate min inline-size required to render a given span
-// without squeezing. 12px cell + 3px gap = 15px per week, plus the
-// 14px weekday label column + 4px outer margin.
-const HEATMAP_WIDTH_LARGE = 820;
-const HEATMAP_WIDTH_MEDIUM = 420;
 
 const COLOR_LEVELS = [
   "var(--border)", // level 0: no data
@@ -214,9 +212,9 @@ interface TokenHeatmapProps {
    * longest span that actually fits the card's inline size. Auto is
    * the right choice for container-query layouts where the heatmap
    * card's width is driven by the enclosing grid rather than a
-   * prop — at 420–820 px of inline room it shows a 26-week ribbon
-   * instead of either clipping the full year or stranding half the
-   * card empty.
+   * prop. The fit check uses the component's content box, not the
+   * padded outer box, so the selected ribbon does not get clipped by
+   * the surrounding card.
    */
   size?: "default" | "large" | "auto";
 }
@@ -241,12 +239,9 @@ export function TokenHeatmap({
   const containerRef = useRef<HTMLDivElement>(null);
   const requestedRef = useRef(false);
 
-  // Measured inline size of the heatmap card — feeds the auto-span
-  // decision below. Starts null; we read it synchronously on first
-  // layout via useLayoutEffect so the first paint already picks the
-  // correct span instead of mounting at 13 weeks and then popping to
-  // 52 once the ResizeObserver fires.
-  const [measuredWidth, setMeasuredWidth] = useState<number | null>(null);
+  const [measuredContentWidth, setMeasuredContentWidth] = useState<
+    number | null
+  >(null);
 
   useEffect(() => {
     if (!containerRef.current || requestedRef.current) return;
@@ -274,11 +269,17 @@ export function TokenHeatmap({
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    setMeasuredWidth(el.getBoundingClientRect().width);
+    const measureContentWidth = () => {
+      const style = window.getComputedStyle(el);
+      const padding =
+        parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      setMeasuredContentWidth(
+        Math.max(0, el.getBoundingClientRect().width - padding),
+      );
+    };
+    measureContentWidth();
     const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setMeasuredWidth(entry.contentRect.width);
-      }
+      if (entries.length > 0) measureContentWidth();
     });
     ro.observe(el);
     return () => ro.disconnect();
@@ -288,17 +289,31 @@ export function TokenHeatmap({
   const daysSpan = useMemo(() => {
     if (size === "large") return HEATMAP_DAYS_LARGE;
     if (size === "default") return HEATMAP_DAYS;
-    // auto — pick the biggest span that fits; fall back to large
-    // while we haven't measured yet (common case in the overlay).
-    const w = measuredWidth ?? HEATMAP_WIDTH_LARGE;
-    if (w >= HEATMAP_WIDTH_LARGE) return HEATMAP_DAYS_LARGE;
-    if (w >= HEATMAP_WIDTH_MEDIUM) return HEATMAP_DAYS_MEDIUM;
+    const w = measuredContentWidth;
+    if (w === null) return HEATMAP_DAYS;
+    if (
+      w >=
+      heatmapNaturalWidth(maxHeatmapWeeksForDaySpan(HEATMAP_DAYS_LARGE))
+    ) {
+      return HEATMAP_DAYS_LARGE;
+    }
+    if (
+      w >=
+      heatmapNaturalWidth(maxHeatmapWeeksForDaySpan(HEATMAP_DAYS_MEDIUM))
+    ) {
+      return HEATMAP_DAYS_MEDIUM;
+    }
     return HEATMAP_DAYS;
-  }, [size, measuredWidth]);
+  }, [size, measuredContentWidth]);
   const { cells, weeks, monthLabels } = useMemo(
     () => buildGrid(effectiveData, daysSpan),
     [effectiveData, daysSpan],
   );
+  const naturalWidth = heatmapNaturalWidth(weeks);
+  const canCenter =
+    !bare ||
+    measuredContentWidth === null ||
+    naturalWidth <= measuredContentWidth;
 
   const handleCellClick = (cell: CellData) => {
     fetchDay(cell.dateStr);
@@ -355,8 +370,11 @@ export function TokenHeatmap({
         inline-block that's centered inside the card — the legend
         aligns with the grid's right edge, not the card's.
       */}
-      <div className={bare ? "flex justify-center" : undefined}>
-        <div className={bare ? "inline-block" : undefined}>
+      <div className={bare ? "overflow-x-auto" : undefined}>
+        <div
+          className={bare ? "w-fit" : undefined}
+          style={bare && canCenter ? { marginInline: "auto" } : undefined}
+        >
           <div className={`${bare ? "" : "mt-2 "}flex gap-[3px]`}>
             <div className="flex flex-col gap-[3px] shrink-0 mr-0.5">
               {Array.from({ length: 7 }, (_, row) => (

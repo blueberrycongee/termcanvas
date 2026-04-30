@@ -20,6 +20,7 @@ import {
   deriveActiveUsage,
   fmtCost,
   fmtTokens,
+  totalSummaryTokens,
 } from "./UsagePanel";
 
 /*
@@ -224,15 +225,23 @@ export function UsageOverlay() {
 
   const monthStats = useMemo(() => {
     if (!activeHeatmap) {
-      return { mtd: 0, daysWithData: 0, dailyAvg: 0, projection: 0 };
+      return {
+        mtd: 0,
+        mtdTokens: 0,
+        daysWithData: 0,
+        dailyAvg: 0,
+        projection: 0,
+      };
     }
     const monthPrefix = date.slice(0, 7);
     let mtd = 0;
+    let mtdTokens = 0;
     let daysWithData = 0;
     for (const [d, entry] of Object.entries(activeHeatmap)) {
       if (!d.startsWith(monthPrefix)) continue;
       if (entry.cost > 0) {
         mtd += entry.cost;
+        mtdTokens += entry.tokens;
         daysWithData += 1;
       }
     }
@@ -248,7 +257,7 @@ export function UsageOverlay() {
     const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
     const projection =
       daysWithData > 0 && isCurrentMonth ? mtd + dailyAvg * remainingDays : mtd;
-    return { mtd, daysWithData, dailyAvg, projection };
+    return { mtd, mtdTokens, daysWithData, dailyAvg, projection };
   }, [activeHeatmap, date]);
 
   if (!open) return null;
@@ -280,6 +289,9 @@ export function UsageOverlay() {
   const labelToGo = (t.usage_stat_to_go as unknown as string) ?? "to go";
   const labelMonthTrend =
     (t.usage_month_trend as unknown as string) ?? "Last 30 days";
+  const activeTotalTokens = activeSummary
+    ? totalSummaryTokens(activeSummary)
+    : 0;
 
   return (
     /*
@@ -371,10 +383,12 @@ export function UsageOverlay() {
                 </div>
                 <div className="mt-2 tc-caption tc-mono tc-num flex items-center gap-2">
                   <span>
-                    {activeSummary.sessions} {t.usage_sessions}
+                    {fmtTokens(activeTotalTokens)} {t.usage_tokens}
                   </span>
                   <span className="text-[var(--text-faint)]">·</span>
-                  <span>{fmtTokens(activeSummary.totalOutput)} out</span>
+                  <span>
+                    {activeSummary.sessions} {t.usage_sessions}
+                  </span>
                   {monthStats.mtd > 0 && (
                     <>
                       <span className="text-[var(--text-faint)]">·</span>
@@ -412,23 +426,24 @@ export function UsageOverlay() {
             </div>
           ) : (
             <div key={animKey} className="flex flex-col gap-4 @[900px]:gap-5">
-              {/* Row 1: stat strip — 1 col → 2 col → 4 col */}
-              <div className="grid gap-4 grid-cols-1 @[520px]:grid-cols-2 @[840px]:grid-cols-4">
+              {/* Row 1: stat strip — 1 col → 2 col → 3 col → 5 col */}
+              <div className="grid gap-4 grid-cols-1 @[520px]:grid-cols-2 @[840px]:grid-cols-3 @[1100px]:grid-cols-5">
                 <StatCard
                   label={labelToday}
                   value={fmtCost(activeSummary.totalCost)}
-                  sub={`${activeSummary.sessions} ${t.usage_sessions} · ${
-                    activeSummary.totalOutput >= 1000
-                      ? `${(activeSummary.totalOutput / 1000).toFixed(1)}K`
-                      : activeSummary.totalOutput
-                  } out`}
+                  sub={`${activeSummary.sessions} ${t.usage_sessions}`}
+                />
+                <StatCard
+                  label={t.usage_tokens}
+                  value={fmtTokens(activeTotalTokens)}
+                  sub={`${t.usage_input} ${fmtTokens(activeSummary.totalInput)} · ${t.usage_output} ${fmtTokens(activeSummary.totalOutput)}`}
                 />
                 <StatCard
                   label={labelMtd}
                   value={fmtCost(monthStats.mtd)}
                   sub={
                     monthStats.daysWithData > 0
-                      ? `${monthStats.daysWithData} ${labelActiveDays}`
+                      ? `${fmtTokens(monthStats.mtdTokens)} ${t.usage_tokens} · ${monthStats.daysWithData} ${labelActiveDays}`
                       : undefined
                   }
                 />

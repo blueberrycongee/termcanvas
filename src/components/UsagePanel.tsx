@@ -38,6 +38,32 @@ export function fmtTokens(n: number): string {
   return String(n);
 }
 
+export function totalUsageTokens(value: {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
+}): number {
+  return (
+    value.input +
+    value.output +
+    value.cacheRead +
+    value.cacheCreate5m +
+    value.cacheCreate1h
+  );
+}
+
+export function totalSummaryTokens(summary: UsageSummary): number {
+  return (
+    summary.totalInput +
+    summary.totalOutput +
+    summary.totalCacheRead +
+    summary.totalCacheCreate5m +
+    summary.totalCacheCreate1h
+  );
+}
+
 export function pct(value: number, total: number): string {
   if (total === 0) return "0%";
   return `${Math.round((value / total) * 100)}%`;
@@ -90,7 +116,10 @@ function Bar({
 }) {
   const w = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
-    <div className="h-1.5 rounded-full bg-[var(--border)] flex-1 min-w-0 overflow-hidden">
+    <div
+      className="h-1.5 rounded-full bg-[var(--border)] shrink-0 overflow-hidden"
+      style={{ width: "clamp(56px, 32%, 112px)" }}
+    >
       <div
         className="h-full rounded-full"
         style={{
@@ -222,9 +251,12 @@ export function SummarySection({
 }: {
   t: ReturnType<typeof useT>;
   summary: UsageSummary;
-  monthlyData?: { cost: number; dailyAvg?: number };
+  monthlyData?: { cost: number; tokens: number; dailyAvg?: number };
 }) {
   const animatedCost = useAnimatedNumber(summary.totalCost);
+  const totalTokens = totalSummaryTokens(summary);
+  const cacheCreate =
+    summary.totalCacheCreate5m + summary.totalCacheCreate1h;
 
   return (
     <div className="px-3 pt-2.5 pb-3">
@@ -236,17 +268,34 @@ export function SummarySection({
       </div>
       <div className="flex items-center gap-2 mt-2 tc-caption tc-mono tc-num">
         <span>
-          {summary.sessions} {t.usage_sessions}
+          {fmtTokens(totalTokens)} {t.usage_tokens}
         </span>
         <span className="text-[var(--text-faint)]">·</span>
         <span>
-          {fmtTokens(summary.totalOutput)} {t.usage_output}
+          {summary.sessions} {t.usage_sessions}
+        </span>
+      </div>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 tc-caption tc-mono tc-num text-[var(--text-muted)]">
+        <span>
+          {t.usage_input} {fmtTokens(summary.totalInput)}
+        </span>
+        <span>
+          {t.usage_output} {fmtTokens(summary.totalOutput)}
+        </span>
+        <span>
+          {t.usage_cache_read} {fmtTokens(summary.totalCacheRead)}
+        </span>
+        <span>
+          {t.usage_cache_create} {fmtTokens(cacheCreate)}
         </span>
       </div>
       {monthlyData && monthlyData.cost > 0 && (
         <div className="mt-2.5 pt-2.5 border-t border-[var(--border)] flex items-center justify-between">
           <span className="tc-eyebrow">{t.usage_monthly}</span>
-          <div className="flex items-baseline gap-2 tc-caption tc-mono tc-num">
+          <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 tc-caption tc-mono tc-num">
+            <span className="text-[var(--text-secondary)] font-medium">
+              {fmtTokens(monthlyData.tokens)} {t.usage_tokens}
+            </span>
             <span className="text-[var(--text-secondary)] font-medium">
               {fmtCost(monthlyData.cost)}
             </span>
@@ -413,7 +462,8 @@ export function CacheRateSection({
           key={row.label}
           tooltip={
             <div className="text-[10px] text-[var(--text-secondary)] tc-mono tc-num">
-              Cache Read: {fmtTokens(row.cacheRead)} / Total:{" "}
+              {t.usage_cache_read}: {fmtTokens(row.cacheRead)} /{" "}
+              {t.usage_tokens}:{" "}
               {fmtTokens(row.totalInput)}
             </div>
           }
@@ -474,6 +524,10 @@ export function ProjectsContent({
               </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
               <span className="text-[var(--text-muted)]">
+                {fmtTokens(totalUsageTokens(p))} {t.usage_tokens_label}
+              </span>
+              <span className="text-[var(--text-faint)] mx-1">·</span>
+              <span className="text-[var(--text-muted)]">
                 {p.calls} {t.usage_calls}
               </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
@@ -486,7 +540,7 @@ export function ProjectsContent({
           <div className="flex items-center gap-2 group">
             <span
               className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
-              style={{ maxWidth: "45%" }}
+              style={{ maxWidth: "48%" }}
             >
               {p.name}
             </span>
@@ -546,6 +600,8 @@ export function ModelsContent({
                 <div className="text-[var(--text-muted)] mt-0.5">
                   {fmtCost(m.cost)}
                   <span className="text-[var(--text-faint)] mx-1">·</span>
+                  {fmtTokens(totalUsageTokens(m))} {t.usage_tokens_label}
+                  <span className="text-[var(--text-faint)] mx-1">·</span>
                   {m.calls} {t.usage_calls}
                 </div>
               </div>
@@ -554,7 +610,7 @@ export function ModelsContent({
             <div className="flex items-center gap-2 group">
               <span
                 className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
-                style={{ maxWidth: "45%" }}
+                style={{ maxWidth: "48%" }}
               >
                 {shortName}
               </span>
@@ -622,6 +678,18 @@ export function deriveActiveUsage({
       sessions: Math.max(cloudSummary.sessions, summary.sessions),
       totalInput: Math.max(cloudSummary.totalInput, summary.totalInput),
       totalOutput: Math.max(cloudSummary.totalOutput, summary.totalOutput),
+      totalCacheRead: Math.max(
+        cloudSummary.totalCacheRead,
+        summary.totalCacheRead,
+      ),
+      totalCacheCreate5m: Math.max(
+        cloudSummary.totalCacheCreate5m,
+        summary.totalCacheCreate5m,
+      ),
+      totalCacheCreate1h: Math.max(
+        cloudSummary.totalCacheCreate1h,
+        summary.totalCacheCreate1h,
+      ),
       totalCost: Math.max(cloudSummary.totalCost, summary.totalCost),
       buckets: mergedBuckets,
     };
@@ -730,6 +798,7 @@ export function UsagePanel() {
   });
 
   let monthlyCost = 0;
+  let monthlyTokens = 0;
   let daysWithData = 0;
   if (activeHeatmap) {
     const monthPrefix = date.slice(0, 7);
@@ -737,6 +806,7 @@ export function UsagePanel() {
       if (!d.startsWith(monthPrefix)) continue;
       if (entry.cost > 0) {
         monthlyCost += entry.cost;
+        monthlyTokens += entry.tokens;
         daysWithData += 1;
       }
     }
@@ -745,6 +815,7 @@ export function UsagePanel() {
     monthlyCost > 0
       ? {
           cost: monthlyCost,
+          tokens: monthlyTokens,
           dailyAvg: daysWithData > 0 ? monthlyCost / daysWithData : 0,
         }
       : undefined;

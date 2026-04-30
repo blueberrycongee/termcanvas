@@ -26,7 +26,10 @@ function barColor(utilization: number): string {
 function QuotaBar({ utilization }: { utilization: number }) {
   const pct = Math.max(0, Math.min(100, utilization * 100));
   return (
-    <div className="h-1.5 rounded-full bg-[var(--border)] flex-1 min-w-0 overflow-hidden">
+    <div
+      className="h-1.5 rounded-full bg-[var(--border)] shrink-0 overflow-hidden"
+      style={{ width: "clamp(56px, 30%, 104px)" }}
+    >
       <div
         className="h-full rounded-full"
         style={{
