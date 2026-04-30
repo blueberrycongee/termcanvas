@@ -9,6 +9,9 @@ interface Props {
   onClose: () => void;
 }
 
+const primaryUpdateButtonClass =
+  "px-4 py-1.5 rounded-lg bg-[var(--accent)] text-[length:var(--text-sm)] font-medium leading-[var(--leading-snug)] text-[var(--accent-foreground)] shadow-sm hover:brightness-110 transition-all";
+
 function extractLocalizedNotes(notes: string, locale: string): string {
   const zhMatch = notes.match(/<!--\s*zh\s*-->([\s\S]*?)<!--\s*\/zh\s*-->/);
   if (locale === "zh" && zhMatch) return zhMatch[1].trim();
@@ -144,7 +147,7 @@ export function UpdateModal({ onClose }: Props) {
           {status === "error" && (
             <button
               onClick={handleRetry}
-              className="tc-ui px-4 py-1.5 text-[var(--accent-foreground)] bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
+              className={primaryUpdateButtonClass}
             >
               {t.update_modal_retry}
             </button>
@@ -152,7 +155,7 @@ export function UpdateModal({ onClose }: Props) {
           {status === "ready" && (
             <button
               onClick={handleInstall}
-              className="tc-ui px-4 py-1.5 text-[var(--accent-foreground)] bg-[var(--accent)] rounded-lg hover:brightness-110 transition-all"
+              className={primaryUpdateButtonClass}
             >
               {t.update_modal_restart}
             </button>

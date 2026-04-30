@@ -381,7 +381,7 @@ function UpdateStatusLine({ appVersion }: { appVersion: string | null }) {
     statusEl = (
       <button
         type="button"
-        className="text-[11px] text-[var(--accent)] hover:underline"
+        className="rounded-md bg-[var(--accent)] px-2 py-1 text-[11px] font-medium leading-none text-[var(--accent-foreground)] transition-all duration-quick hover:brightness-110"
         onClick={handleInstall}
       >
         {t.update_restart_short}
