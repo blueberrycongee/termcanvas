@@ -126,6 +126,10 @@ export function patchXtermMouseService(
 
   const origGetScrollAmount = selectionService?._getMouseEventScrollAmount;
   if (selectionService && origGetScrollAmount) {
+    // This is the easy path to miss: drag-selecting near the terminal edge
+    // asks SelectionService whether to start auto-scroll. That private helper
+    // does not call MouseService, so the selection endpoint and edge threshold
+    // must both be patched here or they will disagree under React Flow zoom.
     selectionService._getMouseEventScrollAmount = (event) => {
       const scale = getScale();
       const screenElement = selectionService._screenElement;

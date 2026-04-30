@@ -73,6 +73,9 @@ test("patchXtermMouseService scales selection drag-scroll threshold checks", () 
     () => 2,
   );
 
+  // Visual terminal bottom is 100 + 200 * 2 = 500. Without scaling this event
+  // looks like offset 398 and wrongly starts drag-scroll; with scaling it maps
+  // back to CSS offset 199 and remains a normal in-terminal selection drag.
   assert.equal(
     selectionService._getMouseEventScrollAmount({ clientX: 0, clientY: 498 }),
     0,
