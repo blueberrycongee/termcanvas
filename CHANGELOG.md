@@ -2,6 +2,20 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.2] - 2026-04-30
+
+### Changed
+- **Left panel hierarchy is easier to scan**: the project / worktree / terminal tree uses a quieter visual hierarchy and more consistent row rhythm across sessions and history surfaces.
+- **File tree keeps more context visible**: gitignored files now render dimmed instead of disappearing, and file-tree state is preserved across tab changes, panel collapse, and worktree switches.
+
+### Fixed
+- **OpenCode terminals now report real lifecycle state**: OpenCode sessions are discovered from the current database without binding stale same-directory sessions, `tool-calls` steps stay active instead of being treated as full turn completion, and the first user prompt is pushed through telemetry so left-panel titles update.
+- **Pin dispatch keeps dropped pins as context**: dropped pins remain available as conversation context when dispatching work, instead of disappearing from the handoff.
+- **Workspace save and external URL handling is stricter**: Electron now restricts external URL opens and workspace save paths to the intended surfaces.
+- **Diagnostics logs rotate predictably**: renderer diagnostics log rotation is covered and kept within the expected behavior.
+- **Terminal resize and drag-scroll hit areas are stable**: resize handles stay outside terminal content, and terminal selection drag-scroll keeps its scale guard.
+- **Light theme terminal colors remain readable**: the xterm light grayscale hierarchy stays visible across CLI roles.
+
 ## [0.39.1] - 2026-04-29
 
 ### Fixed
