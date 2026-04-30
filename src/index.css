@@ -1276,6 +1276,86 @@ a.tc-kbd[data-dragover="true"] {
   pointer-events: none;
 }
 
+/* Single-line label inside a tree row (Project, Worktree). All three
+   nesting levels share text-primary so depth is encoded by indent +
+   weight, not by fading the middle to text-secondary (which inverted
+   the hierarchy). Use --strong on the parent-most level for a slight
+   weight bump. */
+.tc-tree-row-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tc-tree-row-label--strong {
+  font-weight: var(--weight-medium);
+}
+
+/* Two-line leaf row content: title + caption. Used by TerminalCard,
+   HistoryRow, StashedCard. Title sits at text-sm so the row clears
+   ~28px even with a subtitle below. */
+.tc-tree-row-title {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--text-primary);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tc-tree-row-subtitle {
+  font-size: var(--text-tiny);
+  line-height: var(--leading-snug);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* When a tree row is the focused canvas item, bump label/title to
+   weight-medium. The 2px accent gutter alone is too quiet under the
+   warm-neutral accent — typography weight carries the "you are here"
+   signal that color used to. */
+.tc-tree-row[data-focused="true"] .tc-tree-row-label,
+.tc-tree-row[data-focused="true"] .tc-tree-row-title {
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+/* Section eyebrow header inside the left panel tree (Stashed,
+   History, project subgroups, Pinned). Full-bleed to match the tree
+   rows below — the previous mx-2 + rounded-md islanded pill pattern
+   created a visual seam between section heads and their contents. */
+.tc-tree-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--tree-row-height);
+  padding-right: 8px;
+  padding-left: calc(
+    var(--tree-base-pl) + var(--tree-level, 0) * var(--tree-indent)
+  );
+  text-align: left;
+  outline: none;
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-tree-section-header:hover {
+  background-color: var(--sidebar-hover);
+}
+.tc-tree-section-header[data-static="true"] {
+  cursor: default;
+}
+.tc-tree-section-header[data-static="true"]:hover {
+  background-color: transparent;
+}
+
 /* Quieter variant for icon-button-like targets sitting inside a
    row: only colour shifts on hover, no surface lift (the row
    underneath already lifts). Use on chevron toggles and resize

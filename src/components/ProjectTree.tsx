@@ -316,17 +316,7 @@ function WorktreeRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span
-          className="truncate flex-1 min-w-0"
-          style={{
-            fontSize: "var(--text-base)",
-            fontWeight: "var(--weight-regular)",
-            color: "var(--text-secondary)",
-            lineHeight: "var(--leading-snug)",
-          }}
-        >
-          {group.worktreeName}
-        </span>
+        <span className="tc-tree-row-label">{group.worktreeName}</span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
         <IconButton
           size="sm"
@@ -570,15 +560,7 @@ function ProjectRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span
-          className="truncate flex-1 min-w-0"
-          style={{
-            fontSize: "var(--text-base)",
-            fontWeight: "var(--weight-regular)",
-            color: "var(--text-primary)",
-            lineHeight: "var(--leading-snug)",
-          }}
-        >
+        <span className="tc-tree-row-label tc-tree-row-label--strong">
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />
