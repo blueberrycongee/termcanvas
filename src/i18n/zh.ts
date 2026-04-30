@@ -508,6 +508,9 @@ export const zh = {
   usage_cache_rate_overall: "整体",
   usage_no_data: "暂无用量数据",
   usage_today: "今天",
+  usage_period_day: "按日",
+  usage_period_this_month: "本月",
+  usage_period_last_month: "上月",
   usage_calls: "次调用",
   usage_tokens_label: "tokens",
   usage_cal_weekdays: [

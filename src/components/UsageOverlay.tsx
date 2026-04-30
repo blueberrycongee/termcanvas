@@ -13,6 +13,7 @@ import { LoginButton } from "./LoginButton";
 import { DeviceBreakdown } from "./usage/DeviceBreakdown";
 import { QuotaSection } from "./usage/QuotaSection";
 import { MonthlyTrendChart } from "./usage/MonthlyTrendChart";
+import { UsageRangeTrendChart } from "./usage/UsageRangeTrendChart";
 import {
   CacheRateSection,
   ProjectsContent,
@@ -22,6 +23,7 @@ import {
   fmtTokens,
   totalSummaryTokens,
 } from "./UsagePanel";
+import type { UsageRangeSummary } from "../types";
 
 /*
  * Usage, full-screen.
@@ -55,6 +57,43 @@ import {
 
 const USAGE_COMPACT_MAX = 640;
 const ROW2_CHART_HEIGHT = 64;
+type UsagePeriodMode = "day" | "thisMonth" | "lastMonth";
+
+function dateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function monthRange(mode: Exclude<UsagePeriodMode, "day">): {
+  startDate: string;
+  endDate: string;
+} {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  if (mode === "thisMonth") {
+    return {
+      startDate: dateKey(new Date(year, month, 1)),
+      endDate: dateKey(now),
+    };
+  }
+  return {
+    startDate: dateKey(new Date(year, month - 1, 1)),
+    endDate: dateKey(new Date(year, month, 0)),
+  };
+}
+
+function totalRangeTokens(summary: UsageRangeSummary): number {
+  return (
+    summary.totalInput +
+    summary.totalOutput +
+    summary.totalCacheRead +
+    summary.totalCacheCreate5m +
+    summary.totalCacheCreate1h
+  );
+}
 
 function StatCard({
   label,
@@ -112,6 +151,117 @@ function SectionCard({
   );
 }
 
+function UsageRangeDashboard({
+  summary,
+  periodLabel,
+  t,
+  animate,
+}: {
+  summary: UsageRangeSummary;
+  periodLabel: string;
+  t: ReturnType<typeof useT>;
+  animate: boolean;
+}): React.ReactElement {
+  const totalTokens = totalRangeTokens(summary);
+  const activeDays = summary.days.filter((day) => day.cost > 0).length;
+  const dailyAvgCost =
+    activeDays > 0 ? summary.totalCost / activeDays : 0;
+  const dailyAvgTokens = activeDays > 0 ? totalTokens / activeDays : 0;
+  const cacheCreate =
+    summary.totalCacheCreate5m + summary.totalCacheCreate1h;
+  const hasUsage = totalTokens > 0 || summary.totalCost > 0;
+
+  return (
+    <div className="flex flex-col gap-4 @[900px]:gap-5">
+      <div className="grid gap-4 grid-cols-1 @[520px]:grid-cols-2 @[840px]:grid-cols-3 @[1100px]:grid-cols-5">
+        <StatCard
+          label={periodLabel}
+          value={fmtCost(summary.totalCost)}
+          sub={`${summary.sessions} ${t.usage_sessions}`}
+        />
+        <StatCard
+          label={t.usage_tokens}
+          value={fmtTokens(totalTokens)}
+          sub={`${t.usage_input} ${fmtTokens(summary.totalInput)} · ${t.usage_output} ${fmtTokens(summary.totalOutput)}`}
+        />
+        <StatCard
+          label={t.usage_stat_daily_avg}
+          value={fmtCost(dailyAvgCost)}
+          sub={`${fmtTokens(dailyAvgTokens)} ${t.usage_tokens_label}`}
+        />
+        <StatCard
+          label={t.usage_stat_active_days}
+          value={String(activeDays)}
+          sub={`${summary.startDate} - ${summary.endDate}`}
+        />
+        <StatCard
+          label={t.usage_cache_rate}
+          value={fmtTokens(summary.totalCacheRead)}
+          sub={`${t.usage_cache_create} ${fmtTokens(cacheCreate)}`}
+        />
+      </div>
+
+      {!hasUsage ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center tc-caption">
+          {t.usage_no_data}
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2">
+            <SectionCard title={`${periodLabel} · ${t.usage_month_trend}`}>
+              <div className="px-4 py-3">
+                <UsageRangeTrendChart
+                  days={summary.days}
+                  metric="cost"
+                  animate={animate}
+                />
+              </div>
+            </SectionCard>
+            <SectionCard title={`${periodLabel} · ${t.usage_tokens}`}>
+              <div className="px-4 py-3">
+                <UsageRangeTrendChart
+                  days={summary.days}
+                  metric="tokens"
+                  animate={animate}
+                />
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-3">
+            {summary.projects.length > 0 && (
+              <SectionCard title={t.usage_projects}>
+                <div className="px-4 py-3">
+                  <ProjectsContent
+                    t={t}
+                    projects={summary.projects}
+                    totalCost={summary.totalCost}
+                    animate={animate}
+                  />
+                </div>
+              </SectionCard>
+            )}
+            {summary.models.length > 0 && (
+              <SectionCard title={t.usage_models}>
+                <div className="px-4 py-3">
+                  <ModelsContent
+                    t={t}
+                    models={summary.models}
+                    animate={animate}
+                  />
+                </div>
+              </SectionCard>
+            )}
+            <SectionCard className="w-fit max-w-full">
+              <QuotaSection inline />
+            </SectionCard>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function UsageOverlay() {
   const open = useCanvasStore((s) => s.usageOverlayOpen);
   const close = useCanvasStore((s) => s.closeUsageOverlay);
@@ -127,6 +277,9 @@ export function UsageOverlay() {
     date,
     cachedDates,
     fetch: fetchUsage,
+    rangeSummary,
+    rangeLoading,
+    fetchRange,
     heatmapData,
     fetchHeatmap,
     cloudSummary,
@@ -140,6 +293,7 @@ export function UsageOverlay() {
   const codexQuotaFetch = useCodexQuotaStore((s) => s.fetch);
 
   const isLoggedIn = user !== null;
+  const [periodMode, setPeriodMode] = useState<UsagePeriodMode>("day");
 
   const [animKey, setAnimKey] = useState(0);
   const prevDateRef = useRef(date);
@@ -157,6 +311,16 @@ export function UsageOverlay() {
       setAnimKey((k) => k + 1);
     }
   }, [date]);
+
+  const activeRange = useMemo(
+    () => (periodMode === "day" ? null : monthRange(periodMode)),
+    [periodMode],
+  );
+
+  useEffect(() => {
+    if (!open || !activeRange) return;
+    void fetchRange(activeRange.startDate, activeRange.endDate);
+  }, [open, activeRange, fetchRange]);
 
   const lastFetchRef = useRef(0);
   useEffect(() => {
@@ -289,9 +453,27 @@ export function UsageOverlay() {
   const labelToGo = (t.usage_stat_to_go as unknown as string) ?? "to go";
   const labelMonthTrend =
     (t.usage_month_trend as unknown as string) ?? "Last 30 days";
+  const labelPeriodDay =
+    (t.usage_period_day as unknown as string) ?? t.usage_today;
+  const labelPeriodThisMonth =
+    (t.usage_period_this_month as unknown as string) ?? t.usage_monthly;
+  const labelPeriodLastMonth =
+    (t.usage_period_last_month as unknown as string) ?? "Last month";
   const activeTotalTokens = activeSummary
     ? totalSummaryTokens(activeSummary)
     : 0;
+  const activeRangeSummary =
+    activeRange &&
+    rangeSummary?.startDate === activeRange.startDate &&
+    rangeSummary.endDate === activeRange.endDate
+      ? rangeSummary
+      : null;
+  const periodLabel =
+    periodMode === "day"
+      ? labelPeriodDay
+      : periodMode === "thisMonth"
+        ? labelPeriodThisMonth
+        : labelPeriodLastMonth;
 
   return (
     /*
@@ -343,21 +525,69 @@ export function UsageOverlay() {
 
         {/* Control strip */}
         <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-          <div className="flex items-center gap-3 px-3 py-1.5">
-            <div className="flex-1 min-w-0">
-              <DateNavigator
-                date={date}
-                cachedDates={cachedDates}
-                onDateChange={handleDateChange}
-                bare
-              />
+          <div className="flex flex-wrap items-center gap-3 px-3 py-1.5">
+            <div className="flex items-center gap-1 rounded-md bg-[var(--bg)] p-0.5 border border-[var(--border)]">
+              {[
+                ["day", labelPeriodDay],
+                ["thisMonth", labelPeriodThisMonth],
+                ["lastMonth", labelPeriodLastMonth],
+              ].map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPeriodMode(mode as UsagePeriodMode)}
+                  className={`px-2.5 py-1 rounded text-[10px] tc-mono transition-colors ${
+                    periodMode === mode
+                      ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm"
+                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-w-[220px]">
+              {periodMode === "day" ? (
+                <DateNavigator
+                  date={date}
+                  cachedDates={cachedDates}
+                  onDateChange={handleDateChange}
+                  bare
+                />
+              ) : activeRange ? (
+                <div className="tc-caption tc-mono tc-num text-[var(--text-muted)] truncate">
+                  {activeRange.startDate} - {activeRange.endDate}
+                </div>
+              ) : null}
             </div>
             <InsightsButton compact />
             <LoginButton />
           </div>
         </div>
 
-        {loading && !activeSummary ? (
+        {periodMode !== "day" ? (
+          rangeLoading && !activeRangeSummary ? (
+            <div
+              className="px-4 py-8 text-center tc-caption"
+              role="status"
+              aria-live="polite"
+            >
+              {t.loading}
+            </div>
+          ) : activeRangeSummary ? (
+            <UsageRangeDashboard
+              key={`${periodMode}:${activeRangeSummary.startDate}:${activeRangeSummary.endDate}`}
+              summary={activeRangeSummary}
+              periodLabel={periodLabel}
+              t={t}
+              animate={true}
+            />
+          ) : (
+            <div className="px-4 py-8 text-center tc-caption">
+              {t.usage_no_data}
+            </div>
+          )
+        ) : loading && !activeSummary ? (
           <div
             className="px-4 py-8 text-center tc-caption"
             role="status"
@@ -411,8 +641,8 @@ export function UsageOverlay() {
                 </div>
               </SectionCard>
 
-              <SectionCard>
-                <QuotaSection />
+              <SectionCard className="w-fit max-w-full">
+                <QuotaSection inline />
               </SectionCard>
 
               <SectionCard title={t.usage_heatmap}>
@@ -530,10 +760,12 @@ export function UsageOverlay() {
                 )}
               </div>
 
-              {/* Row 4: Quota — full-width */}
-              <SectionCard>
-                <QuotaSection />
-              </SectionCard>
+              {/* Row 4: Quota — short status card */}
+              <div className="flex">
+                <SectionCard className="w-fit max-w-full">
+                  <QuotaSection inline />
+                </SectionCard>
+              </div>
 
               {/* Row 5: Heatmap — full-width, self-sizing */}
               <SectionCard title={t.usage_heatmap}>

@@ -1,5 +1,9 @@
 import { create } from "zustand";
-import type { UsageSummary, CloudUsageSummary } from "../types";
+import type {
+  UsageSummary,
+  CloudUsageSummary,
+  UsageRangeSummary,
+} from "../types";
 
 export interface HeatmapEntry {
   tokens: number;
@@ -16,6 +20,11 @@ interface UsageStore {
   /** When a fetch is in-flight, stores the latest requested date so it's fetched next */
   pendingDate: string | null;
   fetch: (dateStr?: string) => Promise<void>;
+  rangeSummary: UsageRangeSummary | null;
+  rangeLoading: boolean;
+  rangeCache: Record<string, UsageRangeSummary>;
+  rangeFetchedAt: Record<string, number>;
+  fetchRange: (startDate: string, endDate: string) => Promise<void>;
 
   heatmapData: Record<string, HeatmapEntry>;
   heatmapLoading: boolean;
@@ -52,6 +61,10 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
   summaryCache: {},
   summaryFetchedAt: {},
   pendingDate: null,
+  rangeSummary: null,
+  rangeLoading: false,
+  rangeCache: {},
+  rangeFetchedAt: {},
 
   fetch: async (dateStr?: string) => {
     const target = dateStr ?? get().date;
@@ -96,6 +109,37 @@ export const useUsageStore = create<UsageStore>((set, get) => ({
     if (pending) {
       set({ pendingDate: null });
       get().fetch(pending);
+    }
+  },
+
+  fetchRange: async (startDate: string, endDate: string) => {
+    const key = `${startDate}:${endDate}`;
+    const cached = get().rangeCache[key];
+    const fetchedAt = get().rangeFetchedAt[key] ?? 0;
+    if (cached && Date.now() - fetchedAt < HEATMAP_STALE_MS) {
+      set({ rangeSummary: cached });
+      return;
+    }
+
+    if (!window.termcanvas?.usage?.queryRange) {
+      set({ rangeSummary: null });
+      return;
+    }
+
+    set({ rangeLoading: true });
+    try {
+      const rangeSummary = await window.termcanvas.usage.queryRange(
+        startDate,
+        endDate,
+      );
+      set((state) => ({
+        rangeSummary,
+        rangeLoading: false,
+        rangeCache: { ...state.rangeCache, [key]: rangeSummary },
+        rangeFetchedAt: { ...state.rangeFetchedAt, [key]: Date.now() },
+      }));
+    } catch {
+      set({ rangeLoading: false });
     }
   },
 

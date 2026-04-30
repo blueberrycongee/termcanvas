@@ -671,6 +671,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
   },
   usage: {
     query: (dateStr: string) => ipcRenderer.invoke("usage:query", dateStr),
+    queryRange: (startDate: string, endDate: string) =>
+      ipcRenderer.invoke("usage:query-range", startDate, endDate),
     heatmap: () => ipcRenderer.invoke("usage:heatmap"),
     queryCloud: (dateStr: string) =>
       ipcRenderer.invoke("usage:query-cloud", dateStr),

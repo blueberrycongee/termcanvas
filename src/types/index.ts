@@ -301,6 +301,32 @@ export interface UsageSummary {
   models: ModelUsage[];
 }
 
+export interface UsageRangeDay {
+  date: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
+  cost: number;
+  calls: number;
+}
+
+export interface UsageRangeSummary {
+  startDate: string;
+  endDate: string;
+  days: UsageRangeDay[];
+  sessions: number;
+  totalInput: number;
+  totalOutput: number;
+  totalCacheRead: number;
+  totalCacheCreate5m: number;
+  totalCacheCreate1h: number;
+  totalCost: number;
+  projects: ProjectUsage[];
+  models: ModelUsage[];
+}
+
 export interface QuotaData {
   fiveHour: { utilization: number; resetsAt: string };
   sevenDay: { utilization: number; resetsAt: string };
@@ -951,6 +977,10 @@ export interface TermCanvasAPI {
   };
   usage: {
     query: (dateStr: string) => Promise<UsageSummary>;
+    queryRange: (
+      startDate: string,
+      endDate: string,
+    ) => Promise<UsageRangeSummary>;
     heatmap: () => Promise<Record<string, { tokens: number; cost: number }>>;
   };
   quota: {

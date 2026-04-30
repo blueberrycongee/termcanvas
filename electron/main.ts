@@ -57,7 +57,11 @@ import {
   createDefaultComposerSubmitDeps,
   submitComposerRequest,
 } from "./composer-submit";
-import { collectUsage, collectHeatmapData } from "./usage-collector";
+import {
+  collectUsage,
+  collectUsageRange,
+  collectHeatmapData,
+} from "./usage-collector";
 import { buildGitWorktreeRemoveArgs } from "../hydra/src/cleanup";
 import {
   installDownloadedUpdate,
@@ -1838,6 +1842,22 @@ function setupIpc() {
     });
     return result;
   });
+
+  ipcMain.handle(
+    "usage:query-range",
+    async (_event, startDate: string, endDate: string) => {
+      const startedAt = Date.now();
+      const result = await collectUsageRange(startDate, endDate);
+      perfLog("usage:query-range", {
+        startDate,
+        endDate,
+        ms: Date.now() - startedAt,
+        sessions: result.sessions,
+        totalCost: result.totalCost,
+      });
+      return result;
+    },
+  );
 
   ipcMain.handle("usage:heatmap", async () => {
     const startedAt = Date.now();

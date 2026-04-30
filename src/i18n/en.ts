@@ -517,6 +517,9 @@ export const en = {
   usage_cache_rate_overall: "Overall",
   usage_no_data: "No usage data",
   usage_today: "Today",
+  usage_period_day: "Day",
+  usage_period_this_month: "This month",
+  usage_period_last_month: "Last month",
   usage_calls: "calls",
   usage_tokens_label: "tokens",
   usage_cal_weekdays: [

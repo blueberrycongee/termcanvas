@@ -146,8 +146,39 @@ export interface UsageSummary {
   models: ModelUsage[];
 }
 
+export interface UsageRangeDay {
+  date: string;
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheCreate5m: number;
+  cacheCreate1h: number;
+  cost: number;
+  calls: number;
+}
+
+export interface UsageRangeSummary {
+  startDate: string;
+  endDate: string;
+  days: UsageRangeDay[];
+  sessions: number;
+  totalInput: number;
+  totalOutput: number;
+  totalCacheRead: number;
+  totalCacheCreate5m: number;
+  totalCacheCreate1h: number;
+  totalCost: number;
+  projects: ProjectUsage[];
+  models: ModelUsage[];
+}
+
 interface CachedUsageSummary {
   summary: UsageSummary;
+  cachedAt: number;
+}
+
+interface CachedUsageRangeSummary {
+  summary: UsageRangeSummary;
   cachedAt: number;
 }
 
@@ -176,6 +207,7 @@ const HEATMAP_DISK_CACHE_FILE = path.join(
 );
 
 const usageSummaryCache = new Map<string, CachedUsageSummary>();
+const usageRangeSummaryCache = new Map<string, CachedUsageRangeSummary>();
 let heatmapCache:
   | { data: Record<string, { tokens: number; cost: number }>; cachedAt: number }
   | null = null;
@@ -271,6 +303,27 @@ export function dateToUtcRange(dateStr: string): { utcStart: string; utcEnd: str
   return { utcStart: fmt(startMs), utcEnd: fmt(endMs) };
 }
 
+function dateRangeToUtcRange(
+  startDate: string,
+  endDate: string,
+): { utcStart: string; utcEnd: string } {
+  const startMs = new Date(`${startDate}T00:00:00`).getTime();
+  const endMs = new Date(`${endDate}T00:00:00`).getTime() + 86400_000;
+  const fmt = (ms: number) =>
+    new Date(ms).toISOString().replace("Z", "").split(".")[0];
+  return { utcStart: fmt(startMs), utcEnd: fmt(endMs) };
+}
+
+function localDateFromUtcTimestamp(
+  tsClean: string,
+  tzOffsetHours: number,
+): string {
+  const utcMs = new Date(tsClean + "Z").getTime();
+  const localMs = utcMs + tzOffsetHours * 3600_000;
+  const localDate = new Date(localMs);
+  return `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, "0")}-${String(localDate.getUTCDate()).padStart(2, "0")}`;
+}
+
 function utcToLocalHour(tsClean: string, tzOffsetHours: number): number {
   const utcMs = new Date(tsClean + "Z").getTime();
   const localMs = utcMs + tzOffsetHours * 3600_000;
@@ -310,10 +363,7 @@ function bucketHeatmapRecord(
   record: UsageRecord,
   tzOffsetHours: number,
 ): void {
-  const utcMs = new Date(record.ts + "Z").getTime();
-  const localMs = utcMs + tzOffsetHours * 3600_000;
-  const localDate = new Date(localMs);
-  const dateStr = `${localDate.getUTCFullYear()}-${String(localDate.getUTCMonth() + 1).padStart(2, "0")}-${String(localDate.getUTCDate()).padStart(2, "0")}`;
+  const dateStr = localDateFromUtcTimestamp(record.ts, tzOffsetHours);
 
   const tokens =
     record.input +
@@ -1229,5 +1279,212 @@ export async function collectUsage(
     models,
   };
   usageSummaryCache.set(dateStr, { summary, cachedAt: Date.now() });
+  return summary;
+}
+
+async function collectUsageRecordsInRange(
+  startDate: string,
+  endDate: string,
+): Promise<{ records: UsageRecord[]; sessionPaths: Set<string> }> {
+  const tzOffsetHours = getLocalTzOffsetHours();
+  const { utcStart, utcEnd } = dateRangeToUtcRange(startDate, endDate);
+  const records: UsageRecord[] = [];
+  const sessionPaths = new Set<string>();
+
+  const scanFiles = async (
+    files: string[],
+    parse: (
+      filePath: string,
+      utcStart: string,
+      utcEnd: string,
+    ) => { records: UsageRecord[] },
+  ) => {
+    for (let i = 0; i < files.length; i++) {
+      if (i > 0) await yieldToEventLoop();
+      const filePath = files[i];
+      try {
+        const mtime = fs.statSync(filePath).mtimeMs;
+        const mtimeLocal = new Date(mtime + tzOffsetHours * 3600_000);
+        const mtimeDate = mtimeLocal.toISOString().split("T")[0];
+        if (mtimeDate < startDate) continue;
+      } catch {
+        continue;
+      }
+
+      const parsed = parse(filePath, utcStart, utcEnd);
+      if (parsed.records.length > 0) {
+        records.push(...parsed.records);
+        sessionPaths.add(filePath);
+      }
+    }
+  };
+
+  await scanFiles(findClaudeJsonlFiles(), parseClaudeSession);
+  await scanFiles(findCodexJsonlFiles(), parseCodexSession);
+  await scanFiles(findKimiWireFiles(), (filePath, start, end) =>
+    parseKimiWireFile(filePath, start, end),
+  );
+  await scanFiles(findWuuSessionFiles(), (filePath, start, end) =>
+    parseWuuSession(filePath, start, end),
+  );
+
+  return { records, sessionPaths };
+}
+
+function makeEmptyRangeDay(date: string): UsageRangeDay {
+  return {
+    date,
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheCreate5m: 0,
+    cacheCreate1h: 0,
+    cost: 0,
+    calls: 0,
+  };
+}
+
+function enumerateLocalDates(startDate: string, endDate: string): string[] {
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${endDate}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  const dates: string[] = [];
+  for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dates.push(toLocalDateString(d));
+  }
+  return dates;
+}
+
+export async function collectUsageRange(
+  startDate: string,
+  endDate: string,
+): Promise<UsageRangeSummary> {
+  const cacheKey = `${startDate}:${endDate}`;
+  const cached = usageRangeSummaryCache.get(cacheKey);
+  if (cached && shouldReuseUsageSummary(endDate, cached.cachedAt)) {
+    return cached.summary;
+  }
+
+  const dates = enumerateLocalDates(startDate, endDate);
+  if (dates.length === 0 || startDate > endDate) {
+    return {
+      startDate,
+      endDate,
+      days: [],
+      sessions: 0,
+      totalInput: 0,
+      totalOutput: 0,
+      totalCacheRead: 0,
+      totalCacheCreate5m: 0,
+      totalCacheCreate1h: 0,
+      totalCost: 0,
+      projects: [],
+      models: [],
+    };
+  }
+
+  const tzOffsetHours = getLocalTzOffsetHours();
+  const { records, sessionPaths } = await collectUsageRecordsInRange(
+    startDate,
+    endDate,
+  );
+  const dayMap = new Map(dates.map((date) => [date, makeEmptyRangeDay(date)]));
+  const projectMap = new Map<string, ProjectUsage>();
+  const modelMap = new Map<string, ModelUsage>();
+  let totalInput = 0;
+  let totalOutput = 0;
+  let totalCacheRead = 0;
+  let totalCacheCreate5m = 0;
+  let totalCacheCreate1h = 0;
+  let totalCost = 0;
+
+  for (const record of records) {
+    const cost = computeCost(
+      record.model,
+      record.input,
+      record.output,
+      record.cacheRead,
+      record.cacheCreate5m,
+      record.cacheCreate1h,
+    );
+    const date = localDateFromUtcTimestamp(record.ts, tzOffsetHours);
+    const day = dayMap.get(date);
+    if (day) {
+      day.input += record.input;
+      day.output += record.output;
+      day.cacheRead += record.cacheRead;
+      day.cacheCreate5m += record.cacheCreate5m;
+      day.cacheCreate1h += record.cacheCreate1h;
+      day.cost += cost;
+      day.calls += 1;
+    }
+
+    totalInput += record.input;
+    totalOutput += record.output;
+    totalCacheRead += record.cacheRead;
+    totalCacheCreate5m += record.cacheCreate5m;
+    totalCacheCreate1h += record.cacheCreate1h;
+    totalCost += cost;
+
+    const projectKey = record.projectPath || "unknown";
+    if (!projectMap.has(projectKey)) {
+      projectMap.set(projectKey, {
+        path: projectKey,
+        name: projectKey === "unknown" ? "Other" : path.basename(projectKey),
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: 0,
+        calls: 0,
+      });
+    }
+    const project = projectMap.get(projectKey)!;
+    project.input += record.input;
+    project.output += record.output;
+    project.cacheRead += record.cacheRead;
+    project.cacheCreate5m += record.cacheCreate5m;
+    project.cacheCreate1h += record.cacheCreate1h;
+    project.cost += cost;
+    project.calls += 1;
+
+    if (!modelMap.has(record.model)) {
+      modelMap.set(record.model, {
+        model: record.model,
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheCreate5m: 0,
+        cacheCreate1h: 0,
+        cost: 0,
+        calls: 0,
+      });
+    }
+    const model = modelMap.get(record.model)!;
+    model.input += record.input;
+    model.output += record.output;
+    model.cacheRead += record.cacheRead;
+    model.cacheCreate5m += record.cacheCreate5m;
+    model.cacheCreate1h += record.cacheCreate1h;
+    model.cost += cost;
+    model.calls += 1;
+  }
+
+  const summary: UsageRangeSummary = {
+    startDate,
+    endDate,
+    days: [...dayMap.values()],
+    sessions: sessionPaths.size,
+    totalInput,
+    totalOutput,
+    totalCacheRead,
+    totalCacheCreate5m,
+    totalCacheCreate1h,
+    totalCost,
+    projects: [...projectMap.values()].sort((a, b) => b.cost - a.cost),
+    models: [...modelMap.values()].sort((a, b) => b.cost - a.cost),
+  };
+  usageRangeSummaryCache.set(cacheKey, { summary, cachedAt: Date.now() });
   return summary;
 }

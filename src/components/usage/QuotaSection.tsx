@@ -42,23 +42,51 @@ function QuotaBar({ utilization }: { utilization: number }) {
   );
 }
 
+function QuotaWindowRow({
+  label,
+  utilization,
+  resetsAt,
+}: {
+  label: string;
+  utilization: number;
+  resetsAt: string;
+}) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
+        {label}
+      </span>
+      <QuotaBar utilization={utilization} />
+      <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-9 text-right tc-mono tc-num">
+        {Math.round(utilization * 100)}%
+      </span>
+      <span className="text-[9px] text-[var(--text-faint)] tc-mono tc-num truncate">
+        {t.usage_quota_resets} {formatCountdown(resetsAt)}
+      </span>
+    </div>
+  );
+}
+
 function ProviderQuotaSection({
   title,
   quota,
   loading,
   error,
+  inline = false,
 }: {
   title: string;
   quota: QuotaData | null;
   loading: boolean;
   error: "rate_limited" | "unavailable" | null;
+  inline?: boolean;
 }) {
   const t = useT();
 
   if (!quota && !loading && !error) return null;
 
   return (
-    <div>
+    <div className={inline ? "w-[min(300px,100%)] shrink-0" : undefined}>
       <div className="flex items-center gap-1.5">
         <span className="tc-eyebrow">{title}</span>
         {error === "rate_limited" && quota && (
@@ -71,45 +99,20 @@ function ProviderQuotaSection({
       {loading && !quota ? (
         <div className="mt-2 tc-caption">{t.loading}</div>
       ) : quota ? (
-        <div className="mt-2 flex flex-col gap-2.5">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
-                {t.usage_quota_5h}
-              </span>
-              <QuotaBar utilization={quota.fiveHour.utilization} />
-              <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-10 text-right tc-mono tc-num">
-                {Math.round(quota.fiveHour.utilization * 100)}%
-              </span>
-            </div>
-            <div
-              className="text-[9px] text-[var(--text-faint)] mt-0.5 tc-mono tc-num"
-              style={{ paddingLeft: 32 }}
-            >
-              {t.usage_quota_resets} {formatCountdown(quota.fiveHour.resetsAt)}
-            </div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
-                {t.usage_quota_7d}
-              </span>
-              <QuotaBar utilization={quota.sevenDay.utilization} />
-              <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-10 text-right tc-mono tc-num">
-                {Math.round(quota.sevenDay.utilization * 100)}%
-              </span>
-            </div>
-            <div
-              className="text-[9px] text-[var(--text-faint)] mt-0.5 tc-mono tc-num"
-              style={{ paddingLeft: 32 }}
-            >
-              {t.usage_quota_resets} {formatCountdown(quota.sevenDay.resetsAt)}
-            </div>
-          </div>
+        <div className="mt-1.5 flex flex-col gap-1.5">
+          <QuotaWindowRow
+            label={t.usage_quota_5h}
+            utilization={quota.fiveHour.utilization}
+            resetsAt={quota.fiveHour.resetsAt}
+          />
+          <QuotaWindowRow
+            label={t.usage_quota_7d}
+            utilization={quota.sevenDay.utilization}
+            resetsAt={quota.sevenDay.resetsAt}
+          />
         </div>
       ) : error ? (
-        <div className="mt-2 tc-caption">
+        <div className="mt-1.5 tc-caption">
           {error === "rate_limited" ? t.usage_quota_rate_limited : t.usage_quota_unavailable}
         </div>
       ) : null}
@@ -117,7 +120,11 @@ function ProviderQuotaSection({
   );
 }
 
-export function QuotaSection(): React.ReactElement | null {
+export function QuotaSection({
+  inline = false,
+}: {
+  inline?: boolean;
+}): React.ReactElement | null {
   const claudeQuota = useQuotaStore((s) => s.quota);
   const claudeLoading = useQuotaStore((s) => s.loading);
   const claudeError = useQuotaStore((s) => s.error);
@@ -142,18 +149,26 @@ export function QuotaSection(): React.ReactElement | null {
   if (!hasAnyQuota && !isLoading && !hasAnyError) return null;
 
   return (
-    <div className="px-3 py-2.5 flex flex-col gap-3">
+    <div
+      className={
+        inline
+          ? "px-3 py-2 flex flex-wrap items-start gap-x-5 gap-y-2"
+          : "px-3 py-2 flex flex-col gap-2"
+      }
+    >
       <ProviderQuotaSection
         title={t.usage_quota}
         quota={claudeQuota}
         loading={claudeLoading}
         error={claudeError}
+        inline={inline}
       />
       <ProviderQuotaSection
         title={t.usage_quota_codex}
         quota={codexQuota}
         loading={codexLoading}
         error={codexError}
+        inline={inline}
       />
     </div>
   );
