@@ -19,8 +19,9 @@ import type { Terminal } from "@xterm/xterm";
  *
  * What
  * ----
- * Patch xterm's `_mouseService` so every event fed to `getCoords` has its
- * coordinates pre-scaled back into CSS layout space:
+ * Patch xterm's private mouse hit-test paths so every event has its
+ * coordinates pre-scaled back into CSS layout space before xterm compares it
+ * with unscaled renderer dimensions:
  *
  *     adjustedClientX = rect.left + (clientX - rect.left) / scale
  *
@@ -31,16 +32,12 @@ import type { Terminal } from "@xterm/xterm";
  *
  * Caveats
  * -------
- * 1. We reach into `terminal._core._mouseService`, which is private. If a
+ * 1. We reach into `terminal._core._mouseService` and
+ *    `terminal._core._selectionService`, which are private. If a
  *    future xterm release renames or restructures these internals the patch
  *    becomes a no-op (defensive null-check returns the empty disposer). Bump
  *    of `@xterm/xterm` → re-verify this path.
- * 2. `SelectionService._getMouseEventScrollAmount` (drag-past-edge auto-scroll)
- *    bypasses `_mouseService` and calls the lower-level `getCoordsRelativeToElement`
- *    directly. Under zoom that threshold is computed in visual px against a
- *    CSS-px canvas height — auto-scroll still works, just kicks in at a
- *    slightly different drag distance. Not worth fixing unless someone reports it.
- * 3. We add one extra `getBoundingClientRect()` per mouse event when scale ≠ 1.
+ * 2. We add one extra `getBoundingClientRect()` per mouse event when scale ≠ 1.
  *    Negligible; the scale === 1 shortcut keeps the common path zero-cost.
  */
 
@@ -60,7 +57,17 @@ type MouseServiceLike = {
   ) => unknown;
 };
 
-type XtermInternals = { _core: { _mouseService?: MouseServiceLike } };
+type SelectionServiceLike = {
+  _screenElement?: HTMLElement;
+  _getMouseEventScrollAmount?: (event: MouseEventCoords) => number;
+};
+
+type XtermInternals = {
+  _core?: {
+    _mouseService?: MouseServiceLike;
+    _selectionService?: SelectionServiceLike;
+  };
+};
 
 function adjust(
   event: MouseEventCoords,
@@ -80,28 +87,65 @@ export function patchXtermMouseService(
 ): () => void {
   const core = (xterm as unknown as XtermInternals)._core;
   const ms = core?._mouseService;
-  if (!ms) return () => {};
+  const selectionService = core?._selectionService;
+  const disposers: Array<() => void> = [];
 
-  const origGetCoords = ms.getCoords.bind(ms);
-  const origGetReportCoords = ms.getMouseReportCoords.bind(ms);
+  if (ms) {
+    const origGetCoords = ms.getCoords;
+    const origGetReportCoords = ms.getMouseReportCoords;
 
-  // getCoords drives selection: mousedown anchor, drag-extend, click/dblclick.
-  ms.getCoords = (event, element, cols, rows, isSelection) => {
-    const scale = getScale();
-    if (scale === 1) return origGetCoords(event, element, cols, rows, isSelection);
-    return origGetCoords(adjust(event, element, scale), element, cols, rows, isSelection);
-  };
+    // getCoords drives selection: mousedown anchor, drag-extend, click/dblclick.
+    ms.getCoords = (event, element, cols, rows, isSelection) => {
+      const scale = getScale();
+      if (scale === 1) {
+        return origGetCoords.call(ms, event, element, cols, rows, isSelection);
+      }
+      return origGetCoords.call(
+        ms,
+        adjust(event, element, scale),
+        element,
+        cols,
+        rows,
+        isSelection,
+      );
+    };
 
-  // getMouseReportCoords drives the escape sequences sent to mouse-aware
-  // TUIs (vim, htop, fzf). Same units mismatch, same fix.
-  ms.getMouseReportCoords = (event, element) => {
-    const scale = getScale();
-    if (scale === 1) return origGetReportCoords(event, element);
-    return origGetReportCoords(adjust(event, element, scale), element);
-  };
+    // getMouseReportCoords drives the escape sequences sent to mouse-aware
+    // TUIs (vim, htop, fzf). Same units mismatch, same fix.
+    ms.getMouseReportCoords = (event, element) => {
+      const scale = getScale();
+      if (scale === 1) return origGetReportCoords.call(ms, event, element);
+      return origGetReportCoords.call(ms, adjust(event, element, scale), element);
+    };
+
+    disposers.push(() => {
+      ms.getCoords = origGetCoords;
+      ms.getMouseReportCoords = origGetReportCoords;
+    });
+  }
+
+  const origGetScrollAmount = selectionService?._getMouseEventScrollAmount;
+  if (selectionService && origGetScrollAmount) {
+    selectionService._getMouseEventScrollAmount = (event) => {
+      const scale = getScale();
+      const screenElement = selectionService._screenElement;
+      if (scale === 1 || !screenElement) {
+        return origGetScrollAmount.call(selectionService, event);
+      }
+      return origGetScrollAmount.call(
+        selectionService,
+        adjust(event, screenElement, scale),
+      );
+    };
+
+    disposers.push(() => {
+      selectionService._getMouseEventScrollAmount = origGetScrollAmount;
+    });
+  }
 
   return () => {
-    ms.getCoords = origGetCoords;
-    ms.getMouseReportCoords = origGetReportCoords;
+    for (const dispose of disposers) {
+      dispose();
+    }
   };
 }
