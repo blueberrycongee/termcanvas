@@ -7,6 +7,7 @@
 **你的终端，铺在无限画布上。**
 
 [![GitHub release](https://img.shields.io/github/v/release/blueberrycongee/termcanvas)](https://github.com/blueberrycongee/termcanvas/releases)
+[![下载量](https://img.shields.io/github/downloads/blueberrycongee/termcanvas/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F)](https://github.com/blueberrycongee/termcanvas/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 [![Website](https://img.shields.io/badge/website-termcanvas-e8b840)](https://website-ten-mu-37.vercel.app)
