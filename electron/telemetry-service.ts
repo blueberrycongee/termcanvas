@@ -206,12 +206,13 @@ function shouldMarkClaudeNotificationAwaitingInput(
 
 function toSessionProvider(
   provider: TelemetryProvider,
-): "claude" | "codex" | "kimi" | "wuu" | null {
+): "claude" | "codex" | "kimi" | "wuu" | "opencode" | null {
   if (
     provider === "claude" ||
     provider === "codex" ||
     provider === "kimi" ||
-    provider === "wuu"
+    provider === "wuu" ||
+    provider === "opencode"
   ) {
     return provider;
   }
@@ -342,7 +343,8 @@ export function deriveTelemetryStatus(
     snapshot.provider === "claude" ||
     snapshot.provider === "codex" ||
     snapshot.provider === "kimi" ||
-    snapshot.provider === "wuu";
+    snapshot.provider === "wuu" ||
+    snapshot.provider === "opencode";
   const hasAgentActivity =
     !!snapshot.last_session_event_at ||
     snapshot.active_tool_calls > 0 ||
@@ -609,7 +611,8 @@ export class TelemetryService {
         (input.provider === "claude" ||
           input.provider === "codex" ||
           input.provider === "kimi" ||
-          input.provider === "wuu");
+          input.provider === "wuu" ||
+          input.provider === "opencode");
       state.snapshot.provider = input.provider;
       if (upgradingToAgent) {
         // Between terminal creation (provider "unknown") and CLI
@@ -1058,7 +1061,10 @@ export class TelemetryService {
     //     "running <mcp>" yellow state otherwise.
     const provider = state.snapshot.provider;
     const isAgentTerminal =
-      provider === "claude" || provider === "codex" || provider === "wuu";
+      provider === "claude" ||
+      provider === "codex" ||
+      provider === "wuu" ||
+      provider === "opencode";
     const hasActiveHookTool = state.pendingPreToolUse;
     const hasActiveSessionTool =
       state.activeToolCalls.size > 0 ||

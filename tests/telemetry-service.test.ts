@@ -169,6 +169,30 @@ test("deriveTelemetryStatus keeps codex as progressing when session events are f
   assert.equal(status, "progressing");
 });
 
+test("deriveTelemetryStatus treats opencode as an agent provider", () => {
+  const now = Date.parse("2026-03-26T00:10:00.000Z");
+  const status = deriveTelemetryStatus(
+    {
+      terminal_id: "terminal-1",
+      worktree_path: "/tmp/project",
+      provider: "opencode",
+      session_attached: true,
+      session_attach_confidence: "medium",
+      turn_state: "in_turn",
+      pty_alive: true,
+      descendant_processes: [],
+      active_tool_calls: 0,
+      result_exists: false,
+      last_session_event_at: "2026-03-26T00:09:30.000Z",
+      last_meaningful_progress_at: "2026-03-26T00:05:00.000Z",
+      derived_status: "starting",
+    },
+    now,
+  );
+
+  assert.equal(status, "progressing");
+});
+
 test("deriveTelemetryTaskStatus prefers explicit running/idle signals over PTY noise", () => {
   const runningFromTools = deriveTelemetryTaskStatus({
     terminal_id: "terminal-1",

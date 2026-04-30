@@ -185,9 +185,9 @@ const XtermTerminalConstructor = (xtermRuntimeModule.Terminal ??
 
 function isSessionTelemetryProvider(
   type: TerminalType,
-): type is "claude" | "codex" | "kimi" | "wuu" {
+): type is "claude" | "codex" | "kimi" | "wuu" | "opencode" {
   return (
-    type === "claude" || type === "codex" || type === "kimi" || type === "wuu"
+    type === "claude" || type === "codex" || type === "kimi" || type === "wuu" || type === "opencode"
   );
 }
 

@@ -1,6 +1,7 @@
 import type { SceneDocument } from "./scene";
 import type {
   TelemetryEventPage,
+  TelemetryProvider,
   TerminalTelemetrySnapshot,
   WorkflowTelemetrySnapshot,
 } from "../../shared/telemetry";
@@ -18,6 +19,8 @@ import type {
 } from "../../shared/pin";
 
 export type { Pin, PinLink, PinStatus, CreatePinInput, UpdatePinInput };
+
+type SessionTelemetryProvider = Exclude<TelemetryProvider, "unknown">;
 
 export type PinEvent =
   | { type: "pin:created"; pin: Pin; repo: string }
@@ -541,7 +544,7 @@ export interface TermCanvasAPI {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex" | "kimi" | "wuu";
+      provider: SessionTelemetryProvider;
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -550,7 +553,7 @@ export interface TermCanvasAPI {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "kimi" | "wuu" | "unknown";
+      provider?: TelemetryProvider;
       ptyId?: number | null;
       shellPid?: number | null;
     }) => Promise<TerminalTelemetrySnapshot>;

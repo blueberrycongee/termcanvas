@@ -4,6 +4,9 @@ import type {
   RenderDiagnosticsLogInfo,
 } from "../shared/render-diagnostics";
 import type { SessionHistoryChangedEvent } from "../shared/sessions";
+import type { TelemetryProvider } from "../shared/telemetry";
+
+type SessionTelemetryProvider = Exclude<TelemetryProvider, "unknown">;
 
 contextBridge.exposeInMainWorld("termcanvas", {
   terminal: {
@@ -112,7 +115,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
   telemetry: {
     attachSession: (input: {
       terminalId: string;
-      provider: "claude" | "codex" | "wuu";
+      provider: SessionTelemetryProvider;
       sessionId: string;
       cwd: string;
       confidence: "strong" | "medium" | "weak";
@@ -129,7 +132,7 @@ contextBridge.exposeInMainWorld("termcanvas", {
     updateTerminal: (input: {
       terminalId: string;
       worktreePath?: string;
-      provider?: "claude" | "codex" | "wuu" | "unknown";
+      provider?: TelemetryProvider;
       ptyId?: number | null;
       shellPid?: number | null;
     }) => ipcRenderer.invoke("telemetry:update-terminal", input),
