@@ -2,6 +2,17 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.4] - 2026-05-01
+
+### Added
+- **Stashed terminals can be previewed and controlled without restoring them**: hover a stashed terminal in the left panel to open a live xterm preview, inspect running output, type directly into the terminal, and select/copy text while keeping it off the canvas.
+
+### Changed
+- **macOS keeps TermCanvas running after the last window closes**: closing the final window now keeps the app alive in the Dock/menu bar, matching standard macOS app behavior.
+
+### Fixed
+- **Force branch deletion requires confirmation**: destructive branch deletion from the Git panel now goes through an explicit confirmation step.
+
 ## [0.39.3] - 2026-04-30
 
 ### Fixed
