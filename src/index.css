@@ -67,6 +67,9 @@
   --accent: #c4c0b8;
   --accent-soft: rgba(196, 192, 184, 0.14);
   --accent-foreground: #1a1918;
+  --pin: #e0b75b;
+  --pin-soft: rgba(224, 183, 91, 0.16);
+  --pin-foreground: #1a1918;
   --red: #e87272;
   --red-soft: rgba(232, 114, 114, 0.16);
   --amber: #d4a24e;
@@ -142,6 +145,9 @@
   --accent: #44403c;
   --accent-soft: rgba(68, 64, 60, 0.12);
   --accent-foreground: #f3f2ef;
+  --pin: #b45309;
+  --pin-soft: rgba(180, 83, 9, 0.14);
+  --pin-foreground: #fff7ed;
   --red: #dc2626;
   --red-soft: rgba(220, 38, 38, 0.12);
   --amber: #d97706;

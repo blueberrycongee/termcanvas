@@ -579,7 +579,7 @@ function ProjectRow({
             size="sm"
             tone="neutral"
             label={t["pin.triggerLabel"](project.projectName)}
-            className={`transition-opacity ${isTaskDrawerOpen ? "opacity-100 text-[var(--accent)]" : "opacity-0 group-hover:opacity-100"}`}
+            className={`transition-opacity hover:text-[var(--pin)] hover:bg-[var(--pin-soft)] ${isTaskDrawerOpen ? "opacity-100 text-[var(--pin)] bg-[var(--pin-soft)]" : "opacity-0 group-hover:opacity-100"}`}
             onClick={(e) => {
               e.stopPropagation();
               taskToggle(project.projectPath);
@@ -588,7 +588,7 @@ function ProjectRow({
             <ListTodoIcon />
           </IconButton>
           {openCount > 0 && !isTaskDrawerOpen && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-[var(--accent)] text-[var(--accent-foreground)] text-[8px] font-medium px-0.5 pointer-events-none">
+            <span className="absolute -top-0.5 -right-0.5 min-w-[12px] h-3 flex items-center justify-center rounded-full bg-[var(--pin)] text-[var(--pin-foreground)] text-[8px] font-medium px-0.5 pointer-events-none">
               {openCount > 9 ? "9+" : openCount}
             </span>
           )}
