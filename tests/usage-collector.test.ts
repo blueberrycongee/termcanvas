@@ -87,6 +87,50 @@ test("parseCodexSession subtracts cached_input_tokens from input_tokens", () => 
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });
 
+test("parseCodexSession includes reasoning_output_tokens in output usage", () => {
+  const filePath = writeCodexJsonl([
+    {
+      timestamp: "2026-03-20T10:00:00Z",
+      type: "session_meta",
+      payload: { cwd: "/tmp/test-project" },
+    },
+    {
+      timestamp: "2026-03-20T10:01:00Z",
+      type: "event_msg",
+      payload: {
+        type: "token_count",
+        info: {
+          last_token_usage: {
+            input_tokens: 100_000,
+            cached_input_tokens: 80_000,
+            output_tokens: 5_000,
+            reasoning_output_tokens: 1_200,
+            total_tokens: 105_000,
+          },
+          total_token_usage: {
+            input_tokens: 100_000,
+            cached_input_tokens: 80_000,
+            output_tokens: 5_000,
+            reasoning_output_tokens: 1_200,
+            total_tokens: 105_000,
+          },
+        },
+      },
+    },
+  ]);
+
+  const { records } = parseCodexSession(
+    filePath,
+    "2026-03-20T00:00:00",
+    "2026-03-21T00:00:00",
+  );
+
+  assert.equal(records.length, 1);
+  assert.equal(records[0].output, 6_200);
+
+  fs.rmSync(path.dirname(filePath), { recursive: true });
+});
+
 test("parseCodexSession derives per-event deltas from cumulative token_count events", () => {
   const filePath = writeCodexJsonl([
     {
@@ -104,6 +148,7 @@ test("parseCodexSession derives per-event deltas from cumulative token_count eve
             input_tokens: 10_000,
             cached_input_tokens: 5_000,
             output_tokens: 1_000,
+            reasoning_output_tokens: 400,
             total_tokens: 11_000,
           },
         },
@@ -119,6 +164,7 @@ test("parseCodexSession derives per-event deltas from cumulative token_count eve
             input_tokens: 50_000,
             cached_input_tokens: 40_000,
             output_tokens: 3_000,
+            reasoning_output_tokens: 1_000,
             total_tokens: 53_000,
           },
         },
@@ -137,12 +183,12 @@ test("parseCodexSession derives per-event deltas from cumulative token_count eve
   const first = records[0];
   assert.equal(first.input, 5_000);
   assert.equal(first.cacheRead, 5_000);
-  assert.equal(first.output, 1_000);
+  assert.equal(first.output, 1_400);
 
   const second = records[1];
   assert.equal(second.input, 5_000);
   assert.equal(second.cacheRead, 35_000);
-  assert.equal(second.output, 2_000);
+  assert.equal(second.output, 2_600);
 
   fs.rmSync(path.dirname(filePath), { recursive: true });
 });

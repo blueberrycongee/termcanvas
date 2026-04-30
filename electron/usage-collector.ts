@@ -755,6 +755,7 @@ export function parseCodexSession(
         input: number;
         cached: number;
         output: number;
+        reasoning: number;
       }
     | null = null;
   let tokenEventIndex = 0;
@@ -799,25 +800,33 @@ export function parseCodexSession(
     let inputTotal = 0;
     let cachedInput = 0;
     let outputTokens = 0;
+    let reasoningOutputTokens = 0;
 
     if (lastUsage) {
       inputTotal = lastUsage.input_tokens ?? 0;
       cachedInput = lastUsage.cached_input_tokens ?? 0;
       outputTokens = lastUsage.output_tokens ?? 0;
+      reasoningOutputTokens = lastUsage.reasoning_output_tokens ?? 0;
     } else if (totalUsage) {
       const nextTotals = {
         input: totalUsage.input_tokens ?? 0,
         cached: totalUsage.cached_input_tokens ?? 0,
         output: totalUsage.output_tokens ?? 0,
+        reasoning: totalUsage.reasoning_output_tokens ?? 0,
       };
       if (previousTotals) {
         inputTotal = Math.max(0, nextTotals.input - previousTotals.input);
         cachedInput = Math.max(0, nextTotals.cached - previousTotals.cached);
         outputTokens = Math.max(0, nextTotals.output - previousTotals.output);
+        reasoningOutputTokens = Math.max(
+          0,
+          nextTotals.reasoning - previousTotals.reasoning,
+        );
       } else {
         inputTotal = nextTotals.input;
         cachedInput = nextTotals.cached;
         outputTokens = nextTotals.output;
+        reasoningOutputTokens = nextTotals.reasoning;
       }
     }
 
@@ -826,6 +835,7 @@ export function parseCodexSession(
         input: totalUsage.input_tokens ?? 0,
         cached: totalUsage.cached_input_tokens ?? 0,
         output: totalUsage.output_tokens ?? 0,
+        reasoning: totalUsage.reasoning_output_tokens ?? 0,
       };
     }
 
@@ -836,7 +846,8 @@ export function parseCodexSession(
       msgId: `${path.basename(filePath)}:token:${tokenEventIndex}`,
       model: currentModel,
       input: Math.max(0, inputTotal - cachedInput),
-      output: outputTokens,
+      // Reasoning output is billed as output usage for cost accounting.
+      output: outputTokens + reasoningOutputTokens,
       cacheRead: cachedInput,
       cacheCreate5m: 0,
       cacheCreate1h: 0,

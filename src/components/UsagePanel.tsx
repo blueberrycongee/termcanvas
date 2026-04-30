@@ -353,6 +353,14 @@ export function CacheRateSection({
    */
   bare?: boolean;
 }) {
+  const isKimiModel = (model: string) => model === "kimi";
+  const isWuuModel = (model: string) => model === "wuu";
+  const isClaudeModel = (model: string) => model === "claude" || model.startsWith("claude-");
+  const isCodexModel = (model: string) =>
+    model === "codex" ||
+    model.includes("codex") ||
+    (model.startsWith("gpt-") && !isClaudeModel(model));
+
   const clients: {
     label: string;
     input: number;
@@ -374,15 +382,15 @@ export function CacheRateSection({
 
   for (const m of summary.models) {
     const cc = m.cacheCreate5m + m.cacheCreate1h;
-    if (m.model === "codex") {
+    if (isCodexModel(m.model)) {
       codexInput += m.input;
       codexCacheRead += m.cacheRead;
       codexCacheCreate += cc;
-    } else if (m.model === "kimi") {
+    } else if (isKimiModel(m.model)) {
       kimiInput += m.input;
       kimiCacheRead += m.cacheRead;
       kimiCacheCreate += cc;
-    } else if (m.model === "wuu") {
+    } else if (isWuuModel(m.model)) {
       wuuInput += m.input;
       wuuCacheRead += m.cacheRead;
       wuuCacheCreate += cc;
