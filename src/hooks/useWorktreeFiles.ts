@@ -4,23 +4,40 @@ export function useWorktreeFiles(worktreePath: string | null) {
   const [paths, setPaths] = useState<string[]>([]);
   const [ignoredPaths, setIgnoredPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  // Monotonic load id; bumping it invalidates any in-flight load
+  // Monotonic load id; bumping it invalidates any in-flight load (both phases)
   const loadIdRef = useRef(0);
 
   const loadFiles = useCallback(async () => {
     if (!worktreePath || !window.termcanvas) return;
     const myId = ++loadIdRef.current;
+
+    // Reset ignored before refetching so the renderer doesn't briefly show
+    // stale ignored entries from the previous load while phase 2 is in flight.
+    setIgnoredPaths([]);
+
+    // Phase 1: tracked + non-ignored untracked. Small, returns quickly so the
+    // tree can paint without waiting for the much larger ignored set.
     try {
       const result = await window.termcanvas.fs.listAllFiles(worktreePath);
       if (loadIdRef.current !== myId) return;
       setPaths(result.paths);
-      setIgnoredPaths(result.ignoredPaths);
     } catch {
       if (loadIdRef.current !== myId) return;
       setPaths([]);
-      setIgnoredPaths([]);
     } finally {
       if (loadIdRef.current === myId) setLoading(false);
+    }
+
+    // Phase 2: ignored. May be 50k+ paths in projects with node_modules.
+    // Runs after phase 1 so the first paint is not blocked; the renderer
+    // streams these into the tree via chunked batch-add.
+    try {
+      const ignored = await window.termcanvas.fs.listIgnoredFiles(worktreePath);
+      if (loadIdRef.current !== myId) return;
+      setIgnoredPaths(ignored);
+    } catch {
+      if (loadIdRef.current !== myId) return;
+      setIgnoredPaths([]);
     }
   }, [worktreePath]);
 

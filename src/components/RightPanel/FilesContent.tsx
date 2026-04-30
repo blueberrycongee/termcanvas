@@ -4,6 +4,7 @@ import { FileTree as PierreFileTree, useFileTree } from "@pierre/trees/react";
 import type {
   ContextMenuItem as PierreContextMenuItem,
   ContextMenuOpenContext as PierreContextMenuOpenContext,
+  FileTreeBatchOperation,
   FileTreeRenameEvent,
   FileTreeRowDecoration,
   FileTreeRowDecorationContext,
@@ -187,6 +188,62 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
   useEffect(() => {
     model.resetPaths(paths);
   }, [model, paths]);
+
+  // Stream gitignored paths into the tree after the first paint. The data
+  // arrives separately from the IPC and can be 50k+ entries on projects with
+  // node_modules; doing it in 500-path chunks under requestIdleCallback keeps
+  // the main thread responsive while the dim entries fade in. Mirrors VS
+  // Code's split between data (FileService) and decoration (gitignore
+  // DecorationProvider) — the tracked tree is usable before ignored arrives.
+  useEffect(() => {
+    if (ignoredPaths.length === 0) return;
+
+    let cancelled = false;
+    const CHUNK_SIZE = 500;
+    let cursor = 0;
+
+    const processChunk = (deadline?: IdleDeadline) => {
+      if (cancelled) return;
+      const start = performance.now();
+      while (cursor < ignoredPaths.length) {
+        const end = Math.min(cursor + CHUNK_SIZE, ignoredPaths.length);
+        const ops: FileTreeBatchOperation[] = [];
+        for (let i = cursor; i < end; i++) {
+          ops.push({ path: ignoredPaths[i], type: "add" });
+        }
+        try {
+          model.batch(ops);
+        } catch (err) {
+          // Git keeps tracked and ignored sets disjoint, so a duplicate add
+          // shouldn't normally occur. If it does, skip this chunk rather than
+          // tearing down the rest of the stream.
+          console.warn("[FilesContent] ignored batch-add failed:", err);
+        }
+        cursor = end;
+
+        if (deadline) {
+          if (deadline.timeRemaining() < 1) break;
+        } else if (performance.now() - start > 10) {
+          break;
+        }
+      }
+
+      if (cursor < ignoredPaths.length) schedule();
+    };
+
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === "function") {
+        window.requestIdleCallback(processChunk, { timeout: 200 });
+      } else {
+        setTimeout(processChunk, 0);
+      }
+    };
+
+    schedule();
+    return () => {
+      cancelled = true;
+    };
+  }, [model, ignoredPaths]);
 
   useEffect(() => {
     model.setGitStatus(pierreGitStatus);

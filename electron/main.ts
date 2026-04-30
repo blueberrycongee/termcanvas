@@ -1629,23 +1629,21 @@ function setupIpc() {
 
   ipcMain.handle("fs:list-all-files", async (_event, dirPath: string) => {
     const { execFile } = await import("child_process");
-    const runGit = (args: string[]) =>
-      new Promise<string>((resolve, reject) => {
+    let trackedOutput: string;
+    try {
+      // Tracked + non-ignored untracked. Small (~1k paths in typical repos)
+      // so the tree can paint immediately. Ignored files are fetched
+      // separately via fs:list-ignored-files and streamed into the tree by
+      // the renderer's chunked batch-add so the UI stays responsive on
+      // huge node_modules trees.
+      trackedOutput = await new Promise<string>((resolve, reject) => {
         execFile(
           "git",
-          args,
+          ["ls-files", "--cached", "--others", "--exclude-standard"],
           { cwd: dirPath, timeout: 10000, maxBuffer: 64 * 1024 * 1024 },
           (err, stdout) => (err ? reject(err) : resolve(stdout)),
         );
       });
-
-    let allOutput: string;
-    try {
-      // Without --exclude-standard, --others returns ALL untracked files
-      // (including those matched by .gitignore). We display them in the tree
-      // so users can see node_modules, dist/, etc., consistent with VS Code's
-      // default behavior; the ignored subset is rendered dim via setGitStatus.
-      allOutput = await runGit(["ls-files", "--cached", "--others"]);
     } catch {
       // Non-git repo: walk the directory tree recursively
       const paths: string[] = [];
@@ -1677,23 +1675,31 @@ function setupIpc() {
         return added;
       };
       collect(dirPath, "");
-      return { type: "dir" as const, paths, ignoredPaths: [] };
+      return { type: "dir" as const, paths };
     }
 
-    let ignoredOutput = "";
+    return {
+      type: "git" as const,
+      paths: trackedOutput.split("\n").filter(Boolean),
+    };
+  });
+
+  ipcMain.handle("fs:list-ignored-files", async (_event, dirPath: string) => {
+    const { execFile } = await import("child_process");
     try {
-      ignoredOutput = await runGit([
-        "ls-files",
-        "--others",
-        "--ignored",
-        "--exclude-standard",
-      ]);
+      const stdout = await new Promise<string>((resolve, reject) => {
+        execFile(
+          "git",
+          ["ls-files", "--others", "--ignored", "--exclude-standard"],
+          { cwd: dirPath, timeout: 10000, maxBuffer: 64 * 1024 * 1024 },
+          (err, out) => (err ? reject(err) : resolve(out)),
+        );
+      });
+      return stdout.split("\n").filter(Boolean);
     } catch (err) {
-      console.warn(`[fs:list-all-files] failed to list ignored files:`, err);
+      console.warn(`[fs:list-ignored-files] failed:`, err);
+      return [] as string[];
     }
-    const paths = allOutput.split("\n").filter(Boolean);
-    const ignoredPaths = ignoredOutput.split("\n").filter(Boolean);
-    return { type: "git" as const, paths, ignoredPaths };
   });
 
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));

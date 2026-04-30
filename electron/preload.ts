@@ -573,6 +573,10 @@ contextBridge.exposeInMainWorld("termcanvas", {
         type: "git" | "dir";
         paths: string[];
       }>,
+    listIgnoredFiles: (dirPath: string) =>
+      ipcRenderer.invoke("fs:list-ignored-files", dirPath) as Promise<
+        string[]
+      >,
     readFile: (filePath: string) =>
       ipcRenderer.invoke("fs:read-file", filePath) as Promise<
         { type: string; content: string } | { error: string; size?: string }
