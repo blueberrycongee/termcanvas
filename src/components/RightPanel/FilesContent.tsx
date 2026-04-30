@@ -55,7 +55,7 @@ const NEW_ENTRY_PREFIX = "__pierre_new_";
 
 export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
-  const { paths, loading, refresh } = useWorktreeFiles(worktreePath);
+  const { paths, ignoredPaths, loading, refresh } = useWorktreeFiles(worktreePath);
   const { changedFiles, stagedFiles } = useGitStatus(worktreePath);
   const fileEditorPath = useCanvasStore((s) => s.fileEditorPath);
   const { notify } = useNotificationStore.getState();
@@ -76,8 +76,15 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
       const mapped = GIT_STATUS_MAP[status];
       if (mapped) result.push({ path, status: mapped });
     }
+    // Ignored paths are mutually exclusive with the M/A/D/R/C/U/? statuses
+    // above (git only reports those for tracked or non-ignored untracked
+    // files), so we can append without dedup. The library renders these via
+    // --trees-theme-git-ignored-fg.
+    for (const path of ignoredPaths) {
+      result.push({ path, status: "ignored" });
+    }
     return result;
-  }, [changedFiles, stagedFiles]);
+  }, [changedFiles, stagedFiles, ignoredPaths]);
 
   const worktreePathRef = useRef(worktreePath);
   worktreePathRef.current = worktreePath;

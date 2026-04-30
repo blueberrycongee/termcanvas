@@ -1628,18 +1628,24 @@ function setupIpc() {
   });
 
   ipcMain.handle("fs:list-all-files", async (_event, dirPath: string) => {
-    try {
-      const { execFile } = await import("child_process");
-      const output = await new Promise<string>((resolve, reject) => {
+    const { execFile } = await import("child_process");
+    const runGit = (args: string[]) =>
+      new Promise<string>((resolve, reject) => {
         execFile(
           "git",
-          ["ls-files", "--cached", "--others", "--exclude-standard"],
-          { cwd: dirPath, timeout: 10000 },
+          args,
+          { cwd: dirPath, timeout: 10000, maxBuffer: 64 * 1024 * 1024 },
           (err, stdout) => (err ? reject(err) : resolve(stdout)),
         );
       });
-      const paths = output.split("\n").filter(Boolean);
-      return { type: "git" as const, paths };
+
+    let allOutput: string;
+    try {
+      // Without --exclude-standard, --others returns ALL untracked files
+      // (including those matched by .gitignore). We display them in the tree
+      // so users can see node_modules, dist/, etc., consistent with VS Code's
+      // default behavior; the ignored subset is rendered dim via setGitStatus.
+      allOutput = await runGit(["ls-files", "--cached", "--others"]);
     } catch {
       // Non-git repo: walk the directory tree recursively
       const paths: string[] = [];
@@ -1671,8 +1677,23 @@ function setupIpc() {
         return added;
       };
       collect(dirPath, "");
-      return { type: "dir" as const, paths };
+      return { type: "dir" as const, paths, ignoredPaths: [] };
     }
+
+    let ignoredOutput = "";
+    try {
+      ignoredOutput = await runGit([
+        "ls-files",
+        "--others",
+        "--ignored",
+        "--exclude-standard",
+      ]);
+    } catch (err) {
+      console.warn(`[fs:list-all-files] failed to list ignored files:`, err);
+    }
+    const paths = allOutput.split("\n").filter(Boolean);
+    const ignoredPaths = ignoredOutput.split("\n").filter(Boolean);
+    return { type: "git" as const, paths, ignoredPaths };
   });
 
   ipcMain.handle("cli:is-registered", () => isCliRegistered(getCliDir()));

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 export function useWorktreeFiles(worktreePath: string | null) {
   const [paths, setPaths] = useState<string[]>([]);
+  const [ignoredPaths, setIgnoredPaths] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   // Monotonic load id; bumping it invalidates any in-flight load
   const loadIdRef = useRef(0);
@@ -13,9 +14,11 @@ export function useWorktreeFiles(worktreePath: string | null) {
       const result = await window.termcanvas.fs.listAllFiles(worktreePath);
       if (loadIdRef.current !== myId) return;
       setPaths(result.paths);
+      setIgnoredPaths(result.ignoredPaths);
     } catch {
       if (loadIdRef.current !== myId) return;
       setPaths([]);
+      setIgnoredPaths([]);
     } finally {
       if (loadIdRef.current === myId) setLoading(false);
     }
@@ -26,6 +29,7 @@ export function useWorktreeFiles(worktreePath: string | null) {
       // Invalidate any in-flight load before resetting state
       loadIdRef.current++;
       setPaths([]);
+      setIgnoredPaths([]);
       setLoading(false);
       return;
     }
@@ -57,5 +61,5 @@ export function useWorktreeFiles(worktreePath: string | null) {
     };
   }, [worktreePath, loadFiles]);
 
-  return { paths, loading, refresh: loadFiles };
+  return { paths, ignoredPaths, loading, refresh: loadFiles };
 }
