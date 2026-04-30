@@ -654,6 +654,8 @@ export const zh = {
   stash_destroy: "销毁",
   stash_destroy_dialog_title: "删除暂存终端",
   stash_destroy_dialog_body: "永久删除这个暂存终端及其历史记录？",
+  stash_preview_stopped: "已停止",
+  stash_preview_unavailable: "无法预览这个终端。",
   stash_clear_all_dialog_title: "删除全部暂存终端",
   stash_clear_all_dialog_body: "永久删除全部暂存终端？",
   context_menu_aria_label: "上下文菜单",

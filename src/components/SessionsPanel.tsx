@@ -1,11 +1,14 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type RefObject,
 } from "react";
+import { createPortal } from "react-dom";
 import { useSessionStore } from "../stores/sessionStore";
 import { SessionReplayView } from "./SessionReplayView";
 import { useT } from "../i18n/useT";
@@ -33,6 +36,13 @@ import {
   unstashTerminalInScene,
   destroyStashedTerminalInScene,
 } from "../actions/terminalSceneActions";
+import {
+  attachTerminalContainer,
+  detachTerminalContainer,
+  fitTerminalRuntime,
+  getTerminalPtyId,
+  getTerminalRuntime,
+} from "../terminal/terminalRuntimeStore";
 import { IconButton } from "./ui/IconButton";
 import { ConfirmDialog } from "./ui/ConfirmDialog";
 import {
@@ -67,6 +77,10 @@ const HISTORY_PAGE_SIZE = 100;
 // Each project group shows this many sessions by default.
 const HISTORY_GROUP_DEFAULT_LIMIT = 7;
 const HISTORY_REFRESH_DEBOUNCE_MS = 120;
+const STASHED_PREVIEW_WIDTH = 560;
+const STASHED_PREVIEW_HEIGHT = 360;
+const STASHED_PREVIEW_MARGIN = 8;
+const STASHED_PREVIEW_HIDE_DELAY_MS = 180;
 
 // Three signal levels:
 //   red  = needs your attention (real error / explicit awaiting input)
@@ -416,9 +430,45 @@ function StashedCard({
   t: ReturnType<typeof useT>;
 }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearCloseTimer = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  }, []);
+
+  const openPreview = useCallback(() => {
+    clearCloseTimer();
+    const rect = rowRef.current?.getBoundingClientRect();
+    if (rect) {
+      setAnchorRect(rect);
+      setPreviewOpen(true);
+    }
+  }, [clearCloseTimer]);
+
+  const scheduleClosePreview = useCallback(() => {
+    clearCloseTimer();
+    closeTimerRef.current = setTimeout(() => {
+      setPreviewOpen(false);
+    }, STASHED_PREVIEW_HIDE_DELAY_MS);
+  }, [clearCloseTimer]);
+
+  useEffect(() => clearCloseTimer, [clearCloseTimer]);
 
   return (
-    <div className="tc-row-icon group min-h-[44px] flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]">
+    <div
+      ref={rowRef}
+      className="tc-row-icon group min-h-[44px] flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
+      onMouseEnter={openPreview}
+      onMouseLeave={scheduleClosePreview}
+      onFocus={openPreview}
+      onBlur={scheduleClosePreview}
+    >
       <div className="flex-1 min-w-0">
         <div
           className="truncate"
@@ -437,7 +487,10 @@ function StashedCard({
         size="sm"
         tone="neutral"
         label={t.stash_restore}
-        onClick={() => unstashTerminalInScene(item.terminalId)}
+        onClick={() => {
+          setPreviewOpen(false);
+          unstashTerminalInScene(item.terminalId);
+        }}
       >
         {/* unarchive: arrow up out of tray */}
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -461,7 +514,10 @@ function StashedCard({
         size="sm"
         tone="danger"
         label={t.stash_destroy}
-        onClick={() => setConfirmOpen(true)}
+        onClick={() => {
+          setPreviewOpen(false);
+          setConfirmOpen(true);
+        }}
       >
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
           <path
@@ -484,6 +540,136 @@ function StashedCard({
           setConfirmOpen(false);
         }}
       />
+      {previewOpen &&
+        anchorRect &&
+        createPortal(
+          <StashedTerminalPreview
+            item={item}
+            anchorRect={anchorRect}
+            t={t}
+            onMouseEnter={openPreview}
+            onMouseLeave={scheduleClosePreview}
+          />,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+function getStashedPreviewStyle(anchorRect: DOMRect): CSSProperties {
+  const viewportWidth =
+    typeof window === "undefined" ? 1200 : window.innerWidth;
+  const viewportHeight =
+    typeof window === "undefined" ? 800 : window.innerHeight;
+
+  const leftCandidate = anchorRect.right + STASHED_PREVIEW_MARGIN;
+  const left = Math.min(
+    Math.max(STASHED_PREVIEW_MARGIN, leftCandidate),
+    Math.max(
+      STASHED_PREVIEW_MARGIN,
+      viewportWidth - STASHED_PREVIEW_WIDTH - STASHED_PREVIEW_MARGIN,
+    ),
+  );
+  const top = Math.min(
+    Math.max(STASHED_PREVIEW_MARGIN, anchorRect.top - 8),
+    Math.max(
+      STASHED_PREVIEW_MARGIN,
+      viewportHeight - STASHED_PREVIEW_HEIGHT - STASHED_PREVIEW_MARGIN,
+    ),
+  );
+
+  return {
+    left,
+    top,
+    width: STASHED_PREVIEW_WIDTH,
+    height: STASHED_PREVIEW_HEIGHT,
+  };
+}
+
+function StashedTerminalPreview({
+  item,
+  anchorRect,
+  t,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  item: StashedTerminalItem;
+  anchorRect: DOMRect;
+  t: ReturnType<typeof useT>;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+}) {
+  const [containerEl, setContainerEl] = useState<HTMLDivElement | null>(null);
+  const hasRuntime = getTerminalRuntime(item.terminalId) !== null;
+  const ptyId = getTerminalPtyId(item.terminalId) ?? item.ptyId;
+  const style = getStashedPreviewStyle(anchorRect);
+
+  useLayoutEffect(() => {
+    if (!containerEl || !hasRuntime) {
+      return;
+    }
+
+    attachTerminalContainer(item.terminalId, containerEl);
+    const fit = () => fitTerminalRuntime(item.terminalId);
+    const frame = window.requestAnimationFrame(fit);
+    const observer = new ResizeObserver(fit);
+    observer.observe(containerEl);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer.disconnect();
+      if (containerEl.querySelector(".tc-xterm-host")) {
+        detachTerminalContainer(item.terminalId, {
+          caller: "StashedTerminalPreview",
+          reason: "stashed_terminal_preview_unmount",
+        });
+      }
+    };
+  }, [containerEl, hasRuntime, item.terminalId]);
+
+  const focusTerminal = useCallback(() => {
+    getTerminalRuntime(item.terminalId)?.xterm?.focus();
+  }, [item.terminalId]);
+
+  return (
+    <div
+      className="fixed z-[80] flex flex-col overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-[0_18px_50px_-18px_color-mix(in_srgb,var(--shadow-color)_70%,transparent)]"
+      style={style}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={focusTerminal}
+    >
+      <div className="flex h-8 shrink-0 items-center gap-2 border-b border-[var(--border)] px-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12px] font-medium text-[var(--text-primary)]">
+            {item.title}
+          </div>
+        </div>
+        <span
+          className="shrink-0 rounded-sm px-1.5 py-0.5 text-[9px] tc-mono"
+          style={{
+            color:
+              ptyId === null ? "var(--text-faint)" : "var(--text-secondary)",
+            backgroundColor: "var(--surface-hover)",
+          }}
+        >
+          {ptyId === null ? t.stash_preview_stopped : item.type}
+        </span>
+      </div>
+      <div className="relative min-h-0 flex-1 bg-[var(--bg)]">
+        {hasRuntime ? (
+          <div
+            ref={setContainerEl}
+            className="absolute inset-0 nopan nodrag nowheel"
+            style={{ overflow: "hidden" }}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center px-4 text-center text-[12px] text-[var(--text-muted)]">
+            {t.stash_preview_unavailable}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

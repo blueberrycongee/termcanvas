@@ -936,6 +936,14 @@ function wireRendererBindings(
   wireInteractiveBindings(runtime);
 }
 
+function getRuntimeMouseScale(runtime: ManagedTerminalRuntime): number {
+  const container = runtime.attachedContainer;
+  if (!container?.closest(".terminal-tile")) {
+    return 1;
+  }
+  return useCanvasStore.getState().viewport.scale;
+}
+
 function detachTerminalRenderer(
   runtime: ManagedTerminalRuntime,
   cause?: TerminalLifecycleCause,
@@ -1169,7 +1177,7 @@ function createTerminalRenderer(
   // report stay accurate when React Flow's viewport transform is non-identity.
   // See xtermMouseScalePatch.ts for the why.
   runtime.globalDisposers.push(
-    patchXtermMouseService(xterm, () => useCanvasStore.getState().viewport.scale),
+    patchXtermMouseService(xterm, () => getRuntimeMouseScale(runtime)),
   );
   runtime.globalDisposers.push(registerModifierAwareLinkProvider(xterm, host));
 

@@ -664,6 +664,8 @@ export const en = {
   stash_destroy_dialog_title: "Delete stashed terminal",
   stash_destroy_dialog_body:
     "Permanently delete this stashed terminal and its history?",
+  stash_preview_stopped: "stopped",
+  stash_preview_unavailable: "Terminal preview is unavailable.",
   stash_clear_all_dialog_title: "Delete all stashed terminals",
   stash_clear_all_dialog_body:
     "Permanently delete all stashed terminals?",

@@ -69,6 +69,9 @@ export interface StashedTerminalItem {
   terminalId: string;
   projectId: string;
   worktreeId: string;
+  type: TerminalData["type"];
+  ptyId: number | null;
+  status: TerminalData["status"];
   title: string;
   originLabel: string;
   stashedAt?: number;
@@ -429,6 +432,9 @@ export function buildProjectTree(
             terminalId: resolvedTerminal.id,
             projectId: project.id,
             worktreeId: worktree.id,
+            type: resolvedTerminal.type,
+            ptyId: resolvedTerminal.ptyId,
+            status: resolvedTerminal.status,
             title,
             originLabel,
             stashedAt: resolvedTerminal.stashedAt,
