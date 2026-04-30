@@ -260,6 +260,35 @@ test("terminal cursor CSS opts out of canvas pan cursor inheritance", () => {
   );
 });
 
+test("terminal resizer hit areas stay outside tile content", () => {
+  const css = fs.readFileSync("src/index.css", "utf-8");
+
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.line\.top\s*\{[^}]*translate\(-50%, -100%\)/s,
+  );
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.line\.bottom\s*\{[^}]*translate\(-50%, 100%\)/s,
+  );
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.line\.left\s*\{[^}]*translate\(-100%, -50%\)/s,
+  );
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.line\.right\s*\{[^}]*translate\(100%, -50%\)/s,
+  );
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.handle\.bottom\s*\{[^}]*translate:\s*-50% 0;/s,
+  );
+  assert.match(
+    css,
+    /\.tc-xyflow \.react-flow__resize-control\.handle\.bottom\.right\s*\{[^}]*translate:\s*0 0;/s,
+  );
+});
+
 test("select-all shortcut detection only matches the platform primary modifier", () => {
   assert.equal(
     isSelectAllShortcutInput(
