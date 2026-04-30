@@ -64,9 +64,9 @@
      replies, and the eyebrows themselves were redundant once typography
      differentiated speakers. Speaker is now expressed via prose weight
      and an accent gutter glyph; amber is no longer used in this view. */
-  --accent: #5b9ef5;
-  --accent-soft: rgba(91, 158, 245, 0.14);
-  --accent-foreground: #ffffff;
+  --accent: #c4c0b8;
+  --accent-soft: rgba(196, 192, 184, 0.14);
+  --accent-foreground: #1a1918;
   --red: #e87272;
   --red-soft: rgba(232, 114, 114, 0.16);
   --amber: #d4a24e;
@@ -124,8 +124,9 @@
   --text-timestamp: #57534e;
   /* See dark-theme block above: --role-user / --role-assistant retired
      in the replay-view rework. */
-  --accent: #2563eb;
-  --accent-soft: rgba(37, 99, 235, 0.12);
+  --accent: #44403c;
+  --accent-soft: rgba(68, 64, 60, 0.12);
+  --accent-foreground: #f3f2ef;
   --red: #dc2626;
   --red-soft: rgba(220, 38, 38, 0.12);
   --amber: #d97706;
@@ -699,7 +700,8 @@ a.tc-kbd:active {
   outline-offset: -1px;
   border-radius: 2px;
 }
-.terminal-tile .xterm-find-result-decoration.xterm-find-active-result-decoration {
+.terminal-tile
+  .xterm-find-result-decoration.xterm-find-active-result-decoration {
   background-color: var(--find-match-active-bg) !important;
   outline: 1px solid var(--find-match-active-outline) !important;
   outline-offset: -1px;
