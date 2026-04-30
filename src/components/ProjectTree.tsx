@@ -121,13 +121,7 @@ function NewWorktreeInput({
   };
 
   return (
-    <div
-      className="py-1"
-      style={{
-        paddingLeft: "calc(var(--tree-base-pl) + var(--tree-indent))",
-        paddingRight: "8px",
-      }}
-    >
+    <div className="pl-6 pr-2 py-1">
       <input
         ref={inputRef}
         value={value}
@@ -278,8 +272,7 @@ function WorktreeRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-tree-row group text-left"
-        style={{ ["--tree-level" as string]: 1 } as React.CSSProperties}
+        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md pl-4 pr-2 py-0 text-left cursor-pointer"
         onClick={() => {
           // Left-click on the row both activates and toggles expand/collapse
           // so users don't have to aim for the tiny chevron. Right-click is
@@ -316,7 +309,17 @@ function WorktreeRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span className="tc-tree-row-label">{group.worktreeName}</span>
+        <span
+          className="truncate flex-1 min-w-0"
+          style={{
+            fontSize: "var(--text-base)",
+            fontWeight: "var(--weight-regular)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {group.worktreeName}
+        </span>
         {collapsed && <StatusBadges summary={group.statusSummary} />}
         <IconButton
           size="sm"
@@ -347,9 +350,9 @@ function WorktreeRow({
       </div>
       {!collapsed && (
         <div
-          className="tc-tree-children flex flex-col"
+          className="tc-left-tree-branch pl-8 pr-2 flex flex-col gap-0.5"
           style={
-            { ["--tree-rail-x" as string]: "29px" } as React.CSSProperties
+            { ["--left-tree-rail-x" as string]: "29px" } as React.CSSProperties
           }
         >
           {group.terminals.map((item) => (
@@ -523,8 +526,7 @@ function ProjectRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-tree-row group text-left"
-        style={{ ["--tree-level" as string]: 0 } as React.CSSProperties}
+        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md px-2 py-0 text-left cursor-pointer"
         onClick={() => {
           // Match worktree rows: clicking anywhere on the project row should
           // both focus it and toggle collapse, instead of forcing the user to
@@ -560,7 +562,15 @@ function ProjectRow({
         >
           <ChevronIcon open={!collapsed} />
         </button>
-        <span className="tc-tree-row-label tc-tree-row-label--strong">
+        <span
+          className="truncate flex-1 min-w-0"
+          style={{
+            fontSize: "var(--text-base)",
+            fontWeight: "var(--weight-medium)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {project.projectName}
         </span>
         <StatusBadges summary={project.statusSummary} />
@@ -600,19 +610,19 @@ function ProjectRow({
           <PlusIcon />
         </IconButton>
       </div>
+      {!collapsed && creating && (
+        <NewWorktreeInput
+          projectPath={project.projectPath}
+          onDone={() => setCreating(false)}
+        />
+      )}
       {!collapsed && (
         <div
-          className="tc-tree-children flex flex-col"
+          className="tc-left-tree-branch flex flex-col gap-0.5"
           style={
-            { ["--tree-rail-x" as string]: "13px" } as React.CSSProperties
+            { ["--left-tree-rail-x" as string]: "13px" } as React.CSSProperties
           }
         >
-          {creating && (
-            <NewWorktreeInput
-              projectPath={project.projectPath}
-              onDone={() => setCreating(false)}
-            />
-          )}
           {project.worktrees.map((wt) => (
             <WorktreeRow
               key={wt.worktreeId}

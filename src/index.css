@@ -245,17 +245,6 @@
     0 2px 6px color-mix(in srgb, var(--shadow-color) 22%, transparent),
     0 14px 36px color-mix(in srgb, var(--shadow-color) 26%, transparent);
 
-  /* ── Tree rows ─────────────────────────────────────────────
-     Shared metrics for the left-panel session tree and any
-     other ProjectTree-style nested list. Row height is uniform
-     across levels so the eye reads depth from indent + rail,
-     not from per-level padding tricks. --tree-base-pl is the
-     panel-edge inset; total left padding for a row at level N
-     is (base + N * indent). */
-  --tree-row-height: 28px;
-  --tree-indent: 16px;
-  --tree-base-pl: 8px;
-  --tree-rail-color: var(--border);
 }
 
 body {
@@ -1251,136 +1240,19 @@ a.tc-kbd[data-dragover="true"] {
   font-family: system-ui;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Tree rows — used by ProjectTree (left-panel session tree).
-   Visual language borrowed from the @pierre/trees right-panel
-   file tree: full-bleed rows (no rounded islands), a chevron
-   column locked at the same x-offset within each level, and a
-   1px vertical guide rail per nesting level.
-
-   Depth is encoded purely as left padding via the --tree-level
-   custom property; the rail itself lives on the children
-   container (.tc-tree-children) and stacks naturally as you
-   nest containers — outer container draws the parent rail,
-   inner draws the worktree rail.
-   ───────────────────────────────────────────────────────────── */
-.tc-tree-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-height: var(--tree-row-height);
-  padding-right: 8px;
-  padding-left: calc(
-    var(--tree-base-pl) + var(--tree-level, 0) * var(--tree-indent)
-  );
-  cursor: pointer;
-  outline: none;
-  transition:
-    background-color var(--duration-quick) var(--ease-out-soft),
-    color var(--duration-quick) var(--ease-out-soft);
-}
-.tc-tree-row:hover {
-  background-color: var(--sidebar-hover);
-}
-.tc-tree-row[data-focused="true"] {
-  background-color: var(--surface-hover);
-  box-shadow: inset 2px 0 0 var(--accent);
-}
-
-.tc-tree-children {
+.tc-left-tree-branch {
   position: relative;
 }
-.tc-tree-children::before {
+.tc-left-tree-branch::before {
   content: "";
   position: absolute;
   top: 0;
   bottom: 0;
+  left: var(--left-tree-rail-x);
   width: 1px;
-  background: var(--tree-rail-color);
-  opacity: 0.5;
-  left: var(--tree-rail-x, 13px);
+  background: var(--border);
+  opacity: 0.45;
   pointer-events: none;
-}
-
-/* Single-line label inside a tree row (Project, Worktree). All three
-   nesting levels share text-primary so depth is encoded by indent +
-   weight, not by fading the middle to text-secondary (which inverted
-   the hierarchy). Use --strong on the parent-most level for a slight
-   weight bump. */
-.tc-tree-row-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: var(--text-base);
-  font-weight: var(--weight-regular);
-  color: var(--text-primary);
-  line-height: var(--leading-snug);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tc-tree-row-label--strong {
-  font-weight: var(--weight-medium);
-}
-
-/* Two-line leaf row content: title + caption. Used by TerminalCard,
-   HistoryRow, StashedCard. Title sits at text-sm so the row clears
-   ~28px even with a subtitle below. */
-.tc-tree-row-title {
-  font-size: var(--text-sm);
-  font-weight: var(--weight-regular);
-  color: var(--text-primary);
-  line-height: var(--leading-snug);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.tc-tree-row-subtitle {
-  font-size: var(--text-tiny);
-  line-height: var(--leading-snug);
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* When a tree row is the focused canvas item, bump label/title to
-   weight-medium. The 2px accent gutter alone is too quiet under the
-   warm-neutral accent — typography weight carries the "you are here"
-   signal that color used to. */
-.tc-tree-row[data-focused="true"] .tc-tree-row-label,
-.tc-tree-row[data-focused="true"] .tc-tree-row-title {
-  font-weight: var(--weight-medium);
-  color: var(--text-primary);
-}
-
-/* Section eyebrow header inside the left panel tree (Stashed,
-   History, project subgroups, Pinned). Full-bleed to match the tree
-   rows below — the previous mx-2 + rounded-md islanded pill pattern
-   created a visual seam between section heads and their contents. */
-.tc-tree-section-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-height: var(--tree-row-height);
-  padding-right: 8px;
-  padding-left: calc(
-    var(--tree-base-pl) + var(--tree-level, 0) * var(--tree-indent)
-  );
-  text-align: left;
-  outline: none;
-  cursor: pointer;
-  transition: background-color var(--duration-quick) var(--ease-out-soft);
-}
-.tc-tree-section-header:hover {
-  background-color: var(--sidebar-hover);
-}
-.tc-tree-section-header[data-static="true"] {
-  cursor: default;
-}
-.tc-tree-section-header[data-static="true"]:hover {
-  background-color: transparent;
 }
 
 /* Quieter variant for icon-button-like targets sitting inside a

@@ -166,9 +166,11 @@ export function TerminalCard({
     <div
       role="button"
       tabIndex={0}
-      data-focused={item.focused ? "true" : undefined}
-      className="tc-tree-row group text-left"
-      style={{ ["--tree-level" as string]: 2 } as React.CSSProperties}
+      className={`tc-row-icon group w-full rounded-md flex items-center gap-2 text-left cursor-pointer min-h-[44px] px-2 py-1.5 ${
+        item.focused
+          ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
+          : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
+      }`}
       onClick={() => panToTerminal(item.terminalId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -186,8 +188,23 @@ export function TerminalCard({
         }}
       />
       <div className="flex-1 min-w-0">
-        <div className="tc-tree-row-title">{item.title}</div>
-        <div className="tc-tree-row-subtitle">{subtitleParts.join(" · ")}</div>
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {item.title}
+        </div>
+        <div
+          className="tc-caption truncate"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {subtitleParts.join(" · ")}
+        </div>
       </div>
       <IconButton
         size="sm"
@@ -401,13 +418,20 @@ function StashedCard({
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   return (
-    <div
-      className="tc-tree-row group"
-      style={{ ["--tree-level" as string]: 1 } as React.CSSProperties}
-    >
+    <div className="tc-row-icon group min-h-[44px] flex items-center gap-2 rounded-md px-2 py-1.5 bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]">
       <div className="flex-1 min-w-0">
-        <div className="tc-tree-row-title">{item.title}</div>
-        <div className="tc-tree-row-subtitle">{item.originLabel}</div>
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
+            color: "var(--text-secondary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
+          {item.title}
+        </div>
+        <div className="tc-caption truncate">{item.originLabel}</div>
       </div>
       <IconButton
         size="sm"
@@ -489,7 +513,7 @@ export function StashedSection({
       onOpenChange={setExpanded}
       className="border-t border-[var(--border)]"
     >
-      <CollapsibleTrigger className="tc-tree-section-header">
+      <CollapsibleTrigger className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left">
         <svg
           width="10"
           height="10"
@@ -503,16 +527,16 @@ export function StashedSection({
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
-        <span className="tc-eyebrow tc-mono flex-1">{t.stash_box}</span>
+        <span className="tc-eyebrow tc-mono">{t.stash_box}</span>
         <span
-          className="tc-eyebrow tc-mono tabular-nums"
+          className="tc-eyebrow tc-mono ml-auto tabular-nums"
           style={{ color: "var(--text-faint)" }}
         >
           {items.length}
         </span>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <div className="pb-2 flex flex-col">
+        <div className="pb-2 flex flex-col gap-0.5 px-2">
           {items.map((item) => (
             <StashedCard key={item.terminalId} item={item} t={t} />
           ))}
@@ -821,7 +845,7 @@ export function HistorySection({
     <div className="border-t border-[var(--border)]">
       <button
         type="button"
-        className="tc-tree-section-header"
+        className="tc-row-hover mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left"
         onClick={() => setExpanded((v) => !v)}
       >
         <svg
@@ -832,18 +856,16 @@ export function HistorySection({
           className={`shrink-0 ${expanded ? "rotate-90" : ""}`}
           style={{
             color: "var(--text-muted)",
-            transition: "transform var(--duration-quick) var(--ease-out-soft)",
+            transition:
+              "transform var(--duration-quick) var(--ease-out-soft)",
           }}
         >
           <path d="M3 2l4 3-4 3V2z" fill="currentColor" />
         </svg>
-        <span className="tc-eyebrow tc-mono flex-1">
+        <span className="tc-eyebrow tc-mono">
           {(t.sessions_history_title as unknown as string) ?? "History"}
         </span>
-        <span
-          className="tc-eyebrow tc-mono tabular-nums"
-          style={{ color: "var(--text-faint)" }}
-        >
+        <span className="ml-auto tc-eyebrow tc-mono tabular-nums">
           {countLabel}
         </span>
       </button>
@@ -864,11 +886,8 @@ export function HistorySection({
           ) : (
             <div className="flex flex-col">
               {pinnedEntries.length > 0 && (
-                <div>
-                  <div
-                    className="tc-tree-section-header"
-                    data-static="true"
-                  >
+                <div className="mb-0.5">
+                  <div className="mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0">
                     <svg
                       width="9"
                       height="9"
@@ -888,10 +907,20 @@ export function HistorySection({
                         strokeLinecap="round"
                       />
                     </svg>
-                    <span className="tc-eyebrow tc-mono flex-1">Pinned</span>
                     <span
-                      className="tc-eyebrow tc-mono tabular-nums"
-                      style={{ color: "var(--text-faint)" }}
+                      className="truncate"
+                      style={{
+                        fontSize: "var(--text-base)",
+                        fontWeight: "var(--weight-regular)",
+                        color: "var(--text-primary)",
+                        lineHeight: "var(--leading-snug)",
+                      }}
+                    >
+                      Pinned
+                    </span>
+                    <span
+                      className="tc-caption ml-auto tabular-nums"
+                      style={{ color: "var(--text-muted)" }}
                     >
                       {pinnedEntries.length}
                     </span>
@@ -918,10 +947,10 @@ export function HistorySection({
                 const hiddenCount =
                   group.entries.length - displayEntries.length;
                 return (
-                  <div key={group.projectDir}>
+                  <div key={group.projectDir} className="mb-0.5 last:mb-0">
                     <button
                       type="button"
-                      className="tc-tree-section-header group/grp"
+                      className="tc-row-hover group/grp mx-2 flex min-h-[30px] items-center gap-1.5 rounded-md px-3 py-0 text-left cursor-pointer"
                       onClick={() => toggleGroup(group.projectDir)}
                       title={group.projectDir}
                     >
@@ -942,12 +971,20 @@ export function HistorySection({
                           <path d="M3 2l4 3-4 3z" fill="currentColor" />
                         </svg>
                       </span>
-                      <span className="tc-tree-row-label">
+                      <span
+                        className="truncate flex-1 min-w-0"
+                        style={{
+                          fontSize: "var(--text-base)",
+                          fontWeight: "var(--weight-regular)",
+                          color: "var(--text-primary)",
+                          lineHeight: "var(--leading-snug)",
+                        }}
+                      >
                         {historyProjectName(group.projectDir)}
                       </span>
                       <span
-                        className="tc-eyebrow tc-mono tabular-nums"
-                        style={{ color: "var(--text-faint)" }}
+                        className="tc-caption tabular-nums"
+                        style={{ color: "var(--text-muted)" }}
                       >
                         {group.entries.length}
                       </span>
@@ -968,14 +1005,7 @@ export function HistorySection({
                         {hiddenCount > 0 && (
                           <button
                             type="button"
-                            className="tc-tree-row text-left disabled:opacity-50 disabled:cursor-default"
-                            style={
-                              {
-                                ["--tree-level" as string]: 1,
-                                fontSize: "var(--text-tiny)",
-                                color: "var(--text-muted)",
-                              } as React.CSSProperties
-                            }
+                            className="tc-row-icon mx-2 flex min-h-[30px] items-center gap-1 rounded-md pl-6 pr-3 py-0 text-left tc-timestamp hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] disabled:opacity-50 disabled:cursor-default"
                             disabled={loadingGroups.has(group.projectDir)}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1045,8 +1075,7 @@ function HistoryRow({
     <div
       role="button"
       tabIndex={0}
-      className="tc-tree-row group text-left"
-      style={{ ["--tree-level" as string]: 1 } as React.CSSProperties}
+      className="tc-row-hover group mx-2 flex min-h-[44px] items-center gap-1.5 rounded-md pl-4 pr-2 py-1.5 text-left cursor-pointer"
       onClick={() => onOpen(entry.filePath)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -1111,10 +1140,18 @@ function HistoryRow({
       </span>
 
       <div className="min-w-0 flex-1">
-        <div className="tc-tree-row-title">
+        <div
+          className="truncate"
+          style={{
+            fontSize: "var(--text-sm)",
+            fontWeight: "var(--weight-regular)",
+            color: "var(--text-primary)",
+            lineHeight: "var(--leading-snug)",
+          }}
+        >
           {entry.firstPrompt || `(session ${entry.sessionId.slice(0, 8)})`}
         </div>
-        <div className="tc-tree-row-subtitle">
+        <div className="mt-0.5 tc-timestamp">
           {formatHistoryAge(entry.lastActivityAt)}
         </div>
       </div>
