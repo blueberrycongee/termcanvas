@@ -14,6 +14,7 @@ import {
   getStatusColor,
   getStatusLabel,
   getVirtualCommitWindow,
+  isUnmergedBranchDeleteError,
 } from "../src/components/RightPanel/gitContentLayout.ts";
 import { buildGitGraph } from "../src/utils/gitGraph.ts";
 
@@ -120,6 +121,19 @@ test("getStatusLabel maps untracked to U", () => {
   assert.equal(getStatusLabel("?"), "U");
   assert.equal(getStatusLabel("M"), "M");
   assert.equal(getStatusLabel("A"), "A");
+});
+
+test("isUnmergedBranchDeleteError detects git safe-delete failures only", () => {
+  assert.equal(
+    isUnmergedBranchDeleteError(
+      "error: The branch 'feature' is not fully merged.\nIf you are sure you want to delete it, run 'git branch -D feature'.",
+    ),
+    true,
+  );
+  assert.equal(
+    isUnmergedBranchDeleteError("error: branch 'feature' not found."),
+    false,
+  );
 });
 
 test("getVirtualCommitWindow calculates visible range with overscan", () => {

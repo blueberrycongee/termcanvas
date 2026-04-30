@@ -143,6 +143,11 @@ export const en = {
   git_branch_delete: "Delete Branch",
   git_branch_rename: "Rename Branch",
   git_branch_failed: (message: string) => `Branch operation failed: ${message}`,
+  git_branch_force_delete_title: "Delete unmerged branch?",
+  git_branch_force_delete_body: (name: string) =>
+    `"${name}" is not fully merged. Force deleting it can make commits that exist only on this branch hard to recover.`,
+  git_branch_force_delete_confirm: "Force Delete",
+  git_branch_force_delete_busy: "Deleting...",
   git_tag: "Tag",
   git_tag_create: "New Tag",
   git_tag_delete: "Delete Tag",

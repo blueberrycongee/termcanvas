@@ -156,6 +156,15 @@ export function buildAheadBehindLabel(
   return `↓${behind}`;
 }
 
+export function isUnmergedBranchDeleteError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("not fully merged") ||
+    normalized.includes("not been fully merged") ||
+    normalized.includes("not merged")
+  );
+}
+
 export function summarizeBranchInventory(
   branches: GitBranchInfo[],
 ): BranchInventorySummary {

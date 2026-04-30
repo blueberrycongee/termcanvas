@@ -142,6 +142,11 @@ export const zh = {
   git_branch_delete: "删除分支",
   git_branch_rename: "重命名分支",
   git_branch_failed: (message: string) => `分支操作失败：${message}`,
+  git_branch_force_delete_title: "删除未合并分支？",
+  git_branch_force_delete_body: (name: string) =>
+    `“${name}”尚未完全合并。强制删除后，只存在于该分支上的提交可能会变得难以恢复。`,
+  git_branch_force_delete_confirm: "强制删除",
+  git_branch_force_delete_busy: "删除中…",
   git_tag: "标签",
   git_tag_create: "新建标签",
   git_tag_delete: "删除标签",

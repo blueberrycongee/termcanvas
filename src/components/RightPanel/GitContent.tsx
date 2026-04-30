@@ -4,6 +4,7 @@ import { useGitLog } from "../../hooks/useGitLog";
 import { useGitStatus } from "../../hooks/useGitStatus";
 import { useT } from "../../i18n/useT";
 import { useNotificationStore } from "../../stores/notificationStore";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import type {
   GitCommitDetail,
   GitFileDiff,
@@ -20,6 +21,7 @@ import {
   getStatusColor,
   getStatusDisplayPath,
   getStatusLabel,
+  isUnmergedBranchDeleteError,
   summarizeBranchInventory,
   summarizeCommitRefs,
   type GitGraphRailModel,
@@ -1187,6 +1189,10 @@ export function GitContent({
   const [expandedFile, setExpandedFile] = useState<string | null>(null);
   const [newBranchName, setNewBranchName] = useState("");
   const [showNewBranch, setShowNewBranch] = useState(false);
+  const [forceDeleteBranch, setForceDeleteBranch] = useState<{
+    name: string;
+  } | null>(null);
+  const [forceDeletingBranch, setForceDeletingBranch] = useState(false);
   const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(
     null,
   );
@@ -1436,15 +1442,34 @@ export function GitContent({
       await window.termcanvas.git.branchDelete(worktreePath, name, false);
       await refreshAll();
     } catch (error) {
-      // Try force delete if normal delete fails
-      try {
-        await window.termcanvas.git.branchDelete(worktreePath, name, true);
-        await refreshAll();
-      } catch (err2) {
-        notify("error", t.git_branch_failed(String(err2)));
+      const message = String(error);
+      if (isUnmergedBranchDeleteError(message)) {
+        setBranchPopoverOpen(false);
+        setShowNewBranch(false);
+        setForceDeleteBranch({ name });
+        return;
       }
+      notify("error", t.git_branch_failed(message));
     }
   }, [worktreePath, refreshAll, notify, t]);
+
+  const handleForceDeleteBranch = useCallback(async () => {
+    if (!worktreePath || !forceDeleteBranch) return;
+    setForceDeletingBranch(true);
+    try {
+      await window.termcanvas.git.branchDelete(
+        worktreePath,
+        forceDeleteBranch.name,
+        true,
+      );
+      setForceDeleteBranch(null);
+      await refreshAll();
+    } catch (error) {
+      notify("error", t.git_branch_failed(String(error)));
+    } finally {
+      setForceDeletingBranch(false);
+    }
+  }, [forceDeleteBranch, worktreePath, refreshAll, notify, t]);
 
   const handleStageHunk = useCallback(async (filePath: string, hunkHeader: string) => {
     if (!worktreePath) return;
@@ -1585,7 +1610,8 @@ export function GitContent({
   }
 
   return (
-    <div ref={gitContentRef} className="flex min-h-0 flex-1 flex-col">
+    <>
+      <div ref={gitContentRef} className="flex min-h-0 flex-1 flex-col">
       <div
         className="relative shrink-0 border-b px-3 py-2"
         style={{ borderColor: "var(--border)" }}
@@ -2123,6 +2149,24 @@ export function GitContent({
           </div>
         )}
       </CollapsibleGroup>
-    </div>
+      </div>
+      <ConfirmDialog
+        open={forceDeleteBranch !== null}
+        title={t.git_branch_force_delete_title}
+        body={
+          forceDeleteBranch
+            ? t.git_branch_force_delete_body(forceDeleteBranch.name)
+            : ""
+        }
+        confirmLabel={t.git_branch_force_delete_confirm}
+        busyLabel={t.git_branch_force_delete_busy}
+        confirmTone="danger"
+        busy={forceDeletingBranch}
+        onCancel={() => {
+          if (!forceDeletingBranch) setForceDeleteBranch(null);
+        }}
+        onConfirm={() => void handleForceDeleteBranch()}
+      />
+    </>
   );
 }
