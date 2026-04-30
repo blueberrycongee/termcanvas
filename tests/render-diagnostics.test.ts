@@ -48,3 +48,26 @@ test("render diagnostics logger persists renderer and main events as JSONL", () 
 
   assert.deepEqual(logger.getLogInfo(), { filePath });
 });
+
+test("render diagnostics logger rotates oversized JSONL files before appending", () => {
+  const tempDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-render-diagnostics-"),
+  );
+  const filePath = path.join(tempDir, "logs", "render-diagnostics.jsonl");
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, "x".repeat(10 * 1024 * 1024), "utf-8");
+  fs.writeFileSync(`${filePath}.1`, "previous backup", "utf-8");
+
+  const logger = new RenderDiagnosticsLogger(
+    filePath,
+    () => "2026-04-20T00:00:00.000Z",
+  );
+
+  logger.recordMainEvent("browser_window_focus", { window_id: 7 });
+
+  const currentLines = fs.readFileSync(filePath, "utf-8").trim().split("\n");
+  assert.equal(currentLines.length, 1);
+  assert.equal(JSON.parse(currentLines[0]).kind, "browser_window_focus");
+  assert.equal(fs.statSync(`${filePath}.1`).size, 10 * 1024 * 1024);
+  assert.equal(fs.readFileSync(`${filePath}.2`, "utf-8"), "previous backup");
+});
