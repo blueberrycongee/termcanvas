@@ -401,9 +401,13 @@ export function RightPanel() {
         setCollapsed(false);
       }}
     >
-      {collapsed ? (
-        // Collapsed strip — anchored to the right edge so its icons
-        // stay visible as the panel narrows.
+      {/* Both branches stay mounted — toggling display preserves the
+          expanded surface's component state (FilesContent's tree model,
+          expansion, scroll, ignored stream cache) across panel collapses,
+          so re-expanding is instant rather than a fresh load. */}
+      <div style={{ display: collapsed ? "contents" : "none" }}>
+        {/* Collapsed strip — anchored to the right edge so its icons
+            stay visible as the panel narrows. */}
         <div
           className="tc-row-hover absolute inset-y-0 right-0 flex flex-col items-center pt-3 gap-1 cursor-pointer"
           style={{ width: COLLAPSED_TAB_WIDTH }}
@@ -442,10 +446,11 @@ export function RightPanel() {
             </button>
           </div>
         </div>
-      ) : (
-        // Expanded surface — laid out at the user-configured width so
-        // content does not reflow while the outer width animates;
-        // the outer overflow-hidden clips it during the transition.
+      </div>
+      <div style={{ display: collapsed ? "none" : "contents" }}>
+        {/* Expanded surface — laid out at the user-configured width so
+            content does not reflow while the outer width animates;
+            the outer overflow-hidden clips it during the transition. */}
         <div
           className="absolute inset-y-0 right-0 flex flex-col"
           style={{ width }}
@@ -633,7 +638,7 @@ export function RightPanel() {
         />
       </div>
         </div>
-      )}
+      </div>
     </div>
     </>
   );
