@@ -380,6 +380,9 @@ export const en = {
   trackpad_swipe_focus_toggle: "Trackpad swipe to toggle focus",
   trackpad_swipe_focus_toggle_desc:
     "Experimental. Two-finger horizontal swipe on canvas to toggle between zoom-focus and fit-all view",
+  quit_on_last_window_closed_toggle: "Quit when last window closes",
+  quit_on_last_window_closed_toggle_desc:
+    "Off by default — TermCanvas stays in the dock when the last window closes, click the dock icon to open a new one. Turn on to quit instead.",
   summary_toggle: "Terminal auto-summary",
   summary_toggle_desc:
     "Experimental. AI-generated one-line summaries for CLI terminals. May increase token usage.",

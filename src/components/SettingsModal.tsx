@@ -822,6 +822,8 @@ export function SettingsModal({ onClose }: Props) {
     setCompletionGlowEnabled,
     trackpadSwipeFocusEnabled,
     setTrackpadSwipeFocusEnabled,
+    quitOnLastWindowClosed,
+    setQuitOnLastWindowClosed,
     summaryCli,
     setSummaryCli,
     minimumContrastRatio,
@@ -1176,6 +1178,18 @@ export function SettingsModal({ onClose }: Props) {
                           on: cliLoading || effectiveCliRegistered === true,
                           off: cliLoading || effectiveCliRegistered === false,
                         }}
+                      />
+                    </SettingsRow>
+                  )}
+
+                  {isMac && (
+                    <SettingsRow
+                      label={t.quit_on_last_window_closed_toggle}
+                      description={t.quit_on_last_window_closed_toggle_desc}
+                    >
+                      <OnOffSegment
+                        value={quitOnLastWindowClosed}
+                        onChange={setQuitOnLastWindowClosed}
                       />
                     </SettingsRow>
                   )}

@@ -2518,6 +2518,18 @@ app.on("will-quit", (event) => {
   })();
 });
 
+// macOS convention: keep the process alive in the dock when the last window
+// closes; the `activate` handler above re-creates a window when the user
+// clicks the dock icon. Other platforms still quit. The preference is set
+// from the renderer via `app:set-quit-on-last-window-closed` and lets the
+// user opt out of the macOS behavior.
+let quitOnLastWindowClosed = false;
+ipcMain.on("app:set-quit-on-last-window-closed", (_event, value: unknown) => {
+  quitOnLastWindowClosed = value === true;
+});
+
 app.on("window-all-closed", () => {
-  app.quit();
+  if (process.platform !== "darwin" || quitOnLastWindowClosed) {
+    app.quit();
+  }
 });
