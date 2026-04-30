@@ -71,7 +71,7 @@ export const XTERM_THEMES: Record<Theme, ITheme> = {
     blue: "#1e40af",
     magenta: "#7c3aed",
     cyan: "#0b6158",
-    white: "#6b6660",
+    white: "#8a837b",
     brightBlack: "#57534e",
     brightRed: "#b91c1c",
     brightGreen: "#166534",
@@ -79,6 +79,6 @@ export const XTERM_THEMES: Record<Theme, ITheme> = {
     brightBlue: "#1e3a8a",
     brightMagenta: "#6d28d9",
     brightCyan: "#0d4f4a",
-    brightWhite: "#6b6660",
+    brightWhite: "#8a837b",
   },
 };
