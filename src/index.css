@@ -243,6 +243,18 @@
   --shadow-elev-2:
     0 2px 6px color-mix(in srgb, var(--shadow-color) 22%, transparent),
     0 14px 36px color-mix(in srgb, var(--shadow-color) 26%, transparent);
+
+  /* ── Tree rows ─────────────────────────────────────────────
+     Shared metrics for the left-panel session tree and any
+     other ProjectTree-style nested list. Row height is uniform
+     across levels so the eye reads depth from indent + rail,
+     not from per-level padding tricks. --tree-base-pl is the
+     panel-edge inset; total left padding for a row at level N
+     is (base + N * indent). */
+  --tree-row-height: 28px;
+  --tree-indent: 16px;
+  --tree-base-pl: 8px;
+  --tree-rail-color: var(--border);
 }
 
 body {
@@ -1208,6 +1220,58 @@ a.tc-kbd[data-dragover="true"] {
    matching row metrics do not still read as two different components. */
 .tc-sidebar-tree-font {
   font-family: system-ui;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Tree rows — used by ProjectTree (left-panel session tree).
+   Visual language borrowed from the @pierre/trees right-panel
+   file tree: full-bleed rows (no rounded islands), a chevron
+   column locked at the same x-offset within each level, and a
+   1px vertical guide rail per nesting level.
+
+   Depth is encoded purely as left padding via the --tree-level
+   custom property; the rail itself lives on the children
+   container (.tc-tree-children) and stacks naturally as you
+   nest containers — outer container draws the parent rail,
+   inner draws the worktree rail.
+   ───────────────────────────────────────────────────────────── */
+.tc-tree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: var(--tree-row-height);
+  padding-right: 8px;
+  padding-left: calc(
+    var(--tree-base-pl) + var(--tree-level, 0) * var(--tree-indent)
+  );
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--duration-quick) var(--ease-out-soft),
+    color var(--duration-quick) var(--ease-out-soft);
+}
+.tc-tree-row:hover {
+  background-color: var(--sidebar-hover);
+}
+.tc-tree-row[data-focused="true"] {
+  background-color: var(--surface-hover);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tc-tree-children {
+  position: relative;
+}
+.tc-tree-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--tree-rail-color);
+  opacity: 0.5;
+  left: var(--tree-rail-x, 13px);
+  pointer-events: none;
 }
 
 /* Quieter variant for icon-button-like targets sitting inside a

@@ -222,7 +222,6 @@ export function LeftPanel() {
         key={item.terminalId}
         item={item}
         t={t}
-        compact
         hideLocation
         unseenDone={
           item.state === "done" && !seenTerminalIds.has(item.terminalId)

@@ -121,7 +121,13 @@ function NewWorktreeInput({
   };
 
   return (
-    <div className="pl-6 pr-2 py-1">
+    <div
+      className="py-1"
+      style={{
+        paddingLeft: "calc(var(--tree-base-pl) + var(--tree-indent))",
+        paddingRight: "8px",
+      }}
+    >
       <input
         ref={inputRef}
         value={value}
@@ -272,7 +278,8 @@ function WorktreeRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md pl-4 pr-2 py-0 text-left cursor-pointer"
+        className="tc-tree-row group text-left"
+        style={{ ["--tree-level" as string]: 1 } as React.CSSProperties}
         onClick={() => {
           // Left-click on the row both activates and toggles expand/collapse
           // so users don't have to aim for the tiny chevron. Right-click is
@@ -349,7 +356,12 @@ function WorktreeRow({
         )}
       </div>
       {!collapsed && (
-        <div className="pl-4 pr-2 flex flex-col gap-0.5">
+        <div
+          className="tc-tree-children flex flex-col"
+          style={
+            { ["--tree-rail-x" as string]: "29px" } as React.CSSProperties
+          }
+        >
           {group.terminals.map((item) => (
             <div key={item.terminalId}>{renderTerminal(item)}</div>
           ))}
@@ -521,7 +533,8 @@ function ProjectRow({
       <div
         role="button"
         tabIndex={0}
-        className="tc-row-hover group mx-2 min-h-[30px] flex items-center gap-1.5 rounded-md px-2 py-0 text-left cursor-pointer"
+        className="tc-tree-row group text-left"
+        style={{ ["--tree-level" as string]: 0 } as React.CSSProperties}
         onClick={() => {
           // Match worktree rows: clicking anywhere on the project row should
           // both focus it and toggle collapse, instead of forcing the user to
@@ -605,14 +618,19 @@ function ProjectRow({
           <PlusIcon />
         </IconButton>
       </div>
-      {!collapsed && creating && (
-        <NewWorktreeInput
-          projectPath={project.projectPath}
-          onDone={() => setCreating(false)}
-        />
-      )}
       {!collapsed && (
-        <div className="flex flex-col gap-0.5">
+        <div
+          className="tc-tree-children flex flex-col"
+          style={
+            { ["--tree-rail-x" as string]: "13px" } as React.CSSProperties
+          }
+        >
+          {creating && (
+            <NewWorktreeInput
+              projectPath={project.projectPath}
+              onDone={() => setCreating(false)}
+            />
+          )}
           {project.worktrees.map((wt) => (
             <WorktreeRow
               key={wt.worktreeId}

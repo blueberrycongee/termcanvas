@@ -146,13 +146,11 @@ function formatTerminalActivity(
 export function TerminalCard({
   item,
   t,
-  compact = false,
   hideLocation = false,
   unseenDone = false,
 }: {
   item: CanvasTerminalItem;
   t: ReturnType<typeof useT>;
-  compact?: boolean;
   hideLocation?: boolean;
   unseenDone?: boolean;
 }) {
@@ -168,13 +166,9 @@ export function TerminalCard({
     <div
       role="button"
       tabIndex={0}
-      className={`tc-row-icon group w-full rounded-md flex items-center gap-2 text-left cursor-pointer ${
-        compact ? "min-h-[44px] px-2 py-1.5" : "min-h-[48px] px-2 py-2"
-      } ${
-        item.focused
-          ? "bg-[var(--surface-hover)] ring-1 ring-[var(--accent)]/35"
-          : "bg-[var(--surface)] hover:bg-[var(--sidebar-hover)]"
-      }`}
+      data-focused={item.focused ? "true" : undefined}
+      className="tc-tree-row group text-left"
+      style={{ ["--tree-level" as string]: 2 } as React.CSSProperties}
       onClick={() => panToTerminal(item.terminalId)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -1339,7 +1333,6 @@ export function SessionsPanel({
         key={item.terminalId}
         item={item}
         t={t}
-        compact
         hideLocation
         unseenDone={
           item.state === "done" && !seenTerminalIds.has(item.terminalId)
