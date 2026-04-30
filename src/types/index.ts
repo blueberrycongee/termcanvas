@@ -533,6 +533,14 @@ export interface TermCanvasAPI {
       filePath: string;
       confidence: "medium" | "weak";
     } | null>;
+    findOpenCode: (
+      cwd: string,
+      startedAt?: string,
+    ) => Promise<{
+      sessionId: string;
+      filePath: string;
+      confidence: "medium" | "weak";
+    } | null>;
     watch: (
       type: string,
       sessionId: string,

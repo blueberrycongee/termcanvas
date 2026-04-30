@@ -97,6 +97,12 @@ contextBridge.exposeInMainWorld("termcanvas", {
         filePath: string;
         confidence: "medium" | "weak";
       } | null>,
+    findOpenCode: (cwd: string, startedAt?: string) =>
+      ipcRenderer.invoke("session:find-opencode", cwd, startedAt) as Promise<{
+        sessionId: string;
+        filePath: string;
+        confidence: "medium" | "weak";
+      } | null>,
     watch: (type: string, sessionId: string, cwd: string) =>
       ipcRenderer.invoke("session:watch", type, sessionId, cwd) as Promise<{
         ok: boolean;

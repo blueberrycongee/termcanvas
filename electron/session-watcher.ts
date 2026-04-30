@@ -2,6 +2,10 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { createRequire } from "node:module";
+import {
+  checkOpenCodeTurnComplete,
+  resolveOpenCodeSessionFile,
+} from "./opencode-session.ts";
 import type {
   NormalizedSessionTelemetryEvent,
   TelemetryTurnState,
@@ -9,7 +13,7 @@ import type {
 
 const isDev = !!process.env.VITE_DEV_SERVER_URL;
 
-export type SessionType = "claude" | "codex" | "kimi" | "wuu";
+export type SessionType = "claude" | "codex" | "kimi" | "wuu" | "opencode";
 
 interface CompletionSignal {
   completed: boolean;
@@ -166,6 +170,10 @@ export function checkTurnComplete(
   type: SessionType,
   tailBytes = 131072,
 ): CompletionSignal {
+  if (type === "opencode") {
+    return { completed: false };
+  }
+
   let content: string;
   try {
     const stat = fs.statSync(filePath);
@@ -363,6 +371,10 @@ export function resolveSessionFile(
 
   if (type === "kimi") {
     return resolveKimiSessionFile(sessionId, cwd);
+  }
+
+  if (type === "opencode") {
+    return resolveOpenCodeSessionFile(sessionId, cwd);
   }
 
   return null;
@@ -1075,7 +1087,10 @@ export class SessionWatcher {
       // Always update mtime to avoid re-checking the same file state
       entry.lastNotifiedMtime = currentMtime;
 
-      const result = checkTurnComplete(filePath, type);
+      const result =
+        type === "opencode"
+          ? { completed: checkOpenCodeTurnComplete(filePath, sessionId) }
+          : checkTurnComplete(filePath, type);
       if (isDev)
         console.log(
           `[SessionWatcher] checkTurnComplete source=${source} session=${sessionId} completed=${result.completed} awaitingNewTurn=${awaitingNewTurn}`,
@@ -1096,7 +1111,14 @@ export class SessionWatcher {
     };
 
     const watcher = fs.watch(dir, (event, changedFile) => {
-      if (changedFile && changedFile !== basename) return;
+      if (changedFile) {
+        const changed = String(changedFile);
+        if (type === "opencode") {
+          if (!changed.startsWith(basename)) return;
+        } else if (changed !== basename) {
+          return;
+        }
+      }
 
       if (isDev)
         console.log(
@@ -1155,7 +1177,10 @@ export class SessionWatcher {
     // Mark awaitingNewTurn so we don't re-fire for the same completion, but
     // still fire the callback so the renderer knows the current state.
     if (lastNotifiedMtime > 0) {
-      const result = checkTurnComplete(filePath, type);
+      const result =
+        type === "opencode"
+          ? { completed: checkOpenCodeTurnComplete(filePath, sessionId) }
+          : checkTurnComplete(filePath, type);
       if (result.completed) {
         if (isDev)
           console.log(

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 import {
   TelemetryService,
   deriveTelemetryStatus,
@@ -98,6 +99,102 @@ function writeWuuSessionJsonl(
     ].join("\n"),
     "utf-8",
   );
+}
+
+function writeOpenCodeSessionDb(
+  filePath: string,
+  input: {
+    sessionId: string;
+    prompt: string;
+  },
+): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  const db = new DatabaseSync(filePath);
+  try {
+    db.exec(`
+      CREATE TABLE message (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE part (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL,
+        data TEXT NOT NULL
+      );
+    `);
+    db.prepare(`
+      INSERT INTO message (id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      "msg_user",
+      input.sessionId,
+      1775339237000,
+      1775339237000,
+      JSON.stringify({ role: "user" }),
+    );
+    db.prepare(`
+      INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      "prt_user",
+      "msg_user",
+      input.sessionId,
+      1775339237001,
+      1775339237001,
+      JSON.stringify({ type: "text", text: input.prompt }),
+    );
+    db.prepare(`
+      INSERT INTO message (id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      "msg_assistant",
+      input.sessionId,
+      1775339238000,
+      1775339239000,
+      JSON.stringify({ role: "assistant", finish: "stop" }),
+    );
+    db.prepare(`
+      INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      "prt_reasoning",
+      "msg_assistant",
+      input.sessionId,
+      1775339238001,
+      1775339238001,
+      JSON.stringify({ type: "reasoning", text: "thinking" }),
+    );
+    db.prepare(`
+      INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      "prt_text",
+      "msg_assistant",
+      input.sessionId,
+      1775339238500,
+      1775339238500,
+      JSON.stringify({ type: "text", text: "done" }),
+    );
+    db.prepare(`
+      INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      "prt_finish",
+      "msg_assistant",
+      input.sessionId,
+      1775339239000,
+      1775339239000,
+      JSON.stringify({ type: "step-finish", reason: "stop" }),
+    );
+  } finally {
+    db.close();
+  }
 }
 
 test("deriveTelemetryStatus marks awaiting_contract after turn completion", () => {
@@ -744,6 +841,49 @@ test("attachSessionSource extracts first_user_prompt from wuu session files", ()
       service.getTerminalSnapshot("terminal-1")?.first_user_prompt,
       "右侧的 session 我想支持一下 现在没支持好",
     );
+  } finally {
+    service.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("attachSessionSource reads opencode first prompt and lifecycle from db", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-telemetry-opencode-session-"),
+  );
+  const sessionFile = path.join(tmpDir, "opencode.db");
+  writeOpenCodeSessionDb(sessionFile, {
+    sessionId: "ses_123",
+    prompt: "左侧 OpenCode 终端状态一直是灰色",
+  });
+
+  const service = new TelemetryService({
+    processPollIntervalMs: 0,
+  });
+  try {
+    service.registerTerminal({
+      terminalId: "terminal-1",
+      worktreePath: "/tmp/project",
+      provider: "opencode",
+    });
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "opencode",
+      sessionId: "ses_123",
+      confidence: "medium",
+      sessionFile,
+    });
+
+    const snapshot = service.getTerminalSnapshot("terminal-1");
+    assert.equal(
+      snapshot?.first_user_prompt,
+      "左侧 OpenCode 终端状态一直是灰色",
+    );
+    assert.equal(snapshot?.session_attached, true);
+    assert.equal(snapshot?.turn_state, "turn_complete");
+    assert.equal(snapshot?.task_status, "idle");
+    assert.equal(snapshot?.last_session_event_kind, "turn_complete");
   } finally {
     service.dispose();
     fs.rmSync(tmpDir, { recursive: true, force: true });

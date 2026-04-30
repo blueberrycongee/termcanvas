@@ -2,6 +2,7 @@ import fs from "fs";
 import { createRequire } from "node:module";
 import os from "os";
 import path from "path";
+import { findBestOpenCodeSession } from "./opencode-session.ts";
 import { resolveSessionFile } from "./session-watcher.ts";
 
 export interface FoundSession {
@@ -821,6 +822,8 @@ export function findBestKimiSession(
     confidence: Number.isFinite(startedMs) ? "medium" : "weak",
   };
 }
+
+export { findBestOpenCodeSession };
 
 const CHUNK_BYTES = 64 * 1024;
 const MAX_SCAN_BYTES = 512 * 1024;

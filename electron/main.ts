@@ -157,6 +157,7 @@ import {
   findBestClaudeSession,
   findBestCodexSession,
   findBestKimiSession,
+  findBestOpenCodeSession,
   findBestWuuSession,
   readClaudeSessionPermissionMode,
   readCodexSessionBypassState,
@@ -688,6 +689,13 @@ function setupIpc() {
     "session:find-kimi",
     (_event, cwd: string, startedAt?: string) => {
       return findBestKimiSession(cwd, startedAt);
+    },
+  );
+
+  ipcMain.handle(
+    "session:find-opencode",
+    (_event, cwd: string, startedAt?: string) => {
+      return findBestOpenCodeSession(cwd, startedAt);
     },
   );
 
@@ -1272,7 +1280,7 @@ function setupIpc() {
       _event,
       input: {
         terminalId: string;
-        provider: "claude" | "codex" | "kimi" | "wuu";
+        provider: "claude" | "codex" | "kimi" | "wuu" | "opencode";
         sessionId: string;
         cwd: string;
         confidence: "strong" | "medium" | "weak";

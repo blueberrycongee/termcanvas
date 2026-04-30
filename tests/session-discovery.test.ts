@@ -8,6 +8,8 @@ import path from "node:path";
 import {
   findBestClaudeSession,
   findBestCodexSession,
+  findBestKimiSession,
+  findBestOpenCodeSession,
   findBestWuuSession,
   readLatestCodexSessionId,
 } from "../electron/session-discovery.ts";
@@ -133,6 +135,39 @@ function writeStateDbThreads(
         row.cwd,
         row.archived ?? 0,
       );
+    }
+  } finally {
+    db.close();
+  }
+}
+
+function writeOpenCodeDbSessions(
+  homeDir: string,
+  rows: Array<{
+    id: string;
+    cwd: string;
+    createdAtMs: number;
+    updatedAtMs: number;
+  }>,
+): void {
+  const dbPath = path.join(homeDir, ".local", "share", "opencode", "opencode.db");
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
+  try {
+    db.exec(`
+      CREATE TABLE session (
+        id TEXT PRIMARY KEY,
+        directory TEXT NOT NULL,
+        time_created INTEGER NOT NULL,
+        time_updated INTEGER NOT NULL
+      )
+    `);
+    const stmt = db.prepare(`
+      INSERT INTO session (id, directory, time_created, time_updated)
+      VALUES (?, ?, ?, ?)
+    `);
+    for (const row of rows) {
+      stmt.run(row.id, row.cwd, row.createdAtMs, row.updatedAtMs);
     }
   } finally {
     db.close();
@@ -296,6 +331,58 @@ test("findBestCodexSession prefers state db matches before file fallback", () =>
   });
 });
 
+test("findBestOpenCodeSession resolves from opencode db by cwd and start time", () => {
+  withTempHome((homeDir) => {
+    const previousXdgData = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = path.join(homeDir, ".local", "share");
+    try {
+      writeOpenCodeDbSessions(homeDir, [
+        {
+          id: "ses_older",
+          cwd: "/tmp/project",
+          createdAtMs: 1775339000000,
+          updatedAtMs: 1775339001000,
+        },
+        {
+          id: "ses_match",
+          cwd: "/tmp/project",
+          createdAtMs: 1775339238000,
+          updatedAtMs: 1775339239000,
+        },
+        {
+          id: "ses_other",
+          cwd: "/tmp/other",
+          createdAtMs: 1775339238000,
+          updatedAtMs: 1775339239000,
+        },
+      ]);
+
+      const found = findBestOpenCodeSession(
+        "/tmp/project",
+        new Date(1775339237000).toISOString(),
+        homeDir,
+      );
+      assert.deepEqual(found, {
+        sessionId: "ses_match",
+        filePath: path.join(
+          homeDir,
+          ".local",
+          "share",
+          "opencode",
+          "opencode.db",
+        ),
+        confidence: "medium",
+      });
+    } finally {
+      if (previousXdgData === undefined) {
+        delete process.env.XDG_DATA_HOME;
+      } else {
+        process.env.XDG_DATA_HOME = previousXdgData;
+      }
+    }
+  });
+});
+
 test("findBestCodexSession prefers recent indexed sessions that match cwd", () => {
   withTempHome((homeDir) => {
     const now = new Date();
@@ -447,8 +534,6 @@ test("findBestWuuSession picks the newest indexed session created after launch",
 });
 
 import { createHash } from "node:crypto";
-import { findBestKimiSession } from "../electron/session-discovery.ts";
-
 test("findBestKimiSession resolves from metadata and filters by startedAt", () => {
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "termcanvas-kimi-discovery-"));
   try {

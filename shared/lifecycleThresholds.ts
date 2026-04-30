@@ -39,6 +39,7 @@
  */
 export const SESSION_POLL_INTERVAL_MS = {
   codex: 500,
+  opencode: 1_000,
   wuu: 1_000,
   default: 5_000,
 } as const;
@@ -56,6 +57,7 @@ export const SESSION_POLL_INTERVAL_MS = {
  */
 export const SESSION_POLL_MAX_ATTEMPTS = {
   codex: 20,
+  opencode: 120,
   wuu: 120,
   default: 10,
 } as const;

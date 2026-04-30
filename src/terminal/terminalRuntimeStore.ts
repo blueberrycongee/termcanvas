@@ -331,12 +331,16 @@ async function pollSessionId(
   const maxAttempts =
     cliType === "codex"
       ? SESSION_POLL_MAX_ATTEMPTS.codex
+      : cliType === "opencode"
+        ? SESSION_POLL_MAX_ATTEMPTS.opencode
       : cliType === "wuu"
         ? SESSION_POLL_MAX_ATTEMPTS.wuu
         : SESSION_POLL_MAX_ATTEMPTS.default;
   const interval =
     cliType === "codex"
       ? SESSION_POLL_INTERVAL_MS.codex
+      : cliType === "opencode"
+        ? SESSION_POLL_INTERVAL_MS.opencode
       : cliType === "wuu"
         ? SESSION_POLL_INTERVAL_MS.wuu
         : SESSION_POLL_INTERVAL_MS.default;
@@ -398,6 +402,13 @@ async function pollSessionId(
       confidence = candidate?.confidence;
     } else if (cliType === "wuu") {
       const candidate = await window.termcanvas.session.findWuu(
+        worktreePath,
+        startedAt,
+      );
+      sessionId = candidate?.sessionId ?? null;
+      confidence = candidate?.confidence;
+    } else if (cliType === "opencode") {
+      const candidate = await window.termcanvas.session.findOpenCode(
         worktreePath,
         startedAt,
       );

@@ -8,6 +8,11 @@ import {
   type WorkbenchRecord,
 } from "../hydra/src/workflow-store.ts";
 import { getProcessSnapshot } from "./process-detector.ts";
+import {
+  extractOpenCodeFirstUserPrompt,
+  isOpenCodeProvider,
+  readOpenCodeSessionTelemetry,
+} from "./opencode-session.ts";
 import { parseSessionTelemetryLine } from "./session-watcher.ts";
 import type {
   NormalizedSessionTelemetryEvent,
@@ -58,6 +63,7 @@ interface TerminalState {
   pendingPreToolUseAt: number;
   awaitingInputTimer: NodeJS.Timeout | null;
   lastTokenTotal: number | null;
+  openCodeEventKeys: Set<string>;
   processPollTimer: NodeJS.Timeout | null;
   ptyId: number | null;
   sessionFile: string | null;
@@ -422,8 +428,13 @@ const INJECTED_CONTEXT_PATTERN =
  */
 function extractFirstUserPrompt(
   filePath: string,
-  _provider?: TelemetryProvider,
+  provider?: TelemetryProvider,
+  sessionId?: string,
 ): string | undefined {
+  if (provider === "opencode" && sessionId) {
+    return extractOpenCodeFirstUserPrompt(filePath, sessionId);
+  }
+
   let lines: string[];
   try {
     const content = fs.readFileSync(filePath, "utf-8");
@@ -789,6 +800,7 @@ export class TelemetryService {
     state.sessionFile = input.sessionFile ?? null;
     state.sessionOffset = 0;
     state.sessionRemainder = "";
+    state.openCodeEventKeys.clear();
     if (sessionChanged) {
       state.snapshot.first_user_prompt = undefined;
     }
@@ -799,7 +811,11 @@ export class TelemetryService {
     this.startSessionTracking(state);
 
     // Extract first user prompt for display in the session panel title.
-    const prompt = extractFirstUserPrompt(state.sessionFile);
+    const prompt = extractFirstUserPrompt(
+      state.sessionFile,
+      state.snapshot.provider,
+      state.snapshot.session_id,
+    );
     if (prompt) {
       state.snapshot.first_user_prompt = prompt;
     }
@@ -825,6 +841,7 @@ export class TelemetryService {
     state.sessionFile = null;
     state.sessionOffset = 0;
     state.sessionRemainder = "";
+    state.openCodeEventKeys.clear();
     state.activeToolCalls.clear();
     state.pendingPreToolUse = false;
     state.pendingPreToolUseAt = 0;
@@ -1551,6 +1568,7 @@ export class TelemetryService {
       pendingPreToolUseAt: 0,
       awaitingInputTimer: null,
       lastTokenTotal: null,
+      openCodeEventKeys: new Set<string>(),
       processPollTimer: null,
       ptyId: registration?.ptyId ?? null,
       sessionFile: null,
@@ -1786,7 +1804,14 @@ export class TelemetryService {
       const directory = path.dirname(state.sessionFile);
       const basename = path.basename(state.sessionFile);
       state.sessionWatcher = fs.watch(directory, (_event, changedFile) => {
-        if (changedFile && changedFile !== basename) return;
+        if (changedFile) {
+          const changed = String(changedFile);
+          if (isOpenCodeProvider(state.snapshot.provider)) {
+            if (!changed.startsWith(basename)) return;
+          } else if (changed !== basename) {
+            return;
+          }
+        }
         read();
       });
     } catch {
@@ -1808,6 +1833,10 @@ export class TelemetryService {
 
   private primeSessionFromTail(state: TerminalState): void {
     if (!state.sessionFile) return;
+    if (isOpenCodeProvider(state.snapshot.provider)) {
+      this.readOpenCodeSessionDelta(state);
+      return;
+    }
     try {
       const stat = fs.statSync(state.sessionFile);
       const size = stat.size;
@@ -1840,8 +1869,30 @@ export class TelemetryService {
     } catch {}
   }
 
+  private readOpenCodeSessionDelta(state: TerminalState): void {
+    if (!state.sessionFile || !state.snapshot.session_id) return;
+    const read = readOpenCodeSessionTelemetry({
+      dbPath: state.sessionFile,
+      sessionId: state.snapshot.session_id,
+      seenEventKeys: state.openCodeEventKeys,
+    });
+    for (const key of read.eventKeys) {
+      state.openCodeEventKeys.add(key);
+    }
+    if (read.events.length > 0) {
+      this.recordSessionTelemetry(state.snapshot.terminal_id, read.events);
+    }
+    if (!state.snapshot.first_user_prompt && read.firstUserPrompt) {
+      state.snapshot.first_user_prompt = read.firstUserPrompt;
+    }
+  }
+
   private async readSessionDelta(state: TerminalState): Promise<void> {
     if (!state.sessionFile || state.sessionReadInFlight) return;
+    if (isOpenCodeProvider(state.snapshot.provider)) {
+      this.readOpenCodeSessionDelta(state);
+      return;
+    }
     if (this.now() - state.lastHookToolAt < 2_000) return;
     state.sessionReadInFlight = true;
     try {
@@ -1887,6 +1938,7 @@ export class TelemetryService {
         const prompt = extractFirstUserPrompt(
           state.sessionFile,
           state.snapshot.provider,
+          state.snapshot.session_id,
         );
         if (prompt) {
           state.snapshot.first_user_prompt = prompt;
