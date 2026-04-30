@@ -816,8 +816,9 @@ export class TelemetryService {
       state.snapshot.provider,
       state.snapshot.session_id,
     );
-    if (prompt) {
+    if (prompt && state.snapshot.first_user_prompt !== prompt) {
       state.snapshot.first_user_prompt = prompt;
+      this.updateDerivedStatus(state, { force: true });
     }
   }
 
@@ -1882,8 +1883,12 @@ export class TelemetryService {
     if (read.events.length > 0) {
       this.recordSessionTelemetry(state.snapshot.terminal_id, read.events);
     }
-    if (!state.snapshot.first_user_prompt && read.firstUserPrompt) {
+    if (
+      read.firstUserPrompt &&
+      state.snapshot.first_user_prompt !== read.firstUserPrompt
+    ) {
       state.snapshot.first_user_prompt = read.firstUserPrompt;
+      this.updateDerivedStatus(state, { force: true });
     }
   }
 

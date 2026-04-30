@@ -383,6 +383,52 @@ test("findBestOpenCodeSession resolves from opencode db by cwd and start time", 
   });
 });
 
+test("findBestOpenCodeSession ignores stale cwd sessions before launch", () => {
+  withTempHome((homeDir) => {
+    const previousXdgData = process.env.XDG_DATA_HOME;
+    process.env.XDG_DATA_HOME = path.join(homeDir, ".local", "share");
+    try {
+      writeOpenCodeDbSessions(homeDir, [
+        {
+          id: "ses_old",
+          cwd: "/tmp/project",
+          createdAtMs: 1775339000000,
+          updatedAtMs: 1775339001000,
+        },
+        {
+          id: "ses_fresh",
+          cwd: "/tmp/project",
+          createdAtMs: 1775338000000,
+          updatedAtMs: 1775339239000,
+        },
+      ]);
+
+      assert.equal(
+        findBestOpenCodeSession(
+          "/tmp/project",
+          new Date(1775339237000).toISOString(),
+          homeDir,
+        )?.sessionId,
+        "ses_fresh",
+      );
+      assert.equal(
+        findBestOpenCodeSession(
+          "/tmp/project",
+          new Date(1775339245000).toISOString(),
+          homeDir,
+        ),
+        null,
+      );
+    } finally {
+      if (previousXdgData === undefined) {
+        delete process.env.XDG_DATA_HOME;
+      } else {
+        process.env.XDG_DATA_HOME = previousXdgData;
+      }
+    }
+  });
+});
+
 test("findBestCodexSession prefers recent indexed sessions that match cwd", () => {
   withTempHome((homeDir) => {
     const now = new Date();

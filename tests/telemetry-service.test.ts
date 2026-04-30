@@ -106,6 +106,7 @@ function writeOpenCodeSessionDb(
   input: {
     sessionId: string;
     prompt: string;
+    assistantFinish?: "stop" | "tool-calls";
   },
 ): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -157,7 +158,10 @@ function writeOpenCodeSessionDb(
       input.sessionId,
       1775339238000,
       1775339239000,
-      JSON.stringify({ role: "assistant", finish: "stop" }),
+      JSON.stringify({
+        role: "assistant",
+        finish: input.assistantFinish ?? "stop",
+      }),
     );
     db.prepare(`
       INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
@@ -190,7 +194,10 @@ function writeOpenCodeSessionDb(
       input.sessionId,
       1775339239000,
       1775339239000,
-      JSON.stringify({ type: "step-finish", reason: "stop" }),
+      JSON.stringify({
+        type: "step-finish",
+        reason: input.assistantFinish ?? "stop",
+      }),
     );
   } finally {
     db.close();
@@ -884,6 +891,57 @@ test("attachSessionSource reads opencode first prompt and lifecycle from db", ()
     assert.equal(snapshot?.turn_state, "turn_complete");
     assert.equal(snapshot?.task_status, "idle");
     assert.equal(snapshot?.last_session_event_kind, "turn_complete");
+  } finally {
+    service.dispose();
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("attachSessionSource keeps opencode tool-call steps active and pushes first prompt", () => {
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "termcanvas-telemetry-opencode-active-"),
+  );
+  const sessionFile = path.join(tmpDir, "opencode.db");
+  writeOpenCodeSessionDb(sessionFile, {
+    sessionId: "ses_active",
+    prompt: "检查 OpenCode 左侧标题和状态",
+    assistantFinish: "tool-calls",
+  });
+
+  const pushed: string[] = [];
+  const service = new TelemetryService({
+    processPollIntervalMs: 0,
+    onSnapshotChanged: (_terminalId, snapshot) => {
+      if (snapshot.first_user_prompt) {
+        pushed.push(snapshot.first_user_prompt);
+      }
+    },
+  });
+  try {
+    service.registerTerminal({
+      terminalId: "terminal-1",
+      worktreePath: "/tmp/project",
+      provider: "opencode",
+    });
+
+    service.attachSessionSource({
+      terminalId: "terminal-1",
+      provider: "opencode",
+      sessionId: "ses_active",
+      confidence: "medium",
+      sessionFile,
+    });
+
+    const snapshot = service.getTerminalSnapshot("terminal-1");
+    assert.equal(snapshot?.first_user_prompt, "检查 OpenCode 左侧标题和状态");
+    assert.equal(snapshot?.turn_state, "in_turn");
+    assert.equal(snapshot?.task_status, "running");
+    assert.equal(snapshot?.task_status_source, "turn_state");
+    assert.equal(snapshot?.last_session_event_kind, "assistant_step");
+    assert.ok(
+      pushed.includes("检查 OpenCode 左侧标题和状态"),
+      "first prompt should be pushed to renderer even when status did not change",
+    );
   } finally {
     service.dispose();
     fs.rmSync(tmpDir, { recursive: true, force: true });

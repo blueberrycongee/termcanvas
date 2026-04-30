@@ -179,6 +179,19 @@ function eventFromOpenCodeMessage(
   }
 
   if (!finish) return [];
+  if (finish !== "stop") {
+    return [
+      buildEvent({
+        at: toIso(row.time_updated ?? row.time_created),
+        event_type: "assistant_step",
+        event_subtype: finish,
+        role: "assistant",
+        turn_state: "in_turn",
+        meaningful_progress: true,
+      }),
+    ];
+  }
+
   return [
     buildEvent({
       at: toIso(row.time_updated ?? row.time_created),
@@ -290,10 +303,10 @@ function eventFromOpenCodePart(
     return [
       buildEvent({
         at,
-        event_type: "turn_complete",
+        event_type: "step_finish",
         event_subtype: getString(part.reason),
         role: "assistant",
-        turn_state: "turn_complete",
+        turn_state: "in_turn",
         meaningful_progress: true,
       }),
     ];
@@ -349,26 +362,38 @@ export function findBestOpenCodeSession(
     const candidates = rows
       .map((row) => {
         if (typeof row.id !== "string" || row.id.length === 0) return null;
+        const createdMs =
+          typeof row.time_created === "number" ? row.time_created : 0;
+        const updatedMs =
+          typeof row.time_updated === "number" ? row.time_updated : createdMs;
+        const activityMs = Math.max(createdMs, updatedMs);
+        if (Number.isFinite(startedMs) && activityMs < startedMs - 1_000) {
+          return null;
+        }
         const anchorMs =
-          typeof row.time_created === "number"
-            ? row.time_created
-            : typeof row.time_updated === "number"
-              ? row.time_updated
-              : 0;
+          Number.isFinite(startedMs) && createdMs < startedMs
+            ? activityMs
+            : createdMs || activityMs;
         const distance = Number.isFinite(startedMs)
           ? Math.abs(anchorMs - startedMs)
           : 0;
-        return { sessionId: row.id, anchorMs, distance };
+        return { sessionId: row.id, anchorMs, activityMs, distance };
       })
       .filter(
         (candidate): candidate is {
           sessionId: string;
           anchorMs: number;
+          activityMs: number;
           distance: number;
         } => candidate !== null,
       )
       .sort((left, right) => {
-        if (left.distance !== right.distance) return left.distance - right.distance;
+        if (left.distance !== right.distance) {
+          return left.distance - right.distance;
+        }
+        if (left.activityMs !== right.activityMs) {
+          return right.activityMs - left.activityMs;
+        }
         return right.anchorMs - left.anchorMs;
       });
 
@@ -456,6 +481,7 @@ export function readOpenCodeSessionTelemetry(
         const leftTime = left.row.time_updated ?? left.row.time_created ?? 0;
         const rightTime = right.row.time_updated ?? right.row.time_created ?? 0;
         if (leftTime !== rightTime) return leftTime - rightTime;
+        if (left.kind !== right.kind) return left.kind === "part" ? -1 : 1;
         return String(left.row.id ?? "").localeCompare(String(right.row.id ?? ""));
       });
 
