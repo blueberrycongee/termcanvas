@@ -28,6 +28,10 @@ thirdparty/
 
 # Agent config for other runtimes
 AGENTS.md
+CLAUDE.md
+
+# Internal implementation plans
+docs/plans/
 
 # Playwright MCP artifacts
 .playwright-mcp/
