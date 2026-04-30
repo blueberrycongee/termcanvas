@@ -151,6 +151,8 @@ import { TelemetryService } from "./telemetry-service";
 import { createRenderDiagnosticsLogger } from "./render-diagnostics";
 import { RenderThrottlingCoordinator } from "./render-throttling-coordinator";
 import { HookReceiver } from "./hook-receiver";
+import { isSafeExternalUrl } from "./external-url";
+import { WorkspaceSavePathRegistry } from "./workspace-save-path";
 import {
   findBestClaudeSession,
   findBestCodexSession,
@@ -269,6 +271,9 @@ const sessionScanner = new SessionScanner();
 const renderDiagnostics = createRenderDiagnosticsLogger(
   app.getPath("userData"),
 );
+const workspaceSavePaths = new WorkspaceSavePathRegistry((filePath) =>
+  path.resolve(filePath),
+);
 let throttlingCoordinator: RenderThrottlingCoordinator | null = null;
 let hookSocketPath: string | null = null;
 const hookReceiver = new HookReceiver((event) => {
@@ -356,7 +361,9 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
     return { action: "deny" };
   });
 
@@ -1454,14 +1461,15 @@ function setupIpc() {
       filters: [{ name: "TermCanvas Workspace", extensions: ["termcanvas"] }],
     });
     if (result.canceled || !result.filePath) return null;
-    fs.writeFileSync(result.filePath, data, "utf-8");
-    return result.filePath;
+    const filePath = workspaceSavePaths.register(result.filePath);
+    fs.writeFileSync(filePath, data, "utf-8");
+    return filePath;
   });
 
   ipcMain.handle(
     "workspace:save-to-path",
     (_event, filePath: string, data: string) => {
-      fs.writeFileSync(filePath, data, "utf-8");
+      fs.writeFileSync(workspaceSavePaths.assertAllowed(filePath), data, "utf-8");
     },
   );
 
@@ -2363,7 +2371,9 @@ app.whenReady().then(async () => {
   app.on("web-contents-created", (_event, contents) => {
     if (contents.getType() === "webview") {
       contents.setWindowOpenHandler(({ url }) => {
-        shell.openExternal(url);
+        if (isSafeExternalUrl(url)) {
+          void shell.openExternal(url);
+        }
         return { action: "deny" };
       });
       // Strip Electron/app identifiers from UA to avoid being blocked by sites
