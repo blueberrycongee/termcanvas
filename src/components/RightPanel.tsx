@@ -585,7 +585,16 @@ export function RightPanel() {
             </div>
           </div>
         )}
-        {activeTab === "files" && <FilesContent worktreePath={effectiveWorktreePath} onFileClick={handleFileClick} />}
+        {/* Always-mounted so the file tree's model state, expansion, scroll
+            position and ignored stream survive Git/Diff tab toggles. The
+            store-backed watcher keeps this in sync even while hidden, so
+            switching back is instant rather than a fresh load. */}
+        <div style={{ display: activeTab === "files" ? "contents" : "none" }}>
+          <FilesContent
+            worktreePath={effectiveWorktreePath}
+            onFileClick={handleFileClick}
+          />
+        </div>
         {showRepoContextPlaceholder ? (
           <div className="flex flex-1 items-center justify-center">
             <div

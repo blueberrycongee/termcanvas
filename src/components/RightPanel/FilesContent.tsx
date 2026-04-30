@@ -56,7 +56,7 @@ const NEW_ENTRY_PREFIX = "__pierre_new_";
 
 export function FilesContent({ worktreePath, onFileClick }: Props) {
   const t = useT();
-  const { paths, ignoredPaths, loading, refresh } = useWorktreeFiles(worktreePath);
+  const { paths, ignoredPaths, refresh } = useWorktreeFiles(worktreePath);
   const { changedFiles, stagedFiles } = useGitStatus(worktreePath);
   const fileEditorPath = useCanvasStore((s) => s.fileEditorPath);
   const { notify } = useNotificationStore.getState();
@@ -146,7 +146,25 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     [notify],
   );
 
-  const modelRef = useRef<ReturnType<typeof useFileTree>["model"] | null>(null);
+  type FileTreeModel = ReturnType<typeof useFileTree>["model"];
+  const modelRef = useRef<FileTreeModel | null>(null);
+  // Tracks the last (model, worktree, paths) tuple we successfully synced
+  // into the tree. Used to compute add/remove diffs on subsequent renders so
+  // a watcher tick or store revalidation does not nuke the user's expansion
+  // state via a wholesale resetPaths. Reset on model re-creation (strict-mode
+  // remount) and on worktree boundary.
+  const trackedSyncRef = useRef<{
+    model: FileTreeModel;
+    wt: string;
+    paths: string[];
+  } | null>(null);
+  // Same idea for ignored, but additions are streamed via requestIdleCallback
+  // so the "applied" snapshot only advances once the chunk runner finishes.
+  const ignoredSyncRef = useRef<{
+    model: FileTreeModel;
+    wt: string;
+    paths: string[];
+  } | null>(null);
 
   // Independent open-file marker driven by `fileEditorPath` (not by selection).
   // Returns a small bullet decoration on the row currently open in the file
@@ -185,18 +203,115 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
 
   modelRef.current = model;
 
+  // Tracked paths are small (~1k typical) so we apply them synchronously.
+  // First time we see a (model, worktree) pair we resetPaths wholesale; on
+  // subsequent renders within the same pair we diff against trackedSyncRef
+  // and apply only the delta, which preserves expansion / focus / scroll
+  // through watcher ticks and store revalidations.
   useEffect(() => {
-    model.resetPaths(paths);
-  }, [model, paths]);
+    const wtKey = worktreePath ?? "";
+    const synced = trackedSyncRef.current;
+    if (!synced || synced.model !== model || synced.wt !== wtKey) {
+      try {
+        model.resetPaths(paths);
+      } catch (err) {
+        console.warn("[FilesContent] tracked resetPaths failed:", err);
+      }
+      trackedSyncRef.current = { model, wt: wtKey, paths };
+      return;
+    }
 
-  // Stream gitignored paths into the tree after the first paint. The data
-  // arrives separately from the IPC and can be 50k+ entries on projects with
-  // node_modules; doing it in 500-path chunks under requestIdleCallback keeps
-  // the main thread responsive while the dim entries fade in. Mirrors VS
-  // Code's split between data (FileService) and decoration (gitignore
-  // DecorationProvider) — the tracked tree is usable before ignored arrives.
+    if (synced.paths === paths) return; // identity-equal, nothing to do
+
+    const oldSet = new Set(synced.paths);
+    const newSet = new Set(paths);
+    const ops: FileTreeBatchOperation[] = [];
+    for (const p of synced.paths) {
+      if (!newSet.has(p)) ops.push({ path: p, type: "remove" });
+    }
+    for (const p of paths) {
+      if (!oldSet.has(p)) ops.push({ path: p, type: "add" });
+    }
+    if (ops.length === 0) {
+      trackedSyncRef.current = { model, wt: wtKey, paths };
+      return;
+    }
+    try {
+      model.batch(ops);
+      trackedSyncRef.current = { model, wt: wtKey, paths };
+    } catch (err) {
+      // Resync via wholesale reset on inconsistency. The diff snapshot was
+      // out of step with the actual model state — start over.
+      console.warn(
+        "[FilesContent] tracked diff batch failed, resyncing:",
+        err,
+      );
+      try {
+        model.resetPaths(paths);
+        trackedSyncRef.current = { model, wt: wtKey, paths };
+      } catch {
+        trackedSyncRef.current = null;
+      }
+    }
+  }, [model, worktreePath, paths]);
+
+  // Ignored paths can be 50k+ on projects with node_modules. We diff against
+  // the previously-applied snapshot (ignoredSyncRef): removes are typically
+  // small and applied synchronously, additions are streamed via
+  // requestIdleCallback so the main thread stays responsive while dim
+  // entries fade in.
+  //
+  // The snapshot is updated incrementally — once after removes, then after
+  // every chunk of adds — so that an interruption mid-stream (worktree
+  // switch, watcher tick, strict-mode remount) leaves the snapshot in sync
+  // with what is actually in the model. Each batch is also pre-filtered
+  // through `model.getItem` to skip paths already present (or already gone),
+  // since a partially-applied batch from a prior throw would otherwise wedge
+  // the stream forever on a duplicate.
   useEffect(() => {
-    if (ignoredPaths.length === 0) return;
+    const wtKey = worktreePath ?? "";
+    const synced = ignoredSyncRef.current;
+
+    let toAdd: string[];
+    let toRemove: string[];
+    let applied: string[];
+    if (!synced || synced.model !== model || synced.wt !== wtKey) {
+      toAdd = ignoredPaths;
+      toRemove = [];
+      applied = [];
+    } else if (synced.paths === ignoredPaths) {
+      return; // identity-equal
+    } else {
+      const oldSet = new Set(synced.paths);
+      const newSet = new Set(ignoredPaths);
+      toAdd = ignoredPaths.filter((p) => !oldSet.has(p));
+      toRemove = synced.paths.filter((p) => !newSet.has(p));
+      applied = [...synced.paths];
+    }
+
+    if (toRemove.length) {
+      const ops: FileTreeBatchOperation[] = [];
+      for (const p of toRemove) {
+        if (model.getItem(p) != null) ops.push({ path: p, type: "remove" });
+      }
+      if (ops.length) {
+        try {
+          model.batch(ops);
+        } catch (err) {
+          console.warn("[FilesContent] ignored remove batch failed:", err);
+        }
+      }
+      const removeSet = new Set(toRemove);
+      applied = applied.filter((p) => !removeSet.has(p));
+      ignoredSyncRef.current = { model, wt: wtKey, paths: applied };
+    }
+
+    if (toAdd.length === 0) {
+      // applied === ignoredPaths after removes, so lock in the canonical
+      // reference for cheap future identity checks.
+      ignoredSyncRef.current = { model, wt: wtKey, paths: ignoredPaths };
+      return;
+    }
 
     let cancelled = false;
     const CHUNK_SIZE = 500;
@@ -205,20 +320,25 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     const processChunk = (deadline?: IdleDeadline) => {
       if (cancelled) return;
       const start = performance.now();
-      while (cursor < ignoredPaths.length) {
-        const end = Math.min(cursor + CHUNK_SIZE, ignoredPaths.length);
+      while (cursor < toAdd.length) {
+        const end = Math.min(cursor + CHUNK_SIZE, toAdd.length);
         const ops: FileTreeBatchOperation[] = [];
         for (let i = cursor; i < end; i++) {
-          ops.push({ path: ignoredPaths[i], type: "add" });
+          const p = toAdd[i];
+          if (model.getItem(p) == null) ops.push({ path: p, type: "add" });
         }
-        try {
-          model.batch(ops);
-        } catch (err) {
-          // Git keeps tracked and ignored sets disjoint, so a duplicate add
-          // shouldn't normally occur. If it does, skip this chunk rather than
-          // tearing down the rest of the stream.
-          console.warn("[FilesContent] ignored batch-add failed:", err);
+        if (ops.length) {
+          try {
+            model.batch(ops);
+          } catch (err) {
+            // Drop this chunk's adds and continue. We still advance applied
+            // below — the user will see slightly fewer dim entries until the
+            // next watcher tick rediscovers the discrepancy.
+            console.warn("[FilesContent] ignored add batch failed:", err);
+          }
         }
+        for (let i = cursor; i < end; i++) applied.push(toAdd[i]);
+        ignoredSyncRef.current = { model, wt: wtKey, paths: applied };
         cursor = end;
 
         if (deadline) {
@@ -228,7 +348,14 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
         }
       }
 
-      if (cursor < ignoredPaths.length) schedule();
+      if (cancelled) return;
+      if (cursor < toAdd.length) {
+        schedule();
+        return;
+      }
+      // Stream complete: swap in the canonical ignoredPaths reference so the
+      // next render's `synced.paths === ignoredPaths` short-circuit fires.
+      ignoredSyncRef.current = { model, wt: wtKey, paths: ignoredPaths };
     };
 
     const schedule = () => {
@@ -243,7 +370,7 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [model, ignoredPaths]);
+  }, [model, worktreePath, ignoredPaths]);
 
   useEffect(() => {
     model.setGitStatus(pierreGitStatus);
@@ -553,14 +680,6 @@ export function FilesContent({ worktreePath, onFileClick }: Props) {
     return (
       <div className="flex-1 flex items-center justify-center">
         <span className="tc-label">{t.no_worktree_selected}</span>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <span className="tc-label">{t.loading}</span>
       </div>
     );
   }
