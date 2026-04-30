@@ -2,6 +2,13 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.3] - 2026-04-30
+
+### Fixed
+- **Git history graph colors are restored**: the right-panel commit graph now uses a dedicated graph palette, so topology lines, branch markers, selected nodes, and ref badges stay readable after the neutral theme update.
+- **Usage dashboard visualizations are colored again**: the `Cmd+Shift+U` usage overlay now uses a dedicated usage palette for hourly bars, monthly trends, heatmaps, quotas, device rows, and insight progress instead of inheriting the neutral app accent.
+- **Git history can be resized from the changes pane**: the Git panel now has a draggable split between Changes and History, matching the adjustable history panes in Cursor and VS Code while preserving a minimum visible history area.
+
 ## [0.39.2] - 2026-04-30
 
 ### Changed
