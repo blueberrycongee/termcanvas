@@ -34,6 +34,7 @@ interface PreferencesStore {
   completionGlowEnabled: boolean;
   activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
+  quitOnLastWindowClosed: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -72,6 +73,7 @@ interface PreferencesStore {
   setCompletionGlowEnabled: (value: boolean) => void;
   setActivityHeatmapEnabled: (value: boolean) => void;
   setTrackpadSwipeFocusEnabled: (value: boolean) => void;
+  setQuitOnLastWindowClosed: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
   setAgentConfig: (config: AgentProviderConfig) => void;
@@ -98,6 +100,7 @@ interface SavedPrefs {
   completionGlowEnabled: boolean;
   activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
+  quitOnLastWindowClosed: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
   cliCommands: Partial<Record<TerminalType, CliCommandConfig>>;
@@ -223,6 +226,9 @@ function loadPreferences(): SavedPrefs {
       let trackpadSwipeFocusEnabled = false;
       if (parsed.trackpadSwipeFocusEnabled === true) trackpadSwipeFocusEnabled = true;
 
+      let quitOnLastWindowClosed = false;
+      if (parsed.quitOnLastWindowClosed === true) quitOnLastWindowClosed = true;
+
       let summaryCli: "claude" | "codex" = "claude";
       if (parsed.summaryCli === "codex") summaryCli = "codex";
 
@@ -259,6 +265,7 @@ function loadPreferences(): SavedPrefs {
         completionGlowEnabled,
         activityHeatmapEnabled,
         trackpadSwipeFocusEnabled,
+        quitOnLastWindowClosed,
         summaryCli,
         minimumContrastRatio,
         cliCommands,
@@ -283,6 +290,7 @@ function loadPreferences(): SavedPrefs {
     completionGlowEnabled: false,
     activityHeatmapEnabled: false,
     trackpadSwipeFocusEnabled: false,
+    quitOnLastWindowClosed: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
     cliCommands: {},
@@ -387,6 +395,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     completionGlowEnabled: state.completionGlowEnabled,
     activityHeatmapEnabled: state.activityHeatmapEnabled,
     trackpadSwipeFocusEnabled: state.trackpadSwipeFocusEnabled,
+    quitOnLastWindowClosed: state.quitOnLastWindowClosed,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
     cliCommands: state.cliCommands,
@@ -412,6 +421,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   completionGlowEnabled: initialPrefs.completionGlowEnabled,
   activityHeatmapEnabled: initialPrefs.activityHeatmapEnabled,
   trackpadSwipeFocusEnabled: initialPrefs.trackpadSwipeFocusEnabled,
+  quitOnLastWindowClosed: initialPrefs.quitOnLastWindowClosed,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
   cliCommands: initialPrefs.cliCommands,
@@ -479,6 +489,11 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     set({ trackpadSwipeFocusEnabled: value });
     savePreferences(getSaveState({ ...get(), trackpadSwipeFocusEnabled: value }));
   },
+  setQuitOnLastWindowClosed: (value) => {
+    set({ quitOnLastWindowClosed: value });
+    savePreferences(getSaveState({ ...get(), quitOnLastWindowClosed: value }));
+    window.termcanvas?.app.setQuitOnLastWindowClosed(value);
+  },
   setSummaryCli: (value) => {
     set({ summaryCli: value });
     savePreferences(getSaveState({ ...get(), summaryCli: value }));
@@ -518,3 +533,8 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences(getSaveState({ ...get(), seenHints: next }));
   },
 }));
+
+// Sync the persisted value to the main process once on startup so a user
+// who flipped the toggle in a previous session keeps that behavior on the
+// very first window-close of this session.
+window.termcanvas?.app.setQuitOnLastWindowClosed(initialPrefs.quitOnLastWindowClosed);

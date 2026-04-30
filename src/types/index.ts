@@ -1011,6 +1011,7 @@ export interface TermCanvasAPI {
     homePath: string;
     platform: "darwin" | "win32" | "linux";
     requestClose: () => void;
+    setQuitOnLastWindowClosed: (value: boolean) => void;
   };
   hooks: {
     getSocketPath: () => Promise<string | null>;

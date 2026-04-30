@@ -365,6 +365,9 @@ export const zh = {
   trackpad_swipe_focus_toggle: "触控板滑动切换聚焦",
   trackpad_swipe_focus_toggle_desc:
     "实验性功能。在画布上使用双指横向滑动，在聚焦终端和全景视图之间切换",
+  quit_on_last_window_closed_toggle: "关闭最后一个窗口时退出",
+  quit_on_last_window_closed_toggle_desc:
+    "默认关闭。关闭最后一个窗口时，TermCanvas 仍保留在 Dock 中，点击 Dock 图标可打开新窗口。开启则直接退出应用。",
   summary_toggle: "终端自动摘要",
   summary_toggle_desc:
     "实验性功能。为 CLI 终端自动生成一行 AI 摘要，可能增加 token 用量",

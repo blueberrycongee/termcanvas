@@ -808,6 +808,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
     homePath: process.env.HOME ?? process.env.USERPROFILE ?? "",
     platform: process.platform as "darwin" | "win32" | "linux",
     requestClose: () => ipcRenderer.send("app:request-close"),
+    setQuitOnLastWindowClosed: (value: boolean) =>
+      ipcRenderer.send("app:set-quit-on-last-window-closed", value),
   },
   updater: {
     check: () => ipcRenderer.invoke("updater:check"),
