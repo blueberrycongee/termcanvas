@@ -463,7 +463,7 @@ export function TokenHeatmap({
                 {monthLabels.map((m) => (
                   <span
                     key={`month-${m.column}`}
-                    className="text-[8px] text-[var(--text-secondary)] font-medium tc-mono"
+                    className="text-[8px] text-[var(--text-secondary)] font-medium tc-mono whitespace-nowrap"
                     style={{
                       gridColumn: m.column + 1,
                       gridRow: 1,
