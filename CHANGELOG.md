@@ -2,6 +2,19 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.5] - 2026-05-01
+
+### Added
+- **Usage dashboard period views**: the usage overlay now supports richer period views with range trends, quota status, and cloud usage included alongside local usage.
+
+### Changed
+- **Usage dashboard readability**: metric labels, quota rows, trend captions, and supporting text now use stronger contrast, with more vertical spacing between cards and clearer billion-token formatting.
+- **Usage dashboard layout rhythm**: the overview cards, quota panel, heatmap, and trend sections have been tightened for responsive grouping while keeping the panel easier to scan.
+
+### Fixed
+- **Codex reasoning tokens are counted correctly**: Codex usage now includes reasoning token accounting in totals and display rows.
+- **Usage heatmap labels stay on one line**: active month labels no longer wrap into two lines.
+
 ## [0.39.4] - 2026-05-01
 
 ### Added
