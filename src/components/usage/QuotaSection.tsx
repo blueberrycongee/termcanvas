@@ -120,6 +120,91 @@ function ProviderQuotaSection({
   );
 }
 
+function formatQuotaPct(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function ProviderQuotaStatus({
+  title,
+  quota,
+  loading,
+  error,
+}: {
+  title: string;
+  quota: QuotaData | null;
+  loading: boolean;
+  error: "rate_limited" | "unavailable" | null;
+}): React.ReactElement | null {
+  const t = useT();
+
+  if (!quota && !loading && !error) return null;
+
+  let detail: string;
+  if (quota) {
+    detail = `${t.usage_quota_5h} ${formatQuotaPct(quota.fiveHour.utilization)} / ${t.usage_quota_7d} ${formatQuotaPct(quota.sevenDay.utilization)}`;
+  } else if (loading) {
+    detail = t.loading;
+  } else {
+    detail =
+      error === "rate_limited"
+        ? t.usage_quota_rate_limited
+        : t.usage_quota_unavailable;
+  }
+
+  return (
+    <span className="min-w-0 truncate">
+      <span className="text-[var(--text-secondary)]">{title}</span>{" "}
+      <span className="text-[var(--text-muted)]">{detail}</span>
+    </span>
+  );
+}
+
+export function QuotaStatus(): React.ReactElement | null {
+  const claudeQuota = useQuotaStore((s) => s.quota);
+  const claudeLoading = useQuotaStore((s) => s.loading);
+  const claudeError = useQuotaStore((s) => s.error);
+  const codexQuota = useCodexQuotaStore((s) => s.quota);
+  const codexLoading = useCodexQuotaStore((s) => s.loading);
+  const codexError = useCodexQuotaStore((s) => s.error);
+  const t = useT();
+  const hasAnyQuota = claudeQuota || codexQuota;
+  const hasAnyError = claudeError || codexError;
+  const isLoading = claudeLoading || codexLoading;
+
+  if (!hasAnyQuota && !isLoading && !hasAnyError) return null;
+
+  return (
+    <div className="relative group min-w-0 max-w-full">
+      <button
+        type="button"
+        className="max-w-full overflow-hidden rounded-md border border-[var(--border)] bg-[var(--bg)] px-2.5 py-1 text-[10px] tc-mono tc-num text-left cursor-default"
+      >
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+          <ProviderQuotaStatus
+            title={t.usage_quota}
+            quota={claudeQuota}
+            loading={claudeLoading}
+            error={claudeError}
+          />
+          {(claudeQuota || claudeLoading || claudeError) &&
+            (codexQuota || codexLoading || codexError) && (
+              <span className="text-[var(--text-faint)] shrink-0">·</span>
+            )}
+          <ProviderQuotaStatus
+            title={t.usage_quota_codex}
+            quota={codexQuota}
+            loading={codexLoading}
+            error={codexError}
+          />
+        </span>
+      </button>
+      <div className="absolute right-0 top-full z-30 mt-1 hidden w-[min(520px,calc(100vw-32px))] group-hover:block group-focus-within:block">
+        <QuotaSection inline framed />
+      </div>
+    </div>
+  );
+}
+
 export function QuotaSection({
   inline = false,
   framed = false,

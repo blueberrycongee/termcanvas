@@ -22,6 +22,7 @@ import { useQuotaStore } from "../stores/quotaStore";
 import { useCodexQuotaStore } from "../stores/codexQuotaStore";
 import type {
   UsageSummary,
+  UsageRangeSummary,
   CloudUsageSummary,
   ProjectUsage,
   ModelUsage,
@@ -107,18 +108,20 @@ function Bar({
   color = "var(--usage-primary)",
   animate,
   delay = 0,
+  width = "88px",
 }: {
   value: number;
   max: number;
   color?: string;
   animate?: boolean;
   delay?: number;
+  width?: string;
 }) {
   const w = max > 0 ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   return (
     <div
       className="h-1.5 rounded-full bg-[var(--border)] shrink-0 overflow-hidden"
-      style={{ width: "clamp(56px, 32%, 112px)" }}
+      style={{ width }}
     >
       <div
         className="h-full rounded-full"
@@ -134,6 +137,8 @@ function Bar({
     </div>
   );
 }
+
+const RANKED_ROW_COLUMNS = "minmax(0,1fr) 112px 72px";
 
 function HoverDetail({
   children,
@@ -344,7 +349,14 @@ export function CacheRateSection({
   bare = false,
 }: {
   t: ReturnType<typeof useT>;
-  summary: UsageSummary;
+  summary: Pick<
+    UsageSummary | UsageRangeSummary,
+    | "models"
+    | "totalInput"
+    | "totalCacheRead"
+    | "totalCacheCreate5m"
+    | "totalCacheCreate1h"
+  >;
   animate: boolean;
   /**
    * When true, skip the outer px-3/py-2.5 wrapper and the internal
@@ -476,8 +488,11 @@ export function CacheRateSection({
             </div>
           }
         >
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-[var(--text-muted)] w-12 shrink-0 truncate">
+          <div
+            className="grid items-center gap-2"
+            style={{ gridTemplateColumns: "56px 88px 36px" }}
+          >
+            <span className="text-[10px] text-[var(--text-muted)] truncate">
               {row.label}
             </span>
             <Bar
@@ -487,7 +502,7 @@ export function CacheRateSection({
               animate={animate}
               delay={i * 60}
             />
-            <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
+            <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
               {Math.round(row.rate * 100)}%
             </span>
           </div>
@@ -545,10 +560,12 @@ export function ProjectsContent({
             </div>
           }
         >
-          <div className="flex items-center gap-2 group">
+          <div
+            className="grid w-full items-center gap-3 group"
+            style={{ gridTemplateColumns: RANKED_ROW_COLUMNS }}
+          >
             <span
-              className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
-              style={{ maxWidth: "48%" }}
+              className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 max-w-[220px] transition-colors duration-quick"
             >
               {p.name}
             </span>
@@ -558,8 +575,9 @@ export function ProjectsContent({
               color="var(--usage-primary)"
               animate={animate}
               delay={i * 60}
+              width="112px"
             />
-            <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-8 text-right tc-mono tc-num">
+            <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
               {pct(p.cost, totalCost)}
             </span>
           </div>
@@ -615,10 +633,12 @@ export function ModelsContent({
               </div>
             }
           >
-            <div className="flex items-center gap-2 group">
+            <div
+              className="grid w-full items-center gap-3 group"
+              style={{ gridTemplateColumns: RANKED_ROW_COLUMNS }}
+            >
               <span
-                className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 flex-shrink transition-colors duration-quick"
-                style={{ maxWidth: "48%" }}
+                className="text-[11px] text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] truncate min-w-0 max-w-[220px] transition-colors duration-quick"
               >
                 {shortName}
               </span>
@@ -628,8 +648,9 @@ export function ModelsContent({
                 color={color}
                 animate={animate}
                 delay={i * 60}
+                width="112px"
               />
-              <span className="text-[10px] text-[var(--text-muted)] shrink-0 tc-mono tc-num">
+              <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
                 {fmtCost(m.cost)}
               </span>
             </div>

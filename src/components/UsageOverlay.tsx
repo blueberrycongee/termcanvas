@@ -11,7 +11,7 @@ import { TokenHeatmap } from "./usage/TokenHeatmap";
 import { InsightsButton } from "./usage/InsightsButton";
 import { LoginButton } from "./LoginButton";
 import { DeviceBreakdown } from "./usage/DeviceBreakdown";
-import { QuotaSection } from "./usage/QuotaSection";
+import { QuotaStatus } from "./usage/QuotaSection";
 import { MonthlyTrendChart } from "./usage/MonthlyTrendChart";
 import { UsageRangeTrendChart } from "./usage/UsageRangeTrendChart";
 import {
@@ -47,11 +47,13 @@ import type { HeatmapEntry } from "../stores/usageStore";
  *            wondering why ⌘⇧U did nothing).
  *   ≥ 520  → 2-col stat strip.
  *   ≥ 760  → 2-col chart row (hourly + 30-day).
- *   ≥ 900  → overview + compact quota, then chart and composition rows.
+ *   ≥ 900  → side-by-side project/model ranked lists.
+ *   ≥ 1100 → primary column + secondary rail for diagnostics.
  *
  * Reading order: totals first, then time-zoom charts, then the
- * tight bar-chart trio, then budget, then the year ribbon, then
- * devices.
+ * project/model composition. Quota stays in the control/status row;
+ * cache rate, heatmap, and devices stay secondary. Diagnostic cards
+ * do not fall back into the main flow on medium widths.
  */
 
 const USAGE_COMPACT_MAX = 640;
@@ -194,7 +196,7 @@ function MetricPill({
   tone?: "default" | "accent";
 }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 min-w-0">
+    <div className="min-w-0">
       <div className="tc-caption tc-mono text-[var(--text-faint)] truncate">
         {label}
       </div>
@@ -219,7 +221,6 @@ function OverviewCard({
   tokens,
   sessions,
   children,
-  footer,
 }: {
   label: string;
   costLabel: string;
@@ -228,7 +229,6 @@ function OverviewCard({
   tokens: string;
   sessions: string;
   children?: React.ReactNode;
-  footer?: React.ReactNode;
 }) {
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
@@ -251,11 +251,10 @@ function OverviewCard({
         </div>
       </div>
       {children && (
-        <div className="mt-4 grid gap-2 grid-cols-2 @[760px]:grid-cols-4">
+        <div className="mt-4 grid gap-x-5 gap-y-2 grid-cols-2 @[760px]:grid-cols-4 border-t border-[var(--border)] pt-3">
           {children}
         </div>
       )}
-      {footer && <div className="mt-3">{footer}</div>}
     </section>
   );
 }
@@ -265,11 +264,13 @@ function UsageRangeDashboard({
   periodLabel,
   t,
   animate,
+  heatmap,
 }: {
   summary: UsageRangeSummary;
   periodLabel: string;
   t: ReturnType<typeof useT>;
   animate: boolean;
+  heatmap: Record<string, HeatmapEntry> | null;
 }): React.ReactElement {
   const totalTokens = totalRangeTokens(summary);
   const activeDays = summary.days.filter((day) => day.cost > 0).length;
@@ -289,7 +290,6 @@ function UsageRangeDashboard({
         tokenLabel={t.usage_tokens}
         tokens={fmtTokens(totalTokens)}
         sessions={`${summary.sessions} ${t.usage_sessions}`}
-        footer={<QuotaSection inline />}
       >
         <MetricPill
           label={t.usage_stat_daily_avg}
@@ -314,54 +314,73 @@ function UsageRangeDashboard({
           {t.usage_no_data}
         </div>
       ) : (
-        <>
-          <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2">
-            <SectionCard title={`${periodLabel} · ${t.usage_month_trend}`}>
+        <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+          <SectionCard title={`${periodLabel} · ${t.usage_month_trend}`}>
+            <div className="px-4 py-3">
+              <UsageRangeTrendChart
+                days={summary.days}
+                metric="cost"
+                animate={animate}
+              />
+            </div>
+          </SectionCard>
+          <SectionCard title={`${periodLabel} · ${t.usage_tokens}`}>
+            <div className="px-4 py-3">
+              <UsageRangeTrendChart
+                days={summary.days}
+                metric="tokens"
+                animate={animate}
+              />
+            </div>
+          </SectionCard>
+          <SectionCard
+            title={t.usage_cache_rate}
+            className="hidden @[1100px]:block @[1100px]:col-start-3 @[1100px]:row-start-1"
+          >
+            <div className="px-4 py-3">
+              <CacheRateSection
+                t={t}
+                summary={summary}
+                animate={animate}
+                bare
+              />
+            </div>
+          </SectionCard>
+          {summary.projects.length > 0 && (
+            <SectionCard title={t.usage_projects}>
               <div className="px-4 py-3">
-                <UsageRangeTrendChart
-                  days={summary.days}
-                  metric="cost"
+                <ProjectsContent
+                  t={t}
+                  projects={summary.projects}
+                  totalCost={summary.totalCost}
                   animate={animate}
                 />
               </div>
             </SectionCard>
-            <SectionCard title={`${periodLabel} · ${t.usage_tokens}`}>
+          )}
+          {summary.models.length > 0 && (
+            <SectionCard title={t.usage_models}>
               <div className="px-4 py-3">
-                <UsageRangeTrendChart
-                  days={summary.days}
-                  metric="tokens"
+                <ModelsContent
+                  t={t}
+                  models={summary.models}
                   animate={animate}
                 />
               </div>
             </SectionCard>
-          </div>
-
-          <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-2">
-            {summary.projects.length > 0 && (
-              <SectionCard title={t.usage_projects}>
-                <div className="px-4 py-3">
-                  <ProjectsContent
-                    t={t}
-                    projects={summary.projects}
-                    totalCost={summary.totalCost}
-                    animate={animate}
-                  />
-                </div>
-              </SectionCard>
-            )}
-            {summary.models.length > 0 && (
-              <SectionCard title={t.usage_models}>
-                <div className="px-4 py-3">
-                  <ModelsContent
-                    t={t}
-                    models={summary.models}
-                    animate={animate}
-                  />
-                </div>
-              </SectionCard>
-            )}
-          </div>
-        </>
+          )}
+          <SectionCard
+            title={t.usage_heatmap}
+            className="hidden @[1100px]:block @[1100px]:col-start-3 @[1100px]:row-start-2"
+          >
+            <TokenHeatmap
+              animate={animate}
+              data={heatmap ?? undefined}
+              bare
+              size="default"
+            />
+          </SectionCard>
+        </div>
       )}
     </div>
   );
@@ -619,9 +638,9 @@ export function UsageOverlay() {
         </div>
 
         {/* Control strip */}
-        <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden">
-          <div className="flex flex-wrap items-center gap-3 px-3 py-1.5">
-            <div className="flex items-center gap-1 rounded-md bg-[var(--bg)] p-0.5 border border-[var(--border)]">
+        <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-visible">
+          <div className="grid grid-cols-[auto_minmax(84px,1fr)_auto] @[760px]:grid-cols-[auto_minmax(92px,1fr)_minmax(0,520px)_auto] @[900px]:grid-cols-[auto_minmax(92px,1fr)_minmax(0,520px)_auto_auto] items-center gap-3 px-3 py-1.5">
+            <div className="flex items-center gap-1 rounded-md bg-[var(--bg)] p-0.5 border border-[var(--border)] min-w-0">
               {[
                 ["day", labelPeriodDay],
                 ["thisMonth", labelPeriodThisMonth],
@@ -641,7 +660,7 @@ export function UsageOverlay() {
                 </button>
               ))}
             </div>
-            <div className="flex-1 min-w-[220px]">
+            <div className="min-w-0">
               {periodMode === "day" ? (
                 <DateNavigator
                   date={date}
@@ -655,8 +674,15 @@ export function UsageOverlay() {
                 </div>
               ) : null}
             </div>
-            <InsightsButton compact />
-            <LoginButton />
+            <div className="hidden @[760px]:block min-w-0 max-w-full">
+              <QuotaStatus />
+            </div>
+            <div className="justify-self-end">
+              <InsightsButton compact />
+            </div>
+            <div className="hidden @[900px]:block justify-self-end min-w-0 whitespace-nowrap">
+              <LoginButton />
+            </div>
           </div>
         </div>
 
@@ -676,6 +702,7 @@ export function UsageOverlay() {
               periodLabel={periodLabel}
               t={t}
               animate={true}
+              heatmap={activeHeatmap}
             />
           ) : (
             <div className="px-4 py-8 text-center tc-caption">
@@ -696,9 +723,8 @@ export function UsageOverlay() {
               Compact fallback. Rendered when the canvas gap is too
               narrow for the full dashboard to read well. Keeps the
               same data model but cuts the grid rows to a single
-              column of essentials: hero total, today's hourly
-              spark, budget, and a 13-week ribbon. The heatmap
-              component auto-sizes to whatever inline space it has.
+              column of essentials: hero total and today's hourly
+              spark.
             */
             <div key={animKey} className="flex flex-col gap-4">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
@@ -735,17 +761,6 @@ export function UsageOverlay() {
                   />
                 </div>
               </SectionCard>
-
-              <QuotaSection inline />
-
-              <SectionCard title={t.usage_heatmap}>
-                <TokenHeatmap
-                  animate={true}
-                  data={activeHeatmap ?? undefined}
-                  bare
-                  size="auto"
-                />
-              </SectionCard>
             </div>
           ) : (
             <div key={animKey} className="flex flex-col gap-4">
@@ -756,7 +771,6 @@ export function UsageOverlay() {
                 tokenLabel={t.usage_tokens}
                 tokens={fmtTokens(activeTotalTokens)}
                 sessions={`${activeSummary.sessions} ${t.usage_sessions}`}
-                footer={<QuotaSection inline />}
               >
                 <MetricPill
                   label={t.usage_input}
@@ -777,7 +791,7 @@ export function UsageOverlay() {
                 />
               </OverviewCard>
 
-              <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2">
+              <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
                 <SectionCard title={t.usage_timeline}>
                   <div className="px-4 py-3">
                     <SparklineChart
@@ -799,56 +813,55 @@ export function UsageOverlay() {
                     />
                   </div>
                 </SectionCard>
-              </div>
-
-              <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)] items-start">
-                <div className="grid gap-4">
-                  {summary && (
-                    <SectionCard title={t.usage_cache_rate}>
-                      <div className="px-4 py-3">
-                        <CacheRateSection
-                          t={t}
-                          summary={summary}
-                          animate={true}
-                          bare
-                        />
-                      </div>
-                    </SectionCard>
-                  )}
-                  <SectionCard title={t.usage_heatmap}>
-                    <TokenHeatmap
-                      animate={true}
-                      data={activeHeatmap ?? undefined}
-                      bare
-                      size="default"
-                    />
+                {summary && (
+                  <SectionCard
+                    title={t.usage_cache_rate}
+                    className="hidden @[1100px]:block @[1100px]:col-start-3 @[1100px]:row-start-1"
+                  >
+                    <div className="px-4 py-3">
+                      <CacheRateSection
+                        t={t}
+                        summary={summary}
+                        animate={true}
+                        bare
+                      />
+                    </div>
                   </SectionCard>
-                </div>
-                <div className="grid gap-4 @[1180px]:grid-cols-2">
-                  {activeSummary.projects.length > 0 && (
-                    <SectionCard title={t.usage_projects}>
-                      <div className="px-4 py-3">
-                        <ProjectsContent
-                          t={t}
-                          projects={activeSummary.projects}
-                          totalCost={activeSummary.totalCost}
-                          animate={true}
-                        />
-                      </div>
-                    </SectionCard>
-                  )}
-                  {activeSummary.models.length > 0 && (
-                    <SectionCard title={t.usage_models}>
-                      <div className="px-4 py-3">
-                        <ModelsContent
-                          t={t}
-                          models={activeSummary.models}
-                          animate={true}
-                        />
-                      </div>
-                    </SectionCard>
-                  )}
-                </div>
+                )}
+                {activeSummary.projects.length > 0 && (
+                  <SectionCard title={t.usage_projects}>
+                    <div className="px-4 py-3">
+                      <ProjectsContent
+                        t={t}
+                        projects={activeSummary.projects}
+                        totalCost={activeSummary.totalCost}
+                        animate={true}
+                      />
+                    </div>
+                  </SectionCard>
+                )}
+                {activeSummary.models.length > 0 && (
+                  <SectionCard title={t.usage_models}>
+                    <div className="px-4 py-3">
+                      <ModelsContent
+                        t={t}
+                        models={activeSummary.models}
+                        animate={true}
+                      />
+                    </div>
+                  </SectionCard>
+                )}
+                <SectionCard
+                  title={t.usage_heatmap}
+                  className="hidden @[1100px]:block @[1100px]:col-start-3 @[1100px]:row-start-2"
+                >
+                  <TokenHeatmap
+                    animate={true}
+                    data={activeHeatmap ?? undefined}
+                    bare
+                    size="default"
+                  />
+                </SectionCard>
               </div>
 
               {isLoggedIn &&
