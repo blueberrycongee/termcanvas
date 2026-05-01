@@ -1,64 +1,66 @@
 ---
-title: "Pins Are Not Bookmarks: They Are Working Memory for AI Coding"
-seoTitle: "Pins Are Working Memory for AI Coding"
+title: "Why We Built Pins as Project Working Memory"
+seoTitle: "Why Pins Are Project Working Memory for AI Coding"
 date: 2026-05-01
 locale: en
 translationKey: pin-as-working-memory
 tag: "Workflow"
-summary: "A pin looks like a small note, but its real job is to preserve the context that AI coding work tends to lose: the problem, evidence, screenshots, links, and the next action."
+summary: "We did not need another bookmark list. We needed a way to keep problems, evidence, decisions, and next actions attached to the project so a human or agent could resume the work later."
 cover: /article-pin-working-memory.jpg
 ---
 
-Most tools have some version of “save this for later”: bookmarks, favorites, todos, issues, chat history. They all appear to solve the same problem: put something down now so you can return to it later.
+When we designed pins, we made one small but important decision: they should not be a global memo list.
 
-In AI coding workflows, that is not the hard part.
+A global memo list is straightforward to build. Give the user a text box, save a title and body, sort by time, and call it “later.” Many tools work this way, and it is enough for ordinary saved notes.
 
-The hard part is whether the thing still has enough context when it comes back. A screenshot of a layout bug, a failing command, a product decision from a review, or a thread of work an agent left half-finished may be small on its own. Once it is scattered across terminal scrollback, chat logs, and browser tabs, it slowly loses its ability to be acted on.
+AI coding exposed a different problem. The hard part was not finding a place to write things down. The hard part was reopening the work days later and discovering that the context had scattered. The screenshot was in chat. The failing command was in terminal scrollback. The product judgment was inside a review. The next action existed only in someone’s short-term memory.
 
-A few days later, you may still remember that something mattered. You no longer know exactly what it was, why it mattered, or who should pick it up next.
+The note still existed. The work was no longer resumable.
 
-That is the problem pins are meant to solve.
+So we designed pins as working memory beside the project. A pin is not primarily a saved idea. It is a small piece of context that future work can continue from.
 
 <figure>
   <img src="/article-inline-pin-handoff.jpg" alt="A pin becomes a handoff packet with context, evidence, expected outcome, and next action for an AI coding agent" />
-  <figcaption>A pin is most useful when it becomes a small context packet that a human or agent can pick up later.</figcaption>
+  <figcaption>A useful pin behaves like a handoff packet: context, evidence, expected outcome, and next action belong together.</figcaption>
 </figure>
 
 ## The ceiling of interactive agents
 
-The first way most people use a coding agent is as a smarter terminal session. Open a window, give it a task, wait for output, review the result, and steer the next turn.
+Interactive sessions are the natural starting point for coding agents. Open a terminal, describe the task, wait for the agent to work, review the result, and steer the next turn.
 
-That works well with one or two agents. It starts to break down when the workflow scales.
+That pattern works well with one or two sessions. It is direct, and it keeps human judgment in the loop.
 
-Once you have three to five sessions running, the attention cost becomes obvious. You have to remember what each agent is doing, which worktree it belongs to, whether it is stalled, whether its output can be trusted, and whether it discovered a follow-up that should not be lost.
+It starts to strain when parallelism increases. In our use, once a person is watching three to five agent sessions, the expensive part is no longer the agent runtime. It is the context switching. You have to remember which session belongs to which worktree, where each one is stuck, whether the output is trustworthy, and whether it discovered a follow-up that should not be lost.
 
-The agents may be fast. Human attention becomes the bottleneck.
+Those follow-ups are awkward. They are often real, but not important enough to interrupt the current task.
 
-The awkward part is that many important discoveries are not ready to become formal tasks. An agent may notice a real issue while implementing something else. A reviewer may spot a small product problem that should not block the current change. A user may send a screenshot while you are focused on another branch.
+For example:
 
-These fragments are too concrete to keep in your head, but too early to promote into full project management.
+- An agent fixing a test notices that a name is misleading its callers.
+- A reviewer sees a narrow-screen layout issue that is outside the current PR.
+- A user sends a screenshot while you are focused on another branch.
+- An experiment fails, but the reason it failed may be useful later.
 
-So they usually fall into chat history.
+If those fragments stay only in chat history, they become part of a timeline instead of part of the work system. A timeline is good at reconstructing a conversation. It is a poor handoff surface. A future engineer, a future agent, or you next week should not have to read dozens of turns to infer where the work should resume.
 
-Chat history is a timeline, not a workspace. It can reconstruct a conversation, but it is a poor handoff surface. A future agent, a collaborator, or even you next week should not have to read dozens of turns to guess what work is supposed to continue.
+## The shift: preserve recovery points
 
-## The shift: not saving notes, preserving resumable work
+We eventually reframed the problem: pins are not for saving content. They are for saving recovery points.
 
-A pin is not primarily a saved note.
+That changed the product shape. A recovery point needs at least four things:
 
-It is a small piece of unfinished work fixed near the project.
+- Context: why this exists.
+- Evidence: screenshot, log, link, or reproduction condition.
+- Expected outcome: what “done” means.
+- Next action: where a human or agent should begin.
 
-That difference matters. A bookmark asks whether something is worth keeping. A pin asks whether future work can resume from it. A useful pin is not just a title; it carries enough context to restart the loop.
-
-A weak pin says:
+That is why a weak pin should not stop at:
 
 ```text
 Fix login
 ```
 
-That tells you something exists. It does not tell you why, how to reproduce it, what good looks like, or who should handle it.
-
-A better pin is a small handoff packet:
+A better pin looks more like this:
 
 ```text
 Title: Fix the login button on narrow screens
@@ -74,52 +76,61 @@ Next action: Ask an agent to locate the layout component and test the
 narrow viewport.
 ```
 
-The point is not to make note-taking heavier. The point is to make the future cheaper. The more complete the context, the lower the cost of restarting the work.
+The point is not heavier note-taking. It is cheaper recovery. The more complete the context, the less the next worker has to ask, search, or guess.
 
-## Turning scattered project context into a control surface
+## Why pins live near the project
 
-Pins are useful because they live near the project.
+External todo tools can store tasks, but they are usually too far from the worksite.
 
-External todo tools are often too far from the code. You can write down a task, but when it is time to act you still need to find the repo, branch, terminal, screenshot, and discussion that made the task meaningful. For normal work, that is friction. For agentic work, it directly lowers output quality, because thin context makes agents guess.
+When it is time to act, you still need to find the repo, branch, terminal, screenshot, discussion, and current code state. For ordinary todos, that is friction. For agent workflows, it affects quality. Thin context makes agents fill gaps by guessing.
 
-In TermCanvas, pins are not a global memo list. They are project working memory. They live beside repos, worktrees, terminals, and agent sessions. When you open a project, the pin list does not answer “what did I save?” It answers: what is still open here, what can be handed to an agent, what needs human judgment, what is done, and what was deliberately dropped?
+In TermCanvas, pins are project objects. They sit alongside repos, worktrees, terminals, and agent sessions. When we open a project, we do not want the pin list to answer “what did I save?” We want it to answer:
 
-That makes pins closer to a lightweight control surface.
+- What is still open in this project?
+- What can be handed to an agent?
+- What needs human judgment first?
+- What is already closed?
+- What did we deliberately decide to drop?
 
-When a pin is dropped onto a terminal or given to an agent, it stops being a note and becomes input. The title, body, links, screenshots, and next action become a compact context packet for the next worker.
+That makes pins closer to a lightweight control surface. They are not a full project management system, and they should not replace an issue tracker. They cover a smaller, earlier, more contextual layer: things that are not worth doing right now, but would cost judgment to rediscover later.
 
-That is the difference between a pin and a typical todo. A todo usually describes what should be done. A pin tries to preserve where to continue from.
+When a pin is handed to a terminal or agent, it stops being a note and becomes input. The title, body, links, screenshots, and next action become the starting point for the prompt. The agent does not have to infer intent from the current chat. It receives a defined recovery point.
 
 ## The workflow changes
 
-When recording and handing off context becomes cheap, people start preserving things that previously were not worth the effort.
+Once preserving and handing off context becomes cheap, the way teams treat small work changes.
 
-That does not necessarily mean doing more work. It means keeping more options alive at a lower cost.
+We no longer have to choose between two bad options: do it immediately and interrupt the current task, or ignore it and probably lose it. Pins create a third option: fix the context in place and keep moving.
 
-A possible refactor can be pinned for later exploration. A UI bug can be captured with a screenshot without interrupting the current task. A review can produce a follow-up item instead of smuggling unrelated work into the current PR.
+This matters most when multiple agents are running. Boundaries become more important than speed. The current task should stay narrow. Side discoveries should be preserved instead of smuggled into the current PR. Otherwise one change slowly accumulates test fixes, UI cleanup, documentation edits, and product judgment until it becomes hard to review and hard to revert.
 
-Pins give those fragments a place to go. They do not have to become formal issues immediately. They also do not have to pollute the current agent’s task boundary.
+Pins give those side discoveries a cheap place to go:
 
-This matters even more when multiple agents are running. The danger is not that agents are slow. The danger is that their context gets mixed together. Pins provide a cheap routing layer: the current task continues, side discoveries are fixed in place, and the right human or agent can pick them up later.
+- Follow-ups from review can become independent work.
+- Failed experiments can keep their conclusion instead of leaving only a vague memory that they were tried.
+- User feedback can stay attached to the screenshot until the right agent picks it up.
+- A half-formed refactor can be explored later without turning into a large change immediately.
 
-## Tradeoffs and boundaries
+The deeper change is psychological cost. Small signals that were not worth recording before become worth preserving because they can actually be resumed. Resumability changes what we are willing to try.
 
-More pins are not automatically better.
+## New problems
 
-If everything becomes a pin, the list turns into another junk drawer. A healthy pin list is alive: open means it still needs attention, done means the loop is closed, and dropped means you deliberately decided not to continue.
+Pins introduce new problems.
 
-Dropped matters. Some work is not worth doing, but it is still worth preserving the reason. Otherwise, the same idea will reappear weeks later and cost you another round of judgment.
+The first is accumulation. If everything becomes a pin, the list turns into another inbox. We do not want pins to become a black hole for “later,” so they need explicit states: open, done, and dropped.
 
-Pins are also not a replacement for a project management system. Large features, cross-team plans, and scheduled work should still become issues or roadmap items. Pins are best for the space between “not now” and “do not lose this”: screenshots, traces, follow-ups, half-formed ideas, and small tasks an agent can pick up later.
+`done` means the loop is closed. `dropped` is just as important. It means we deliberately decided not to continue. Many ideas are not worth doing, but it is still useful to preserve why. Otherwise the same idea reappears weeks later and costs another round of judgment.
 
-## What pins are for
+The second problem is scope. Pins are not the right place for large plans, cross-team scheduling, compliance approvals, or roadmap work that needs long-term tracking. Those should still live in issues, docs, or project management systems. Pins fit the layer between “not now” and “do not lose this”: screenshots, traces, reproduction steps, follow-ups, and small agent-sized tasks.
 
-AI coding changes the developer’s role. You are no longer only writing code. You are managing agents, worktrees, and unfinished context across several threads of work.
+The third problem is quality. A vague pin only delays the ambiguity. We encourage writing pins as handoffs, not just titles. They do not need to be long. They need to be specific enough to restart work.
 
-In that workflow, the scarce resource is not another terminal window. It is resumable context.
+## What we learned
 
-Pins fix that context near the project so a future human or agent can continue from a clear handoff point instead of digging through chat history and terminal scrollback.
+AI coding changes development from single-threaded execution into multi-threaded coordination. You are not only writing code. You are managing agents, worktrees, terminals, PRs, test results, and unfinished judgments.
 
-A pin is not a bookmark.
+In that workflow, the scarce resource is not another window. It is resumable context.
 
-It is project working memory.
+Pins fix context beside the project so a future human or agent can continue from a clear recovery point. They are not bookmarks, and they are not a project management system. They are working memory: light enough to capture quickly, structured enough to restart work, and close enough to the project that context does not scatter during the next switch.
+
+That is the standard we use for pins. Their value is not saving more things. Their value is making important small work depend less on human short-term memory.
