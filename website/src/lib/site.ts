@@ -74,14 +74,14 @@ export const siteCopy = {
         },
         {
           label: "04",
-          title: "Composer 统一输入",
-          body: "一条命令栏把 prompt 发给当前 focus 的 agent，支持图片粘贴、上下文引用。不必在多个终端之间反复切焦点。",
+          title: "Pin 项目工作记忆",
+          body: "把截图、失败日志、判断和下一步固定在项目旁边。Pin 可以留在本地，也可以连接 Linear、飞书、Notion 或 GitHub Issues。",
         },
       ],
-      hubEyebrow: "Hub 视图",
+      hubEyebrow: "Pin 工作流",
       hubBody:
-        "所有会话以知识图谱方式呈现，支持跨会话引用、检索、归档。长期项目的上下文不再丢失在终端历史里。",
-      hubAlt: "TermCanvas Hub 知识图谱视图与会话侧栏",
+        "把本地 insight 整理成可交接的上下文包，再交给 agent、人或 Hydra headless 流水线继续执行。长期项目的线索不再丢在聊天记录和终端历史里。",
+      hubAlt: "TermCanvas Pin 工作流与项目上下文交接",
     },
     articles: {
       eyebrow: "文章",
@@ -147,14 +147,14 @@ export const siteCopy = {
         },
         {
           label: "04",
-          title: "Unified composer",
-          body: "Send prompts to the focused agent from one input surface, with image paste and context references when the task needs them.",
+          title: "Pins as project memory",
+          body: "Keep screenshots, failing logs, judgments, and next actions beside the project. Pins can stay local or connect to Linear, Feishu, Notion, and GitHub Issues.",
         },
       ],
-      hubEyebrow: "Hub view",
+      hubEyebrow: "Pin workflow",
       hubBody:
-        "Sessions can be reviewed as a knowledge graph, with cross-session references, search, and archival context for long-running projects.",
-      hubAlt: "TermCanvas Hub view with a knowledge graph and session sidebar",
+        "Turn local insight into a handoff packet that an agent, a human, or a Hydra headless pipeline can continue from. Long-running project context no longer disappears into chat logs and terminal scrollback.",
+      hubAlt: "TermCanvas pin workflow with project context and agent handoff",
     },
     articles: {
       eyebrow: "Articles",
