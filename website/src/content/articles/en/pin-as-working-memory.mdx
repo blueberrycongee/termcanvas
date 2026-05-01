@@ -5,7 +5,7 @@ date: 2026-05-01
 locale: en
 translationKey: pin-as-working-memory
 tag: "Workflow"
-summary: "We did not need another bookmark list. We needed a way to keep problems, evidence, decisions, and next actions attached to the project so a human or agent could resume the work later."
+summary: "We did not need another bookmark list. We needed a way to keep problems, evidence, decisions, and next actions attached to the project while still connecting to shared systems."
 cover: /article-pin-working-memory.jpg
 ---
 
@@ -96,6 +96,24 @@ That makes pins closer to a lightweight control surface. They are not a full pro
 
 When a pin is handed to a terminal or agent, it stops being a note and becomes input. The title, body, links, screenshots, and next action become the starting point for the prompt. The agent does not have to infer intent from the current chat. It receives a defined recovery point.
 
+## Decentralized working memory
+
+Pins have another property that is easy to miss: they do not require all work to move into one central system.
+
+Teams already have mature surfaces for permissions and collaboration. Linear can manage product work. Feishu and Notion can hold documents and discussion. GitHub Issues can stay close to code and PRs. Each system has its own permissions, notification behavior, and organizational habits. Pins should not reimplement all of that.
+
+The better pattern is to let those tools keep doing what they are good at: deciding who can see something, who can edit it, what should be shared, and what belongs in the formal workflow. Pins handle a different layer: the local insight, evidence, and next action that appear while you are doing the work.
+
+That gives pins two useful shapes.
+
+One is personal. Local pins can hold judgments that are not ready to publish: why an experiment failed, why an agent result was not trustworthy, or why a design direction is not worth pursuing yet. Those insights may not belong in a team system immediately, but they change what you do next.
+
+The other is collaborative. A pin can reference Linear, Feishu, Notion, or a GitHub Issue and bring shared context into the local execution surface. It can also start locally, get refined with evidence and a next action, and later become an external task or comment. The external system remains the permission and sharing surface. TermCanvas carries the execution context.
+
+When this pattern is combined with Hydra headless, pins can also become part of a centralized pipeline. A team can run headless agent workflows in the cloud that pull from shared task systems, create or update pins, dispatch agents, and write back results. Local TermCanvas sessions can still participate in the same loop: you can take over a pin, add evidence, change the next action, or send a local finding back into the cloud workflow.
+
+This is neither purely local-first nor purely centralized collaboration. Pins are portable working memory. They can stay on one machine or connect to team systems. They can support private judgment or become input to an agent pipeline.
+
 ## The workflow changes
 
 Once preserving and handing off context becomes cheap, the way teams treat small work changes.
@@ -121,7 +139,7 @@ The first is accumulation. If everything becomes a pin, the list turns into anot
 
 `done` means the loop is closed. `dropped` is just as important. It means we deliberately decided not to continue. Many ideas are not worth doing, but it is still useful to preserve why. Otherwise the same idea reappears weeks later and costs another round of judgment.
 
-The second problem is scope. Pins are not the right place for large plans, cross-team scheduling, compliance approvals, or roadmap work that needs long-term tracking. Those should still live in issues, docs, or project management systems. Pins fit the layer between “not now” and “do not lose this”: screenshots, traces, reproduction steps, follow-ups, and small agent-sized tasks.
+The second problem is scope. Pins are not the right place for large plans, cross-team scheduling, compliance approvals, or roadmap work that needs long-term tracking. Those should still live in Linear, Feishu, Notion, GitHub Issues, docs, or project management systems. Pins fit the layer between “not now” and “do not lose this”: screenshots, traces, reproduction steps, follow-ups, and small agent-sized tasks.
 
 The third problem is quality. A vague pin only delays the ambiguity. We encourage writing pins as handoffs, not just titles. They do not need to be long. They need to be specific enough to restart work.
 
@@ -131,6 +149,6 @@ AI coding changes development from single-threaded execution into multi-threaded
 
 In that workflow, the scarce resource is not another window. It is resumable context.
 
-Pins fix context beside the project so a future human or agent can continue from a clear recovery point. They are not bookmarks, and they are not a project management system. They are working memory: light enough to capture quickly, structured enough to restart work, and close enough to the project that context does not scatter during the next switch.
+Pins fix context beside the project so a future human or agent can continue from a clear recovery point. They are not bookmarks, and they are not a project management system. They are working memory: light enough to capture quickly, structured enough to restart work, close enough to the project that context does not scatter during the next switch, and open enough to connect with shared tools and cloud agent pipelines.
 
 That is the standard we use for pins. Their value is not saving more things. Their value is making important small work depend less on human short-term memory.
