@@ -1,8 +1,26 @@
 ---
+import {
+  articlesPath,
+  defaultLocale,
+  localeLabels,
+  siteCopy,
+  withLocale,
+  type Locale,
+} from "../lib/site";
+
+export interface Props {
+  locale?: Locale;
+  alternatePaths?: Partial<Record<Locale, string>>;
+}
+
+const { locale = defaultLocale, alternatePaths = {} } = Astro.props;
+const copy = siteCopy[locale];
+const otherLocale: Locale = locale === "zh" ? "en" : "zh";
+const languageHref = alternatePaths[otherLocale] ?? withLocale(otherLocale);
 const navItems = [
-  { href: "/articles", label: "文章" },
-  { href: "https://github.com/blueberrycongee/termcanvas/releases", label: "下载" },
-  { href: "https://github.com/blueberrycongee/termcanvas", label: "GitHub" },
+  { href: articlesPath(locale), label: copy.nav.articles },
+  { href: "https://github.com/blueberrycongee/termcanvas/releases", label: copy.nav.download },
+  { href: "https://github.com/blueberrycongee/termcanvas", label: copy.nav.github },
 ];
 
 const path = Astro.url.pathname;
@@ -10,7 +28,7 @@ const path = Astro.url.pathname;
 
 <header class="site-header">
   <div class="container-page flex h-14 items-center justify-between">
-    <a href="/" class="brand" aria-label="TermCanvas 首页">
+    <a href={withLocale(locale)} class="brand" aria-label={copy.name}>
       <img class="brand-logo" src="/logo.svg" alt="" width="28" height="28" />
       <span class="brand-name">TermCanvas</span>
     </a>
@@ -31,6 +49,9 @@ const path = Astro.url.pathname;
           );
         })
       }
+      <a class="nav-link language-link" href={languageHref} hreflang={otherLocale}>
+        {localeLabels[otherLocale]}
+      </a>
     </nav>
   </div>
 </header>
@@ -72,5 +93,10 @@ const path = Astro.url.pathname;
   .nav-link-active {
     color: var(--color-ink);
     background: var(--color-surface-muted);
+  }
+  .language-link {
+    margin-left: 0.25rem;
+    border: 1px solid var(--color-border-soft);
+    background: var(--color-surface);
   }
 </style>

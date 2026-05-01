@@ -3,10 +3,23 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Hero from "../components/Hero.astro";
 import Features from "../components/Features.astro";
 import ArticlesPreview from "../components/ArticlesPreview.astro";
+import { siteCopy } from "../lib/site";
+
+const locale = "zh";
+const alternatePaths = {
+  zh: "/zh/",
+  en: "/en/",
+};
 ---
 
-<BaseLayout title="TermCanvas — 把所有终端铺到一张无限画布上">
-  <Hero />
-  <Features />
-  <ArticlesPreview />
+<BaseLayout
+  title={siteCopy[locale].homeTitle}
+  description={siteCopy[locale].defaultDescription}
+  locale={locale}
+  canonicalPath="/zh/"
+  alternatePaths={alternatePaths}
+>
+  <Hero locale={locale} />
+  <Features locale={locale} />
+  <ArticlesPreview locale={locale} />
 </BaseLayout>

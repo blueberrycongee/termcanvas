@@ -2,24 +2,53 @@
 import "../styles/global.css";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFooter from "../components/SiteFooter.astro";
+import {
+  absoluteUrl,
+  defaultLocale,
+  localeHtmlLang,
+  locales,
+  siteCopy,
+  type Locale,
+} from "../lib/site";
 
 export interface Props {
   title: string;
   description?: string;
   ogImage?: string;
+  ogType?: "website" | "article";
+  locale?: Locale;
+  canonicalPath?: string;
+  alternatePaths?: Partial<Record<Locale, string>>;
+  structuredData?: Record<string, unknown> | Record<string, unknown>[];
 }
 
 const {
   title,
-  description = "TermCanvas — 把所有终端铺到一张无限画布上，第一类支持 AI 编码 agent。",
+  locale = defaultLocale,
+  description = siteCopy[locale].defaultDescription,
   ogImage = "/hero-canvas.png",
+  ogType = "website",
+  canonicalPath = Astro.url.pathname,
+  alternatePaths = {},
+  structuredData,
 } = Astro.props;
 
-const canonical = new URL(Astro.url.pathname, Astro.site).toString();
+const canonical = absoluteUrl(Astro.site, canonicalPath);
+const ogImageUrl = absoluteUrl(Astro.site, ogImage);
+const alternates = locales
+  .map((item) => ({
+    locale: item,
+    href: alternatePaths[item],
+  }))
+  .filter((item): item is { locale: Locale; href: string } => Boolean(item.href));
+const defaultAlternate = alternatePaths[defaultLocale];
+const jsonLd = structuredData
+  ? JSON.stringify(structuredData).replace(/</g, "\\u003c")
+  : null;
 ---
 
 <!doctype html>
-<html lang="zh-CN">
+<html lang={localeHtmlLang[locale]}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -27,6 +56,20 @@ const canonical = new URL(Astro.url.pathname, Astro.site).toString();
     <link rel="alternate icon" type="image/png" href="/icon.png" />
     <link rel="apple-touch-icon" href="/icon.png" />
     <link rel="canonical" href={canonical} />
+    {
+      alternates.map((item) => (
+        <link
+          rel="alternate"
+          hreflang={localeHtmlLang[item.locale]}
+          href={absoluteUrl(Astro.site, item.href)}
+        />
+      ))
+    }
+    {
+      defaultAlternate && (
+        <link rel="alternate" hreflang="x-default" href={absoluteUrl(Astro.site, defaultAlternate)} />
+      )
+    }
     <link rel="preconnect" href="https://cdn.jsdelivr.net" />
     <link
       rel="stylesheet"
@@ -40,19 +83,22 @@ const canonical = new URL(Astro.url.pathname, Astro.site).toString();
     <meta name="description" content={description} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content={ogImage} />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:locale" content={localeHtmlLang[locale].replace("-", "_")} />
+    <meta property="og:type" content={ogType} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
-    <meta name="twitter:image" content={ogImage} />
+    <meta name="twitter:image" content={ogImageUrl} />
     <meta name="generator" content={Astro.generator} />
+    {jsonLd && <script type="application/ld+json" set:html={jsonLd} />}
   </head>
   <body>
-    <SiteHeader />
+    <SiteHeader locale={locale} alternatePaths={alternatePaths} />
     <main>
       <slot />
     </main>
-    <SiteFooter />
+    <SiteFooter locale={locale} />
   </body>
 </html>

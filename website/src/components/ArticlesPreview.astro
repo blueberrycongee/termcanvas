@@ -1,8 +1,24 @@
 ---
 import { getCollection } from "astro:content";
 import ArticleCard from "./ArticleCard.astro";
+import {
+  articlePath,
+  articlesPath,
+  defaultLocale,
+  siteCopy,
+  type Locale,
+} from "../lib/site";
 
-const all = await getCollection("articles");
+export interface Props {
+  locale?: Locale;
+}
+
+const { locale = defaultLocale } = Astro.props;
+const copy = siteCopy[locale].articles;
+const all = await getCollection(
+  "articles",
+  ({ data }) => data.draft !== true && data.locale === locale
+);
 const sorted = all.sort(
   (a, b) => b.data.date.valueOf() - a.data.date.valueOf()
 );
@@ -13,24 +29,25 @@ const latest = sorted.slice(0, 3);
   <div class="container-page">
     <div class="head">
       <div>
-        <span class="label-mono">文章</span>
-        <h2 class="title">设计哲学，工程实录，思考片段。</h2>
+        <span class="label-mono">{copy.eyebrow}</span>
+        <h2 class="title">{copy.title}</h2>
       </div>
-      <a class="view-all" href="/articles">查看全部 →</a>
+      <a class="view-all" href={articlesPath(locale)}>{copy.viewAll} →</a>
     </div>
     {
       latest.length === 0 ? (
-        <p class="empty">还没有文章。</p>
+        <p class="empty">{copy.empty}</p>
       ) : (
         <div class="grid">
           {latest.map((entry) => (
             <ArticleCard
-              href={`/articles/${entry.id}`}
+              href={articlePath(locale, entry.id)}
               title={entry.data.title}
               date={entry.data.date}
               summary={entry.data.summary}
               tag={entry.data.tag}
               cover={entry.data.cover}
+              locale={locale}
             />
           ))}
         </div>

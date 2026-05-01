@@ -1,4 +1,6 @@
 ---
+import { dateLocales, defaultLocale, siteCopy, type Locale } from "../lib/site";
+
 export interface Props {
   href: string;
   title: string;
@@ -6,11 +8,13 @@ export interface Props {
   summary: string;
   tag?: string;
   cover?: string;
+  locale?: Locale;
 }
 
-const { href, title, date, summary, tag, cover } = Astro.props;
+const { href, title, date, summary, tag, cover, locale = defaultLocale } = Astro.props;
+const copy = siteCopy[locale].articles;
 
-const formatter = new Intl.DateTimeFormat("zh-CN", {
+const formatter = new Intl.DateTimeFormat(dateLocales[locale], {
   year: "numeric",
   month: "long",
   day: "numeric",
@@ -33,7 +37,7 @@ const dateLabel = formatter.format(date);
     </div>
     <h3 class="card-title">{title}</h3>
     <p class="card-summary">{summary}</p>
-    <span class="card-cta">阅读全文 →</span>
+    <span class="card-cta">{copy.readMore} →</span>
   </div>
 </a>
 

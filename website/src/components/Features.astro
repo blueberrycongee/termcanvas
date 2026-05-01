@@ -1,37 +1,23 @@
 ---
-const features = [
-  {
-    label: "01",
-    title: "无限空间画布",
-    body: "用 pan / zoom / 拖拽组织所有终端会话。Tab 和 split pane 不再是必要——把上下文铺开，靠空间记忆而不是窗口管理来导航。",
-  },
-  {
-    label: "02",
-    title: "AI agent 第一公民",
-    body: "Claude Code、Codex、Gemini、Kimi、OpenCode 都能在同一张画布并行运行。每个 agent 有独立终端、独立 worktree、可视的状态徽标。",
-  },
-  {
-    label: "03",
-    title: "Hydra 编排系统",
-    body: "Lead-driven decider 模式：你（Lead）在结构化决策点做判断，Hydra 处理 dispatch / watch / merge 的运维。专为 LLM 决策者特化。",
-  },
-  {
-    label: "04",
-    title: "Composer 统一输入",
-    body: "一条命令栏把 prompt 发给当前 focus 的 agent，支持图片粘贴、上下文引用。再也不用在 N 个终端之间来回切焦点。",
-  },
-];
+import { defaultLocale, siteCopy, type Locale } from "../lib/site";
+
+export interface Props {
+  locale?: Locale;
+}
+
+const { locale = defaultLocale } = Astro.props;
+const copy = siteCopy[locale].features;
 ---
 
 <section class="features">
   <div class="container-page">
     <div class="features-head">
-      <span class="label-mono">特性</span>
-      <h2 class="features-title">不是另一个终端，是终端的下一种形态。</h2>
+      <span class="label-mono">{copy.eyebrow}</span>
+      <h2 class="features-title">{copy.title}</h2>
     </div>
     <div class="features-grid">
       {
-        features.map((f) => (
+        copy.items.map((f) => (
           <article class="feature-card">
             <span class="feature-label">{f.label}</span>
             <h3 class="feature-title">{f.title}</h3>
@@ -42,11 +28,11 @@ const features = [
     </div>
     <div class="features-art">
       <div class="features-art-frame">
-        <img src="/hero-hub.png" alt="TermCanvas Hub — 知识图谱视图与会话侧栏" loading="lazy" />
+        <img src="/hero-hub.png" alt={copy.hubAlt} loading="lazy" />
       </div>
       <div class="features-art-caption">
-        <span class="label-mono">Hub 视图</span>
-        <p>所有会话以知识图谱方式呈现，支持跨会话引用、检索、归档。长期项目的上下文不再丢失在终端历史里。</p>
+        <span class="label-mono">{copy.hubEyebrow}</span>
+        <p>{copy.hubBody}</p>
       </div>
     </div>
   </div>

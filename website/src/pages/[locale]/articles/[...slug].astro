@@ -1,30 +1,50 @@
 ---
 import { getCollection, render } from "astro:content";
-import BaseLayout from "../../layouts/BaseLayout.astro";
+import BaseLayout from "../../../layouts/BaseLayout.astro";
 import {
   absoluteUrl,
   articlePath,
+  articleSlugForLocale,
   articlesPath,
   dateLocales,
+  localeHtmlLang,
+  locales,
   siteCopy,
   type Locale,
-} from "../../lib/site";
+} from "../../../lib/site";
 
 export async function getStaticPaths() {
-  const entries = await getCollection(
-    "articles",
-    ({ data }) => data.draft !== true && data.locale === "zh"
-  );
-  return entries.map((entry) => ({
-    params: { slug: entry.id },
-    props: { entry },
-  }));
+  const entries = await getCollection("articles", ({ data }) => data.draft !== true);
+  return entries.map((entry) => {
+    const locale = entry.data.locale;
+    return {
+      params: {
+        locale,
+        slug: articleSlugForLocale(entry.id, locale),
+      },
+      props: { entry, locale },
+    };
+  });
 }
 
-const { entry } = Astro.props;
+const { entry, locale } = Astro.props as {
+  entry: Awaited<ReturnType<typeof getCollection<"articles">>>[number];
+  locale: Locale;
+};
 const { Content } = await render(entry);
-const locale: Locale = "zh";
 const copy = siteCopy[locale].articles;
+const allEntries = await getCollection("articles", ({ data }) => data.draft !== true);
+const translationEntries = entry.data.translationKey
+  ? allEntries.filter((item) => item.data.translationKey === entry.data.translationKey)
+  : [entry];
+const alternatePaths = Object.fromEntries(
+  locales
+    .map((item) => {
+      const translated = translationEntries.find((entryItem) => entryItem.data.locale === item);
+      return translated ? [item, articlePath(item, translated.id)] : null;
+    })
+    .filter((item): item is [Locale, string] => item !== null)
+) as Partial<Record<Locale, string>>;
 
 const formatter = new Intl.DateTimeFormat(dateLocales[locale], {
   year: "numeric",
@@ -33,9 +53,6 @@ const formatter = new Intl.DateTimeFormat(dateLocales[locale], {
 });
 const dateLabel = formatter.format(entry.data.date);
 const canonicalPath = articlePath(locale, entry.id);
-const alternatePaths: Partial<Record<Locale, string>> = {
-  zh: canonicalPath,
-};
 const title = `${entry.data.seoTitle ?? entry.data.title} · TermCanvas`;
 const cover = entry.data.cover ?? "/hero-canvas.png";
 const structuredData = {
@@ -45,7 +62,7 @@ const structuredData = {
   description: entry.data.summary,
   datePublished: entry.data.date.toISOString(),
   dateModified: (entry.data.updated ?? entry.data.date).toISOString(),
-  inLanguage: "zh-CN",
+  inLanguage: localeHtmlLang[locale],
   image: absoluteUrl(Astro.site, cover),
   mainEntityOfPage: absoluteUrl(Astro.site, canonicalPath),
   author: {

@@ -1,0 +1,36 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Hero from "../../components/Hero.astro";
+import Features from "../../components/Features.astro";
+import ArticlesPreview from "../../components/ArticlesPreview.astro";
+import { isLocale, locales, siteCopy, withLocale } from "../../lib/site";
+
+export function getStaticPaths() {
+  return locales.map((locale) => ({
+    params: { locale },
+    props: { locale },
+  }));
+}
+
+const { locale } = Astro.props;
+if (!isLocale(locale)) {
+  return Astro.redirect("/");
+}
+
+const alternatePaths = {
+  zh: withLocale("zh"),
+  en: withLocale("en"),
+};
+---
+
+<BaseLayout
+  title={siteCopy[locale].homeTitle}
+  description={siteCopy[locale].defaultDescription}
+  locale={locale}
+  canonicalPath={withLocale(locale)}
+  alternatePaths={alternatePaths}
+>
+  <Hero locale={locale} />
+  <Features locale={locale} />
+  <ArticlesPreview locale={locale} />
+</BaseLayout>

@@ -1,4 +1,12 @@
 ---
+import { articlesPath, defaultLocale, siteCopy, type Locale } from "../lib/site";
+
+export interface Props {
+  locale?: Locale;
+}
+
+const { locale = defaultLocale } = Astro.props;
+const copy = siteCopy[locale];
 const year = new Date().getFullYear();
 ---
 
@@ -10,31 +18,31 @@ const year = new Date().getFullYear();
           <img class="brand-logo" src="/logo.svg" alt="" width="24" height="24" />
           <span class="brand-name">TermCanvas</span>
         </div>
-        <p class="muted mt-2">把所有终端铺到一张无限画布上。</p>
+        <p class="muted mt-2">{copy.footer.tagline}</p>
       </div>
       <div>
-        <div class="label-mono mb-3">项目</div>
+        <div class="label-mono mb-3">{copy.footer.project}</div>
         <ul class="space-y-1.5">
           <li>
-            <a class="link" href="https://github.com/blueberrycongee/termcanvas">GitHub 仓库</a>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas">{copy.footer.repository}</a>
           </li>
           <li>
             <a class="link" href="https://github.com/blueberrycongee/termcanvas/releases"
-              >下载与发布</a
+              >{copy.footer.releases}</a
             >
           </li>
           <li>
-            <a class="link" href="https://github.com/blueberrycongee/termcanvas/issues">问题反馈</a>
+            <a class="link" href="https://github.com/blueberrycongee/termcanvas/issues">{copy.footer.issues}</a>
           </li>
         </ul>
       </div>
       <div>
-        <div class="label-mono mb-3">阅读</div>
+        <div class="label-mono mb-3">{copy.footer.reading}</div>
         <ul class="space-y-1.5">
-          <li><a class="link" href="/articles">文章列表</a></li>
+          <li><a class="link" href={articlesPath(locale)}>{copy.footer.articles}</a></li>
           <li>
             <a class="link" href="https://github.com/blueberrycongee/termcanvas/blob/main/README.md"
-              >README</a
+              >{copy.footer.readme}</a
             >
           </li>
         </ul>

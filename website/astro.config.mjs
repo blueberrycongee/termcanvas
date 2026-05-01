@@ -5,7 +5,15 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   site: "https://termcanvas.dev",
-  integrations: [mdx(), sitemap()],
+  integrations: [
+    mdx(),
+    sitemap({
+      filter: (page) => {
+        const pathname = new URL(page).pathname;
+        return pathname.startsWith("/zh/") || pathname.startsWith("/en/");
+      },
+    }),
+  ],
   vite: {
     plugins: [tailwindcss()],
   },
