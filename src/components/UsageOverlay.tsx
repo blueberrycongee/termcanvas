@@ -282,7 +282,7 @@ function UsageRangeDashboard({
   const hasUsage = totalTokens > 0 || summary.totalCost > 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <OverviewCard
         label={`${periodLabel} · ${summary.startDate} - ${summary.endDate}`}
         costLabel={t.usage_cost ?? "Cost"}
@@ -314,7 +314,7 @@ function UsageRangeDashboard({
           {t.usage_no_data}
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+        <div className="grid gap-x-4 gap-y-5 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
           <SectionCard title={`${periodLabel} · ${t.usage_month_trend}`}>
             <div className="px-4 py-3">
               <UsageRangeTrendChart
@@ -726,7 +726,7 @@ export function UsageOverlay() {
               column of essentials: hero total and today's hourly
               spark.
             */
-            <div key={animKey} className="flex flex-col gap-4">
+            <div key={animKey} className="flex flex-col gap-5">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
                 <div className="tc-eyebrow tc-mono tc-color-secondary">{labelToday}</div>
                 <div className="mt-2 tc-stat-xl">
@@ -763,7 +763,7 @@ export function UsageOverlay() {
               </SectionCard>
             </div>
           ) : (
-            <div key={animKey} className="flex flex-col gap-4">
+            <div key={animKey} className="flex flex-col gap-5">
               <OverviewCard
                 label={labelToday}
                 costLabel={t.usage_cost ?? "Cost"}
@@ -791,7 +791,7 @@ export function UsageOverlay() {
                 />
               </OverviewCard>
 
-              <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
+              <div className="grid gap-x-4 gap-y-5 grid-cols-1 @[760px]:grid-cols-2 @[1100px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_300px]">
                 <SectionCard title={t.usage_timeline}>
                   <div className="px-4 py-3">
                     <SparklineChart
