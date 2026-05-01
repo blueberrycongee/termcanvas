@@ -140,7 +140,7 @@ function MiniCalendar({
         {t.usage_cal_weekdays.map((day) => (
           <div
             key={day}
-            className="text-center text-[9px] text-[var(--text-faint)] py-0.5 font-medium"
+            className="text-center text-[9px] text-[var(--text-secondary)] py-0.5 font-medium"
           >
             {day}
           </div>
@@ -234,7 +234,7 @@ export function DateNavigator({
               height="13"
               viewBox="0 0 14 14"
               fill="none"
-              className="text-[var(--text-muted)] shrink-0"
+              className="text-[var(--text-secondary)] shrink-0"
             >
               <rect
                 x="1.5"
@@ -264,13 +264,13 @@ export function DateNavigator({
                 strokeWidth="1.2"
               />
             </svg>
-            <span className="tc-eyebrow tc-mono mr-auto">{t.usage_title}</span>
+            <span className="tc-eyebrow tc-mono tc-color-secondary mr-auto">{t.usage_title}</span>
           </>
         )}
 
         <button
           onClick={() => onDateChange(addDays(date, -1))}
-          className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+          className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
         >
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
             <path
@@ -297,7 +297,7 @@ export function DateNavigator({
           className={`w-5 h-5 flex items-center justify-center rounded transition-colors ${
             isTomorrow
               ? "text-[var(--text-faint)] cursor-default"
-              : "hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              : "hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
           }`}
         >
           <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
@@ -323,7 +323,7 @@ export function DateNavigator({
         {onCollapse && (
           <button
             onClick={onCollapse}
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors shrink-0"
+            className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors shrink-0"
           >
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path

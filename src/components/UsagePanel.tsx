@@ -34,6 +34,7 @@ export function fmtCost(c: number): string {
 }
 
 export function fmtTokens(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
@@ -242,7 +243,7 @@ function CollapsibleSection({
             strokeLinejoin="round"
           />
         </svg>
-        <span className="tc-eyebrow">{title}</span>
+        <span className="tc-eyebrow tc-color-secondary">{title}</span>
       </button>
       {open && <div className="mt-2">{children}</div>}
     </div>
@@ -267,11 +268,11 @@ export function SummarySection({
     <div className="px-3 pt-2.5 pb-3">
       <div className="flex items-baseline justify-between gap-2">
         <span className="tc-stat-lg">{fmtCost(animatedCost)}</span>
-        <span className="tc-caption tc-mono tc-num">
+        <span className="tc-caption tc-mono tc-num tc-color-secondary font-medium">
           ≈ ¥{Math.round(summary.totalCost * 7.28)}
         </span>
       </div>
-      <div className="flex items-center gap-2 mt-2 tc-caption tc-mono tc-num">
+      <div className="flex items-center gap-2 mt-2 tc-caption tc-mono tc-num tc-color-secondary font-medium">
         <span>
           {fmtTokens(totalTokens)} {t.usage_tokens}
         </span>
@@ -280,7 +281,7 @@ export function SummarySection({
           {summary.sessions} {t.usage_sessions}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 tc-caption tc-mono tc-num text-[var(--text-muted)]">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 tc-caption tc-mono tc-num tc-color-secondary font-medium">
         <span>
           {t.usage_input} {fmtTokens(summary.totalInput)}
         </span>
@@ -296,7 +297,7 @@ export function SummarySection({
       </div>
       {monthlyData && monthlyData.cost > 0 && (
         <div className="mt-2.5 pt-2.5 border-t border-[var(--border)] flex items-center justify-between">
-          <span className="tc-eyebrow">{t.usage_monthly}</span>
+          <span className="tc-eyebrow tc-color-secondary">{t.usage_monthly}</span>
           <div className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 tc-caption tc-mono tc-num">
             <span className="text-[var(--text-secondary)] font-medium">
               {fmtTokens(monthlyData.tokens)} {t.usage_tokens}
@@ -307,7 +308,7 @@ export function SummarySection({
             {monthlyData.dailyAvg !== undefined && monthlyData.dailyAvg > 0 && (
               <>
                 <span className="text-[var(--text-faint)]">·</span>
-                <span className="text-[var(--text-faint)]">
+                <span className="text-[var(--text-secondary)] font-medium">
                   ∅ {fmtCost(monthlyData.dailyAvg)}
                 </span>
               </>
@@ -330,7 +331,7 @@ export function TimelineSection({
 }) {
   return (
     <div className="px-3 py-2.5">
-      <span className="tc-eyebrow">{t.usage_timeline}</span>
+      <span className="tc-eyebrow tc-color-secondary">{t.usage_timeline}</span>
       <div className="mt-2">
         <SparklineChart
           buckets={summary.buckets}
@@ -492,7 +493,7 @@ export function CacheRateSection({
             className="grid items-center gap-2"
             style={{ gridTemplateColumns: "56px 88px 36px" }}
           >
-            <span className="text-[10px] text-[var(--text-muted)] truncate">
+            <span className="text-[10px] text-[var(--text-secondary)] font-medium truncate">
               {row.label}
             </span>
             <Bar
@@ -502,7 +503,7 @@ export function CacheRateSection({
               animate={animate}
               delay={i * 60}
             />
-            <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
+            <span className="text-[10px] text-[var(--text-secondary)] font-medium text-right tc-mono tc-num">
               {Math.round(row.rate * 100)}%
             </span>
           </div>
@@ -515,7 +516,7 @@ export function CacheRateSection({
 
   return (
     <div className="px-3 py-2.5">
-      <span className="tc-eyebrow">{t.usage_cache_rate}</span>
+      <span className="tc-eyebrow tc-color-secondary">{t.usage_cache_rate}</span>
       <div className="mt-2">{body}</div>
     </div>
   );
@@ -546,15 +547,15 @@ export function ProjectsContent({
                 {fmtCost(p.cost)}
               </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
-              <span className="text-[var(--text-muted)]">
+              <span className="text-[var(--text-secondary)]">
                 {fmtTokens(totalUsageTokens(p))} {t.usage_tokens_label}
               </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
-              <span className="text-[var(--text-muted)]">
+              <span className="text-[var(--text-secondary)]">
                 {p.calls} {t.usage_calls}
               </span>
               <span className="text-[var(--text-faint)] mx-1">·</span>
-              <span className="text-[var(--text-muted)]">
+              <span className="text-[var(--text-secondary)]">
                 {pct(p.cost, totalCost)}
               </span>
             </div>
@@ -577,7 +578,7 @@ export function ProjectsContent({
               delay={i * 60}
               width="112px"
             />
-            <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
+            <span className="text-[10px] text-[var(--text-secondary)] font-medium text-right tc-mono tc-num">
               {pct(p.cost, totalCost)}
             </span>
           </div>
@@ -623,7 +624,7 @@ export function ModelsContent({
             tooltip={
               <div className="text-[10px] tc-mono tc-num">
                 <div className="text-[var(--text-secondary)]">{m.model}</div>
-                <div className="text-[var(--text-muted)] mt-0.5">
+                <div className="text-[var(--text-secondary)] mt-0.5">
                   {fmtCost(m.cost)}
                   <span className="text-[var(--text-faint)] mx-1">·</span>
                   {fmtTokens(totalUsageTokens(m))} {t.usage_tokens_label}
@@ -650,7 +651,7 @@ export function ModelsContent({
                 delay={i * 60}
                 width="112px"
               />
-              <span className="text-[10px] text-[var(--text-muted)] text-right tc-mono tc-num">
+              <span className="text-[10px] text-[var(--text-secondary)] font-medium text-right tc-mono tc-num">
                 {fmtCost(m.cost)}
               </span>
             </div>
@@ -873,7 +874,7 @@ export function UsagePanel() {
       <div className="flex-1 min-h-0 overflow-y-auto">
         {loading && !activeSummary ? (
           <div
-            className="px-3 py-4 tc-caption"
+            className="px-3 py-4 tc-caption tc-color-secondary font-medium"
             role="status"
             aria-live="polite"
           >
@@ -961,7 +962,7 @@ export function UsagePanel() {
             {isLoggedIn && !cloudSummary && (
               <>
                 <div className="mx-3 h-px bg-[var(--border)]" />
-                <div className="px-3 py-2 tc-caption">{t.auth_cloud_error}</div>
+                <div className="px-3 py-2 tc-caption tc-color-secondary font-medium">{t.auth_cloud_error}</div>
               </>
             )}
             <div className="mx-3 h-px bg-[var(--border)]" />
@@ -982,7 +983,7 @@ export function UsagePanel() {
             </div>
           </div>
         ) : (
-          <div className="px-3 py-4 tc-caption">{t.usage_no_data}</div>
+          <div className="px-3 py-4 tc-caption tc-color-secondary font-medium">{t.usage_no_data}</div>
         )}
       </div>
     </div>

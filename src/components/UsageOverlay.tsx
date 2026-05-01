@@ -177,7 +177,7 @@ function SectionCard({
       className={`rounded-lg border border-[var(--border)] bg-[var(--surface)] overflow-hidden ${className}`}
     >
       {title && (
-        <div className="px-4 py-2.5 border-b border-[var(--border)] tc-eyebrow tc-mono">
+        <div className="px-4 py-2.5 border-b border-[var(--border)] tc-eyebrow tc-mono tc-color-secondary">
           {title}
         </div>
       )}
@@ -197,7 +197,7 @@ function MetricPill({
 }) {
   return (
     <div className="min-w-0">
-      <div className="tc-caption tc-mono text-[var(--text-faint)] truncate">
+      <div className="tc-caption tc-mono tc-color-secondary font-medium truncate">
         {label}
       </div>
       <div
@@ -232,21 +232,21 @@ function OverviewCard({
 }) {
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-      <div className="tc-eyebrow tc-mono">{label}</div>
+      <div className="tc-eyebrow tc-mono tc-color-secondary">{label}</div>
       <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
         <div>
-          <div className="tc-caption tc-mono text-[var(--text-faint)]">
+          <div className="tc-caption tc-mono tc-color-secondary font-medium">
             {costLabel}
           </div>
           <div className="mt-1 tc-stat-xl">{cost}</div>
         </div>
         <div>
-          <div className="tc-caption tc-mono text-[var(--text-faint)]">
+          <div className="tc-caption tc-mono tc-color-secondary font-medium">
             {tokenLabel}
           </div>
           <div className="mt-1 tc-stat-xl">{tokens}</div>
         </div>
-        <div className="pb-1 tc-caption tc-mono tc-num text-[var(--text-muted)]">
+        <div className="pb-1 tc-caption tc-mono tc-num tc-color-secondary font-medium">
           {sessions}
         </div>
       </div>
@@ -310,7 +310,7 @@ function UsageRangeDashboard({
       </OverviewCard>
 
       {!hasUsage ? (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center tc-caption">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center tc-caption tc-color-secondary font-medium">
           {t.usage_no_data}
         </div>
       ) : (
@@ -619,7 +619,7 @@ export function UsageOverlay() {
         <div className="flex items-center gap-3 mb-4">
           <h1 className="tc-display">{t.usage_title}</h1>
           <div className="flex-1" />
-          <span className="tc-caption tc-mono">Esc</span>
+          <span className="tc-caption tc-mono tc-color-secondary font-medium">Esc</span>
           <button
             type="button"
             onClick={close}
@@ -653,7 +653,7 @@ export function UsageOverlay() {
                   className={`px-2.5 py-1 rounded text-[10px] tc-mono transition-colors ${
                     periodMode === mode
                       ? "bg-[var(--surface)] text-[var(--text-primary)] shadow-sm"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                   }`}
                 >
                   {label}
@@ -669,7 +669,7 @@ export function UsageOverlay() {
                   bare
                 />
               ) : activeRange ? (
-                <div className="tc-caption tc-mono tc-num text-[var(--text-muted)] truncate">
+                <div className="tc-caption tc-mono tc-num tc-color-secondary font-medium truncate">
                   {activeRange.startDate} - {activeRange.endDate}
                 </div>
               ) : null}
@@ -689,7 +689,7 @@ export function UsageOverlay() {
         {periodMode !== "day" ? (
           rangeLoading && !activeRangeSummary ? (
             <div
-              className="px-4 py-8 text-center tc-caption"
+              className="px-4 py-8 text-center tc-caption tc-color-secondary font-medium"
               role="status"
               aria-live="polite"
             >
@@ -705,13 +705,13 @@ export function UsageOverlay() {
               heatmap={activeHeatmap}
             />
           ) : (
-            <div className="px-4 py-8 text-center tc-caption">
+            <div className="px-4 py-8 text-center tc-caption tc-color-secondary font-medium">
               {t.usage_no_data}
             </div>
           )
         ) : loading && !activeSummary ? (
           <div
-            className="px-4 py-8 text-center tc-caption"
+            className="px-4 py-8 text-center tc-caption tc-color-secondary font-medium"
             role="status"
             aria-live="polite"
           >
@@ -728,11 +728,11 @@ export function UsageOverlay() {
             */
             <div key={animKey} className="flex flex-col gap-4">
               <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
-                <div className="tc-eyebrow tc-mono">{labelToday}</div>
+                <div className="tc-eyebrow tc-mono tc-color-secondary">{labelToday}</div>
                 <div className="mt-2 tc-stat-xl">
                   {fmtCost(activeSummary.totalCost)}
                 </div>
-                <div className="mt-2 tc-caption tc-mono tc-num flex items-center gap-2">
+                <div className="mt-2 tc-caption tc-mono tc-num tc-color-secondary font-medium flex items-center gap-2">
                   <span>
                     {fmtTokens(activeTotalTokens)} {t.usage_tokens}
                   </span>
@@ -877,12 +877,12 @@ export function UsageOverlay() {
                   </SectionCard>
                 )}
               {isLoggedIn && !cloudSummary && (
-                <div className="tc-caption px-2">{t.auth_cloud_error}</div>
+                <div className="tc-caption tc-color-secondary font-medium px-2">{t.auth_cloud_error}</div>
               )}
             </div>
           )
         ) : (
-          <div className="px-4 py-8 text-center tc-caption">
+          <div className="px-4 py-8 text-center tc-caption tc-color-secondary font-medium">
             {t.usage_no_data}
           </div>
         )}

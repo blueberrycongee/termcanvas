@@ -26,7 +26,7 @@ export function DeviceBreakdown({ devices, localDeviceId }: DeviceBreakdownProps
         return (
           <div key={device.deviceId} className="flex items-center gap-2">
             <span
-              className="text-[10px] text-[var(--text-muted)] shrink-0 truncate tc-mono"
+              className="text-[10px] text-[var(--text-secondary)] font-medium shrink-0 truncate tc-mono"
               style={{ maxWidth: "40%" }}
             >
               {shortId}
@@ -47,7 +47,7 @@ export function DeviceBreakdown({ devices, localDeviceId }: DeviceBreakdownProps
               />
             </div>
             <span
-              className="text-[10px] text-[var(--text-muted)] shrink-0 text-right tc-mono tc-num"
+              className="text-[10px] text-[var(--text-secondary)] font-medium shrink-0 text-right tc-mono tc-num"
               style={{ minWidth: 44 }}
             >
               {fmtCost(device.cost)}

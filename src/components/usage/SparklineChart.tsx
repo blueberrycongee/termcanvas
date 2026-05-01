@@ -93,7 +93,7 @@ export function SparklineChart({
         />
       )}
 
-      <div className="flex justify-between mt-1.5 text-[9px] text-[var(--text-faint)] tc-mono tc-num">
+      <div className="flex justify-between mt-1.5 text-[9px] text-[var(--text-secondary)] font-medium tc-mono tc-num">
         <span>00</span>
         <span>06</span>
         <span>12</span>
@@ -164,13 +164,13 @@ function SparklineTooltip({
             {fmtCost(bucket.cost)}
           </span>
           <span className="text-[9px] text-[var(--text-faint)]">·</span>
-          <span className="text-[10px] text-[var(--text-muted)]">
+          <span className="text-[10px] text-[var(--text-secondary)]">
             {bucket.calls} {callsLabel}
           </span>
           {totalTokens > 0 && (
             <>
               <span className="text-[9px] text-[var(--text-faint)]">·</span>
-              <span className="text-[10px] text-[var(--text-muted)]">
+              <span className="text-[10px] text-[var(--text-secondary)]">
                 {fmtTokens(totalTokens)}t
               </span>
             </>

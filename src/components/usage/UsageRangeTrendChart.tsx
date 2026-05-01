@@ -79,7 +79,7 @@ export function UsageRangeTrendChart({
           );
         })}
       </div>
-      <div className="mt-1.5 flex justify-between text-[9px] text-[var(--text-faint)] tc-mono tc-num">
+      <div className="mt-1.5 flex justify-between text-[9px] text-[var(--text-secondary)] font-medium tc-mono tc-num">
         {days.map((day, index) =>
           labelIndices.has(index) ? (
             <span key={day.date}>{shortDateLabel(day.date)}</span>
@@ -96,7 +96,7 @@ export function UsageRangeTrendChart({
             {fmtCost(days[hovered].cost)}
           </span>
           <span className="text-[var(--text-faint)] mx-1">·</span>
-          <span className="text-[var(--text-muted)]">
+          <span className="text-[var(--text-secondary)]">
             {fmtTokens(totalUsageTokens(days[hovered]))}t
           </span>
         </div>

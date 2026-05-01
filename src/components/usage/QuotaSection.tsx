@@ -54,14 +54,14 @@ function QuotaWindowRow({
   const t = useT();
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <span className="text-[10px] text-[var(--text-muted)] w-6 shrink-0 tc-mono tc-num">
+      <span className="text-[10px] text-[var(--text-secondary)] font-medium w-6 shrink-0 tc-mono tc-num">
         {label}
       </span>
       <QuotaBar utilization={utilization} />
-      <span className="text-[10px] text-[var(--text-muted)] shrink-0 w-9 text-right tc-mono tc-num">
+      <span className="text-[10px] text-[var(--text-secondary)] font-medium shrink-0 w-9 text-right tc-mono tc-num">
         {Math.round(utilization * 100)}%
       </span>
-      <span className="text-[9px] text-[var(--text-faint)] tc-mono tc-num truncate">
+      <span className="text-[9px] text-[var(--text-secondary)] font-medium tc-mono tc-num truncate">
         {t.usage_quota_resets} {formatCountdown(resetsAt)}
       </span>
     </div>
@@ -88,7 +88,7 @@ function ProviderQuotaSection({
   return (
     <div className={inline ? "w-[min(260px,100%)] shrink-0" : undefined}>
       <div className="flex items-center gap-1.5">
-        <span className="tc-eyebrow">{title}</span>
+        <span className="tc-eyebrow tc-color-secondary">{title}</span>
         {error === "rate_limited" && quota && (
           <span className="text-[10px] text-[var(--text-faint)]" title="Rate limited, showing cached data">
             &#9203;
@@ -97,7 +97,7 @@ function ProviderQuotaSection({
       </div>
 
       {loading && !quota ? (
-        <div className="mt-2 tc-caption">{t.loading}</div>
+        <div className="mt-2 tc-caption tc-color-secondary font-medium">{t.loading}</div>
       ) : quota ? (
         <div className="mt-1.5 flex flex-col gap-1.5">
           <QuotaWindowRow
@@ -112,7 +112,7 @@ function ProviderQuotaSection({
           />
         </div>
       ) : error ? (
-        <div className="mt-1.5 tc-caption">
+        <div className="mt-1.5 tc-caption tc-color-secondary font-medium">
           {error === "rate_limited" ? t.usage_quota_rate_limited : t.usage_quota_unavailable}
         </div>
       ) : null}
@@ -153,8 +153,8 @@ function ProviderQuotaStatus({
 
   return (
     <span className="min-w-0 truncate">
-      <span className="text-[var(--text-secondary)]">{title}</span>{" "}
-      <span className="text-[var(--text-muted)]">{detail}</span>
+      <span className="text-[var(--text-secondary)] font-medium">{title}</span>{" "}
+      <span className="text-[var(--text-secondary)]">{detail}</span>
     </span>
   );
 }

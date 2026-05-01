@@ -124,7 +124,7 @@ export function MonthlyTrendChart({
         })}
       </div>
 
-      <div className="mt-1.5 flex justify-between text-[9px] text-[var(--text-faint)] tc-mono tc-num">
+      <div className="mt-1.5 flex justify-between text-[9px] text-[var(--text-secondary)] font-medium tc-mono tc-num">
         {bars.map((b, i) =>
           labelIndices.has(i) ? (
             <span key={b.date}>

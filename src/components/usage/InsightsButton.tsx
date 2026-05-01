@@ -135,7 +135,7 @@ export function InsightsButton({
             {(["claude", "codex"] as const).map((tool) => (
               <button
                 key={tool}
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
                 onClick={() => handleSelect(tool)}
               >
                 {t.insights_select_cli}{" "}
@@ -202,7 +202,7 @@ export function InsightsButton({
       {running && (
         <div className="mb-2 flex items-center gap-2">
           <div className="w-3 h-3 border-2 border-[var(--usage-primary)] border-t-transparent rounded-full animate-spin shrink-0" />
-          <span className="text-[11px] text-[var(--text-muted)] truncate">
+          <span className="text-[11px] text-[var(--text-secondary)] font-medium truncate">
             {progress?.message ?? t.insights_generating}
           </span>
         </div>
@@ -225,7 +225,7 @@ export function InsightsButton({
             {(["claude", "codex"] as const).map((tool) => (
               <button
                 key={tool}
-                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
+                className="w-full px-3 py-1.5 text-[11px] text-left text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--border)]/20 transition-colors duration-quick cursor-pointer"
                 onClick={() => handleSelect(tool)}
               >
                 {t.insights_select_cli}{" "}
@@ -236,7 +236,7 @@ export function InsightsButton({
         )}
         <button
           disabled={running || !insightsApi}
-          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:border-[var(--usage-primary)] transition-colors duration-quick cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-1.5 px-3 rounded-md text-[11px] font-medium border border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--usage-primary)] transition-colors duration-quick cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={() => setShowPicker((v) => !v)}
         >
           {t.insights_generate}

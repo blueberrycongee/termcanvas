@@ -186,7 +186,7 @@ function HeatmapTooltip({ cell, triggerRect }: TooltipProps) {
             {fmtTokens(cell.entry?.tokens ?? 0)} {t.usage_tokens_label}
           </span>
           <span className="text-[var(--text-faint)]">·</span>
-          <span className="text-[var(--text-muted)]">
+          <span className="text-[var(--text-secondary)]">
             {fmtCost(cell.entry?.cost ?? 0)}
           </span>
         </div>
@@ -337,8 +337,8 @@ export function TokenHeatmap({
   if (heatmapLoading) {
     return (
       <div className={outerClass}>
-        {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
-        <div className={`${bare ? "" : "mt-2"} tc-caption`}>
+        {!bare && <span className="tc-eyebrow tc-color-secondary">{t.usage_heatmap}</span>}
+        <div className={`${bare ? "" : "mt-2"} tc-caption tc-color-secondary font-medium`}>
           {t.usage_heatmap_loading}
         </div>
       </div>
@@ -348,7 +348,7 @@ export function TokenHeatmap({
   if (heatmapError) {
     return (
       <div className={outerClass}>
-        {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
+        {!bare && <span className="tc-eyebrow tc-color-secondary">{t.usage_heatmap}</span>}
         <div
           className={`${bare ? "" : "mt-2"} text-[10px]`}
           style={{ color: "var(--red)" }}
@@ -361,7 +361,7 @@ export function TokenHeatmap({
 
   return (
     <div ref={containerRef} className={outerClass}>
-      {!bare && <span className="tc-eyebrow">{t.usage_heatmap}</span>}
+      {!bare && <span className="tc-eyebrow tc-color-secondary">{t.usage_heatmap}</span>}
 
       {/*
         Centered wrapper so a ribbon narrower than the card doesn't
@@ -380,7 +380,7 @@ export function TokenHeatmap({
               {Array.from({ length: 7 }, (_, row) => (
                 <div
                   key={row}
-                  className="flex items-center justify-end text-[8px] text-[var(--text-faint)] tc-mono"
+                  className="flex items-center justify-end text-[8px] text-[var(--text-secondary)] font-medium tc-mono"
                   style={{
                     width: HEATMAP_LAYOUT.weekdayLabelWidth,
                     height: HEATMAP_LAYOUT.cellSize,
@@ -463,7 +463,7 @@ export function TokenHeatmap({
                 {monthLabels.map((m) => (
                   <span
                     key={`month-${m.column}`}
-                    className="text-[8px] text-[var(--text-faint)] tc-mono"
+                    className="text-[8px] text-[var(--text-secondary)] font-medium tc-mono"
                     style={{
                       gridColumn: m.column + 1,
                       gridRow: 1,
@@ -478,7 +478,7 @@ export function TokenHeatmap({
           </div>
 
           <div className="flex items-center justify-end gap-1 mt-2">
-            <span className="text-[8px] text-[var(--text-faint)] tc-mono">
+            <span className="text-[8px] text-[var(--text-secondary)] font-medium tc-mono">
               {t.usage_heatmap_less}
             </span>
             {COLOR_LEVELS.map((color, i) => (
@@ -488,7 +488,7 @@ export function TokenHeatmap({
                 style={{ width: 8, height: 8, backgroundColor: color }}
               />
             ))}
-            <span className="text-[8px] text-[var(--text-faint)] tc-mono">
+            <span className="text-[8px] text-[var(--text-secondary)] font-medium tc-mono">
               {t.usage_heatmap_more}
             </span>
           </div>
