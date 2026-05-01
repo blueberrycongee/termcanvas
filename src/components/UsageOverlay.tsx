@@ -47,9 +47,7 @@ import type { HeatmapEntry } from "../stores/usageStore";
  *            wondering why ⌘⇧U did nothing).
  *   ≥ 520  → 2-col stat strip.
  *   ≥ 760  → 2-col chart row (hourly + 30-day).
- *   ≥ 840  → 4-col stat strip (today / MTD / daily avg / projection).
- *   ≥ 900  → 3-col bar row (cache / projects / models) +
- *            looser outer padding (px-7 vs px-5).
+ *   ≥ 900  → overview + compact quota, then chart and composition rows.
  *
  * Reading order: totals first, then time-zoom charts, then the
  * tight bar-chart trio, then budget, then the year ribbon, then
@@ -163,39 +161,6 @@ function chooseRangeSummary({
   return matchingCloud ?? matchingLocal;
 }
 
-function StatCard({
-  label,
-  value,
-  sub,
-  subTone = "faint",
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  subTone?: "faint" | "muted" | "accent";
-}) {
-  const subColor =
-    subTone === "accent"
-      ? "var(--usage-primary)"
-      : subTone === "muted"
-        ? "var(--text-muted)"
-        : "var(--text-faint)";
-  return (
-    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 transition-colors hover:border-[var(--border-hover)]">
-      <div className="tc-eyebrow tc-mono">{label}</div>
-      <div className="mt-2 tc-stat-xl">{value}</div>
-      {sub && (
-        <div
-          className="mt-1.5 tc-caption tc-mono tc-num"
-          style={{ color: subColor }}
-        >
-          {sub}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function SectionCard({
   title,
   children,
@@ -216,6 +181,79 @@ function SectionCard({
       )}
       <div>{children}</div>
     </div>
+  );
+}
+
+function MetricPill({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "accent";
+}) {
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 py-2 min-w-0">
+      <div className="tc-caption tc-mono text-[var(--text-faint)] truncate">
+        {label}
+      </div>
+      <div
+        className="mt-1 text-[13px] font-semibold tc-mono tc-num truncate"
+        style={{
+          color:
+            tone === "accent" ? "var(--usage-primary)" : "var(--text-primary)",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function OverviewCard({
+  label,
+  costLabel,
+  cost,
+  tokenLabel,
+  tokens,
+  sessions,
+  children,
+}: {
+  label: string;
+  costLabel: string;
+  cost: string;
+  tokenLabel: string;
+  tokens: string;
+  sessions: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+      <div className="tc-eyebrow tc-mono">{label}</div>
+      <div className="mt-3 flex flex-wrap items-end gap-x-6 gap-y-3">
+        <div>
+          <div className="tc-caption tc-mono text-[var(--text-faint)]">
+            {costLabel}
+          </div>
+          <div className="mt-1 tc-stat-xl">{cost}</div>
+        </div>
+        <div>
+          <div className="tc-caption tc-mono text-[var(--text-faint)]">
+            {tokenLabel}
+          </div>
+          <div className="mt-1 tc-stat-xl">{tokens}</div>
+        </div>
+        <div className="pb-1 tc-caption tc-mono tc-num text-[var(--text-muted)]">
+          {sessions}
+        </div>
+      </div>
+      {children && (
+        <div className="mt-4 grid gap-2 grid-cols-2 @[760px]:grid-cols-4">
+          {children}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -240,33 +278,34 @@ function UsageRangeDashboard({
   const hasUsage = totalTokens > 0 || summary.totalCost > 0;
 
   return (
-    <div className="flex flex-col gap-4 @[900px]:gap-5">
-      <div className="grid gap-4 grid-cols-1 @[520px]:grid-cols-2 @[840px]:grid-cols-3 @[1100px]:grid-cols-5">
-        <StatCard
-          label={periodLabel}
-          value={fmtCost(summary.totalCost)}
-          sub={`${summary.sessions} ${t.usage_sessions}`}
-        />
-        <StatCard
-          label={t.usage_tokens}
-          value={fmtTokens(totalTokens)}
-          sub={`${t.usage_input} ${fmtTokens(summary.totalInput)} · ${t.usage_output} ${fmtTokens(summary.totalOutput)}`}
-        />
-        <StatCard
-          label={t.usage_stat_daily_avg}
-          value={fmtCost(dailyAvgCost)}
-          sub={`${fmtTokens(dailyAvgTokens)} ${t.usage_tokens_label}`}
-        />
-        <StatCard
-          label={t.usage_stat_active_days}
-          value={String(activeDays)}
-          sub={`${summary.startDate} - ${summary.endDate}`}
-        />
-        <StatCard
-          label={t.usage_cache_rate}
-          value={fmtTokens(summary.totalCacheRead)}
-          sub={`${t.usage_cache_create} ${fmtTokens(cacheCreate)}`}
-        />
+    <div className="flex flex-col gap-4">
+      <div className="grid gap-4 grid-cols-1 @[980px]:grid-cols-[minmax(0,1fr)_auto] items-start">
+        <OverviewCard
+          label={`${periodLabel} · ${summary.startDate} - ${summary.endDate}`}
+          costLabel={t.usage_cost ?? "Cost"}
+          cost={fmtCost(summary.totalCost)}
+          tokenLabel={t.usage_tokens}
+          tokens={fmtTokens(totalTokens)}
+          sessions={`${summary.sessions} ${t.usage_sessions}`}
+        >
+          <MetricPill
+            label={t.usage_stat_daily_avg}
+            value={`${fmtCost(dailyAvgCost)} / ${fmtTokens(dailyAvgTokens)}t`}
+          />
+          <MetricPill
+            label={t.usage_stat_active_days}
+            value={String(activeDays)}
+          />
+          <MetricPill
+            label={t.usage_cache_read}
+            value={fmtTokens(summary.totalCacheRead)}
+          />
+          <MetricPill
+            label={t.usage_cache_create}
+            value={fmtTokens(cacheCreate)}
+          />
+        </OverviewCard>
+        <QuotaSection inline framed />
       </div>
 
       {!hasUsage ? (
@@ -296,7 +335,7 @@ function UsageRangeDashboard({
             </SectionCard>
           </div>
 
-          <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-2">
             {summary.projects.length > 0 && (
               <SectionCard title={t.usage_projects}>
                 <div className="px-4 py-3">
@@ -320,9 +359,6 @@ function UsageRangeDashboard({
                 </div>
               </SectionCard>
             )}
-            <SectionCard className="w-fit max-w-full">
-              <QuotaSection inline />
-            </SectionCard>
           </div>
         </>
       )}
@@ -474,8 +510,6 @@ export function UsageOverlay() {
         mtd: 0,
         mtdTokens: 0,
         daysWithData: 0,
-        dailyAvg: 0,
-        projection: 0,
       };
     }
     const monthPrefix = date.slice(0, 7);
@@ -490,19 +524,7 @@ export function UsageOverlay() {
         daysWithData += 1;
       }
     }
-    const dailyAvg = daysWithData > 0 ? mtd / daysWithData : 0;
-    const viewDate = new Date(date);
-    const year = viewDate.getFullYear();
-    const monthIdx = viewDate.getMonth();
-    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const isCurrentMonth = todayKey.startsWith(monthPrefix);
-    const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth;
-    const remainingDays = Math.max(0, daysInMonth - dayOfMonth);
-    const projection =
-      daysWithData > 0 && isCurrentMonth ? mtd + dailyAvg * remainingDays : mtd;
-    return { mtd, mtdTokens, daysWithData, dailyAvg, projection };
+    return { mtd, mtdTokens, daysWithData };
   }, [activeHeatmap, date]);
 
   if (!open) return null;
@@ -521,17 +543,8 @@ export function UsageOverlay() {
   // same text without peppering `as unknown as string` fallbacks.
   const labelToday = (t.usage_stat_today as unknown as string) ?? "Today";
   const labelMtd = (t.usage_stat_mtd as unknown as string) ?? "Month to date";
-  const labelDailyAvg =
-    (t.usage_stat_daily_avg as unknown as string) ?? "Daily avg";
-  const labelProjection =
-    (t.usage_stat_projection as unknown as string) ?? "Projected month";
   const labelActiveDays =
     (t.usage_stat_active_days as unknown as string) ?? "active days";
-  const labelPerActiveDay =
-    (t.usage_stat_per_active_day as unknown as string) ?? "per active day";
-  const labelEndOfMonth =
-    (t.usage_stat_end_of_month as unknown as string) ?? "end of month";
-  const labelToGo = (t.usage_stat_to_go as unknown as string) ?? "to go";
   const labelMonthTrend =
     (t.usage_month_trend as unknown as string) ?? "Last 30 days";
   const labelPeriodDay =
@@ -579,7 +592,7 @@ export function UsageOverlay() {
         className={`relative w-full mx-auto ${
           isCompact
             ? "px-4 py-5 max-w-[520px]"
-            : "px-5 @[900px]:px-7 py-6 @[900px]:py-8 max-w-[1280px]"
+            : "px-5 @[900px]:px-7 py-6 @[900px]:py-8 max-w-[1120px]"
         }`}
       >
         {/* Header */}
@@ -722,9 +735,7 @@ export function UsageOverlay() {
                 </div>
               </SectionCard>
 
-              <SectionCard className="w-fit max-w-full">
-                <QuotaSection inline />
-              </SectionCard>
+              <QuotaSection inline framed />
 
               <SectionCard title={t.usage_heatmap}>
                 <TokenHeatmap
@@ -736,48 +747,37 @@ export function UsageOverlay() {
               </SectionCard>
             </div>
           ) : (
-            <div key={animKey} className="flex flex-col gap-4 @[900px]:gap-5">
-              {/* Row 1: stat strip — 1 col → 2 col → 3 col → 5 col */}
-              <div className="grid gap-4 grid-cols-1 @[520px]:grid-cols-2 @[840px]:grid-cols-3 @[1100px]:grid-cols-5">
-                <StatCard
+            <div key={animKey} className="flex flex-col gap-4">
+              <div className="grid gap-4 grid-cols-1 @[980px]:grid-cols-[minmax(0,1fr)_auto] items-start">
+                <OverviewCard
                   label={labelToday}
-                  value={fmtCost(activeSummary.totalCost)}
-                  sub={`${activeSummary.sessions} ${t.usage_sessions}`}
-                />
-                <StatCard
-                  label={t.usage_tokens}
-                  value={fmtTokens(activeTotalTokens)}
-                  sub={`${t.usage_input} ${fmtTokens(activeSummary.totalInput)} · ${t.usage_output} ${fmtTokens(activeSummary.totalOutput)}`}
-                />
-                <StatCard
-                  label={labelMtd}
-                  value={fmtCost(monthStats.mtd)}
-                  sub={
-                    monthStats.daysWithData > 0
-                      ? `${fmtTokens(monthStats.mtdTokens)} ${t.usage_tokens} · ${monthStats.daysWithData} ${labelActiveDays}`
-                      : undefined
-                  }
-                />
-                <StatCard
-                  label={labelDailyAvg}
-                  value={fmtCost(monthStats.dailyAvg)}
-                  sub={labelPerActiveDay}
-                />
-                <StatCard
-                  label={labelProjection}
-                  value={fmtCost(monthStats.projection)}
-                  sub={
-                    monthStats.projection > monthStats.mtd
-                      ? `+${fmtCost(monthStats.projection - monthStats.mtd)} ${labelToGo}`
-                      : labelEndOfMonth
-                  }
-                  subTone={
-                    monthStats.projection > monthStats.mtd ? "accent" : "faint"
-                  }
-                />
+                  costLabel={t.usage_cost ?? "Cost"}
+                  cost={fmtCost(activeSummary.totalCost)}
+                  tokenLabel={t.usage_tokens}
+                  tokens={fmtTokens(activeTotalTokens)}
+                  sessions={`${activeSummary.sessions} ${t.usage_sessions}`}
+                >
+                  <MetricPill
+                    label={t.usage_input}
+                    value={fmtTokens(activeSummary.totalInput)}
+                  />
+                  <MetricPill
+                    label={t.usage_output}
+                    value={fmtTokens(activeSummary.totalOutput)}
+                  />
+                  <MetricPill
+                    label={labelMtd}
+                    value={`${fmtCost(monthStats.mtd)} · ${fmtTokens(monthStats.mtdTokens)}t`}
+                    tone="accent"
+                  />
+                  <MetricPill
+                    label={labelActiveDays}
+                    value={String(monthStats.daysWithData)}
+                  />
+                </OverviewCard>
+                <QuotaSection inline framed />
               </div>
 
-              {/* Row 2: two time-zoom charts, stacked below 760 */}
               <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2">
                 <SectionCard title={t.usage_timeline}>
                   <div className="px-4 py-3">
@@ -802,8 +802,7 @@ export function UsageOverlay() {
                 </SectionCard>
               </div>
 
-              {/* Row 3: narrow bar-chart trio, stacked below 900 */}
-              <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-3">
+              <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start">
                 {summary && (
                   <SectionCard title={t.usage_cache_rate}>
                     <div className="px-4 py-3">
@@ -839,26 +838,16 @@ export function UsageOverlay() {
                     </div>
                   </SectionCard>
                 )}
-              </div>
-
-              {/* Row 4: Quota — short status card */}
-              <div className="flex">
-                <SectionCard className="w-fit max-w-full">
-                  <QuotaSection inline />
+                <SectionCard title={t.usage_heatmap} className="w-fit max-w-full">
+                  <TokenHeatmap
+                    animate={true}
+                    data={activeHeatmap ?? undefined}
+                    bare
+                    size="default"
+                  />
                 </SectionCard>
               </div>
 
-              {/* Row 5: Heatmap — full-width, self-sizing */}
-              <SectionCard title={t.usage_heatmap}>
-                <TokenHeatmap
-                  animate={true}
-                  data={activeHeatmap ?? undefined}
-                  bare
-                  size="auto"
-                />
-              </SectionCard>
-
-              {/* Row 6: Devices — logged-in only */}
               {isLoggedIn &&
                 cloudSummary &&
                 cloudSummary.devices.length > 0 && (

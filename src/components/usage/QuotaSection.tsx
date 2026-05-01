@@ -28,7 +28,7 @@ function QuotaBar({ utilization }: { utilization: number }) {
   return (
     <div
       className="h-1.5 rounded-full bg-[var(--border)] shrink-0 overflow-hidden"
-      style={{ width: "clamp(56px, 30%, 104px)" }}
+      style={{ width: "clamp(44px, 24%, 84px)" }}
     >
       <div
         className="h-full rounded-full"
@@ -86,7 +86,7 @@ function ProviderQuotaSection({
   if (!quota && !loading && !error) return null;
 
   return (
-    <div className={inline ? "w-[min(300px,100%)] shrink-0" : undefined}>
+    <div className={inline ? "w-[min(260px,100%)] shrink-0" : undefined}>
       <div className="flex items-center gap-1.5">
         <span className="tc-eyebrow">{title}</span>
         {error === "rate_limited" && quota && (
@@ -122,8 +122,10 @@ function ProviderQuotaSection({
 
 export function QuotaSection({
   inline = false,
+  framed = false,
 }: {
   inline?: boolean;
+  framed?: boolean;
 }): React.ReactElement | null {
   const claudeQuota = useQuotaStore((s) => s.quota);
   const claudeLoading = useQuotaStore((s) => s.loading);
@@ -151,9 +153,11 @@ export function QuotaSection({
   return (
     <div
       className={
-        inline
-          ? "px-3 py-2 flex flex-wrap items-start gap-x-5 gap-y-2"
-          : "px-3 py-2 flex flex-col gap-2"
+        `${framed ? "rounded-lg border border-[var(--border)] bg-[var(--surface)]" : ""} ${
+          inline
+            ? "px-3 py-2 flex flex-wrap items-start gap-x-4 gap-y-2 w-fit max-w-full"
+            : "px-3 py-2 flex flex-col gap-2"
+        }`
       }
     >
       <ProviderQuotaSection

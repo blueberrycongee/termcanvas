@@ -496,6 +496,7 @@ export const zh = {
   usage_title: "用量",
   usage_monthly: "本月累计",
   usage_sessions: "会话",
+  usage_cost: "花费",
   usage_output: "输出",
   usage_timeline: "时段",
   usage_projects: "项目",
