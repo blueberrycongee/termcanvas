@@ -82,6 +82,26 @@ const MAX_FILE_SIZE_FOR_INDEX = 20 * 1024 * 1024;
 const AVG_LINE_BYTES_ESTIMATE = 500;
 const FIRST_PROMPT_MAX_LENGTH = 200;
 
+/**
+ * Normalize a project path for set membership checks in the session index.
+ *
+ * The history panel passes canvas worktree paths exactly as stored in app
+ * state, while Codex/Kimi session files report their cwd exactly as emitted by
+ * the CLI. On Windows these two sources often differ only by slash style
+ * (`E:/repo/app` vs `E:\repo\app`) and sometimes by drive-letter casing. We
+ * normalize both sides before comparison so the same project does not get
+ * filtered out due to formatting-only path differences.
+ */
+function normalizeProjectPathForMatch(projectDir: string): string {
+  const trimmed = projectDir.trim();
+  if (!trimmed) return "";
+
+  const normalized = path.normalize(trimmed);
+  return process.platform === "win32"
+    ? normalized.toLowerCase()
+    : normalized;
+}
+
 function decodeClaudeEncodedPath(encoded: string): string {
   // Claude stores projects under `-Users-foo-bar`; decode back to
   // `/Users/foo/bar`. This is a lossy encoding — a project with an
@@ -499,7 +519,9 @@ export async function listSessionsForProjects(
   projectDirs: string[],
 ): Promise<SessionSearchEntry[]> {
   if (projectDirs.length === 0) return [];
-  const projectSet = new Set(projectDirs);
+  const projectSet = new Set(
+    projectDirs.map(normalizeProjectPathForMatch).filter(Boolean),
+  );
   const candidates = await listSessionFileCandidates(projectDirs);
 
   const results: SessionSearchEntry[] = [];
@@ -512,7 +534,7 @@ export async function listSessionsForProjects(
     if (!built) continue;
     if (
       (candidate.provider === "codex" || candidate.provider === "kimi") &&
-      !projectSet.has(built.projectDir)
+      !projectSet.has(normalizeProjectPathForMatch(built.projectDir))
     ) {
       // Codex/Kimi file not in one of our projects — skip.
       continue;
@@ -546,7 +568,9 @@ export async function listSessionsForProjectsPaged(
   if (projectDirs.length === 0) return { entries: [], total: 0 };
   const offset = options.offset ?? 0;
   const limit = options.limit;
-  const projectSet = new Set(projectDirs);
+  const projectSet = new Set(
+    projectDirs.map(normalizeProjectPathForMatch).filter(Boolean),
+  );
 
   const candidates = await listSessionFileCandidates(projectDirs);
 
@@ -562,7 +586,10 @@ export async function listSessionsForProjectsPaged(
       candidate.claudeProjectDir,
     );
     if (!built) continue;
-    if (candidate.provider === "codex" && !projectSet.has(built.projectDir)) {
+    if (
+      (candidate.provider === "codex" || candidate.provider === "kimi") &&
+      !projectSet.has(normalizeProjectPathForMatch(built.projectDir))
+    ) {
       continue;
     }
     if (skipped < offset) {
