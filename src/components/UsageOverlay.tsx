@@ -802,50 +802,54 @@ export function UsageOverlay() {
                 </SectionCard>
               </div>
 
-              <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start">
-                {summary && (
-                  <SectionCard title={t.usage_cache_rate}>
-                    <div className="px-4 py-3">
-                      <CacheRateSection
-                        t={t}
-                        summary={summary}
-                        animate={true}
-                        bare
-                      />
-                    </div>
+              <div className="grid gap-4 grid-cols-1 @[900px]:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.2fr)] items-start">
+                <div className="grid gap-4">
+                  {summary && (
+                    <SectionCard title={t.usage_cache_rate}>
+                      <div className="px-4 py-3">
+                        <CacheRateSection
+                          t={t}
+                          summary={summary}
+                          animate={true}
+                          bare
+                        />
+                      </div>
+                    </SectionCard>
+                  )}
+                  <SectionCard title={t.usage_heatmap}>
+                    <TokenHeatmap
+                      animate={true}
+                      data={activeHeatmap ?? undefined}
+                      bare
+                      size="default"
+                    />
                   </SectionCard>
-                )}
-                {activeSummary.projects.length > 0 && (
-                  <SectionCard title={t.usage_projects}>
-                    <div className="px-4 py-3">
-                      <ProjectsContent
-                        t={t}
-                        projects={activeSummary.projects}
-                        totalCost={activeSummary.totalCost}
-                        animate={true}
-                      />
-                    </div>
-                  </SectionCard>
-                )}
-                {activeSummary.models.length > 0 && (
-                  <SectionCard title={t.usage_models}>
-                    <div className="px-4 py-3">
-                      <ModelsContent
-                        t={t}
-                        models={activeSummary.models}
-                        animate={true}
-                      />
-                    </div>
-                  </SectionCard>
-                )}
-                <SectionCard title={t.usage_heatmap} className="w-fit max-w-full">
-                  <TokenHeatmap
-                    animate={true}
-                    data={activeHeatmap ?? undefined}
-                    bare
-                    size="default"
-                  />
-                </SectionCard>
+                </div>
+                <div className="grid gap-4 @[1180px]:grid-cols-2">
+                  {activeSummary.projects.length > 0 && (
+                    <SectionCard title={t.usage_projects}>
+                      <div className="px-4 py-3">
+                        <ProjectsContent
+                          t={t}
+                          projects={activeSummary.projects}
+                          totalCost={activeSummary.totalCost}
+                          animate={true}
+                        />
+                      </div>
+                    </SectionCard>
+                  )}
+                  {activeSummary.models.length > 0 && (
+                    <SectionCard title={t.usage_models}>
+                      <div className="px-4 py-3">
+                        <ModelsContent
+                          t={t}
+                          models={activeSummary.models}
+                          animate={true}
+                        />
+                      </div>
+                    </SectionCard>
+                  )}
+                </div>
               </div>
 
               {isLoggedIn &&
