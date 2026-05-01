@@ -219,6 +219,7 @@ function OverviewCard({
   tokens,
   sessions,
   children,
+  footer,
 }: {
   label: string;
   costLabel: string;
@@ -227,6 +228,7 @@ function OverviewCard({
   tokens: string;
   sessions: string;
   children?: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
@@ -253,6 +255,7 @@ function OverviewCard({
           {children}
         </div>
       )}
+      {footer && <div className="mt-3">{footer}</div>}
     </section>
   );
 }
@@ -279,34 +282,32 @@ function UsageRangeDashboard({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4 grid-cols-1 @[980px]:grid-cols-[minmax(0,1fr)_auto] items-start">
-        <OverviewCard
-          label={`${periodLabel} · ${summary.startDate} - ${summary.endDate}`}
-          costLabel={t.usage_cost ?? "Cost"}
-          cost={fmtCost(summary.totalCost)}
-          tokenLabel={t.usage_tokens}
-          tokens={fmtTokens(totalTokens)}
-          sessions={`${summary.sessions} ${t.usage_sessions}`}
-        >
-          <MetricPill
-            label={t.usage_stat_daily_avg}
-            value={`${fmtCost(dailyAvgCost)} / ${fmtTokens(dailyAvgTokens)}t`}
-          />
-          <MetricPill
-            label={t.usage_stat_active_days}
-            value={String(activeDays)}
-          />
-          <MetricPill
-            label={t.usage_cache_read}
-            value={fmtTokens(summary.totalCacheRead)}
-          />
-          <MetricPill
-            label={t.usage_cache_create}
-            value={fmtTokens(cacheCreate)}
-          />
-        </OverviewCard>
-        <QuotaSection inline framed />
-      </div>
+      <OverviewCard
+        label={`${periodLabel} · ${summary.startDate} - ${summary.endDate}`}
+        costLabel={t.usage_cost ?? "Cost"}
+        cost={fmtCost(summary.totalCost)}
+        tokenLabel={t.usage_tokens}
+        tokens={fmtTokens(totalTokens)}
+        sessions={`${summary.sessions} ${t.usage_sessions}`}
+        footer={<QuotaSection inline />}
+      >
+        <MetricPill
+          label={t.usage_stat_daily_avg}
+          value={`${fmtCost(dailyAvgCost)} / ${fmtTokens(dailyAvgTokens)}t`}
+        />
+        <MetricPill
+          label={t.usage_stat_active_days}
+          value={String(activeDays)}
+        />
+        <MetricPill
+          label={t.usage_cache_read}
+          value={fmtTokens(summary.totalCacheRead)}
+        />
+        <MetricPill
+          label={t.usage_cache_create}
+          value={fmtTokens(cacheCreate)}
+        />
+      </OverviewCard>
 
       {!hasUsage ? (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-8 text-center tc-caption">
@@ -735,7 +736,7 @@ export function UsageOverlay() {
                 </div>
               </SectionCard>
 
-              <QuotaSection inline framed />
+              <QuotaSection inline />
 
               <SectionCard title={t.usage_heatmap}>
                 <TokenHeatmap
@@ -748,35 +749,33 @@ export function UsageOverlay() {
             </div>
           ) : (
             <div key={animKey} className="flex flex-col gap-4">
-              <div className="grid gap-4 grid-cols-1 @[980px]:grid-cols-[minmax(0,1fr)_auto] items-start">
-                <OverviewCard
-                  label={labelToday}
-                  costLabel={t.usage_cost ?? "Cost"}
-                  cost={fmtCost(activeSummary.totalCost)}
-                  tokenLabel={t.usage_tokens}
-                  tokens={fmtTokens(activeTotalTokens)}
-                  sessions={`${activeSummary.sessions} ${t.usage_sessions}`}
-                >
-                  <MetricPill
-                    label={t.usage_input}
-                    value={fmtTokens(activeSummary.totalInput)}
-                  />
-                  <MetricPill
-                    label={t.usage_output}
-                    value={fmtTokens(activeSummary.totalOutput)}
-                  />
-                  <MetricPill
-                    label={labelMtd}
-                    value={`${fmtCost(monthStats.mtd)} · ${fmtTokens(monthStats.mtdTokens)}t`}
-                    tone="accent"
-                  />
-                  <MetricPill
-                    label={labelActiveDays}
-                    value={String(monthStats.daysWithData)}
-                  />
-                </OverviewCard>
-                <QuotaSection inline framed />
-              </div>
+              <OverviewCard
+                label={labelToday}
+                costLabel={t.usage_cost ?? "Cost"}
+                cost={fmtCost(activeSummary.totalCost)}
+                tokenLabel={t.usage_tokens}
+                tokens={fmtTokens(activeTotalTokens)}
+                sessions={`${activeSummary.sessions} ${t.usage_sessions}`}
+                footer={<QuotaSection inline />}
+              >
+                <MetricPill
+                  label={t.usage_input}
+                  value={fmtTokens(activeSummary.totalInput)}
+                />
+                <MetricPill
+                  label={t.usage_output}
+                  value={fmtTokens(activeSummary.totalOutput)}
+                />
+                <MetricPill
+                  label={labelMtd}
+                  value={`${fmtCost(monthStats.mtd)} · ${fmtTokens(monthStats.mtdTokens)}t`}
+                  tone="accent"
+                />
+                <MetricPill
+                  label={labelActiveDays}
+                  value={String(monthStats.daysWithData)}
+                />
+              </OverviewCard>
 
               <div className="grid gap-4 grid-cols-1 @[760px]:grid-cols-2">
                 <SectionCard title={t.usage_timeline}>

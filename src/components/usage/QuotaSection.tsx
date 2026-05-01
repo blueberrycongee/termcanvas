@@ -155,7 +155,7 @@ export function QuotaSection({
       className={
         `${framed ? "rounded-lg border border-[var(--border)] bg-[var(--surface)]" : ""} ${
           inline
-            ? "px-3 py-2 flex flex-wrap items-start gap-x-4 gap-y-2 w-fit max-w-full"
+            ? `${framed ? "px-3 py-2" : "px-0 py-0"} flex flex-wrap items-start gap-x-4 gap-y-2 max-w-full`
             : "px-3 py-2 flex flex-col gap-2"
         }`
       }
