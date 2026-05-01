@@ -1,0 +1,126 @@
+---
+title: "Pins Are Not Bookmarks: They Are Working Memory for AI Coding"
+seoTitle: "Pins Are Working Memory for AI Coding"
+date: 2026-05-01
+locale: en
+translationKey: pin-as-working-memory
+tag: "Workflow"
+summary: "A pin looks like a small note, but its real job is to preserve the context that AI coding work tends to lose: the problem, evidence, screenshots, links, and the next action."
+cover: /hero-hub.png
+---
+
+Most software tools have bookmarks, favorites, or “save for later” lists. A pin in TermCanvas can look like the same idea at first: write down something, keep it nearby, come back later.
+
+That is not the most useful way to think about it.
+
+In AI coding workflows, the hard part is not remembering that something exists. The hard part is recovering enough context to continue the work later. A bug report, a screenshot, a half-formed product idea, a layout issue, or a small task for an agent can lose meaning quickly when it is buried in terminal scrollback or chat history.
+
+Pins are meant to hold that context in place.
+
+## The fragile part is unfinished context
+
+Developers pause work constantly:
+
+- This button is misaligned, but not urgent.
+- This error state should be handled later.
+- This issue should wait for the next release.
+- This screenshot is enough for an agent to investigate.
+- This product idea is not ready for an issue, but should not disappear.
+
+A regular todo list can keep the title. A chat log can keep the conversation. A GitHub issue can formalize the work. But many useful thoughts sit between those categories: too concrete to forget, too early to promote, too dependent on context to reduce to one line.
+
+AI coding makes this more common. Agents produce intermediate state: commands they ran, errors they saw, conclusions they made, screenshots the user pasted, and follow-up instructions that may not be executed immediately.
+
+A pin is a small piece of working memory between “I will remember this” and “this is a formal task.”
+
+## A useful pin should be easy to hand off
+
+A weak pin says:
+
+```text
+Fix login
+```
+
+That might be enough for the person who wrote it five minutes ago. It is not enough for someone returning next week, and it is not enough for an agent that needs to act on it.
+
+A better pin is a small handoff note:
+
+```text
+Title: Fix the login button on narrow screens
+
+Background: Reproduced in a 13-inch window. The primary button touches
+the help text below it.
+
+Expected: The button and helper text keep stable spacing. Longer English
+copy should not overlap.
+
+Evidence: Screenshot attached.
+
+Next action: Ask an agent to locate the layout component and check the
+narrow viewport behavior.
+```
+
+This is not bureaucracy. It is a way to make the future reader, whether human or agent, start from the right place.
+
+That is why pins can carry text, links, images, and status. Text explains the decision. Links point to outside sources. Images preserve visual evidence. Status separates what is open, done, or intentionally dropped.
+
+## Pins should live near the project
+
+External todo tools are often too far away from the code. You can write down a task, but when you return to it you still need to find the repository, branch, terminal, screenshot, and relevant discussion.
+
+Pins belong beside the project because most useful coding context is project-shaped.
+
+A pin is not an abstract reminder. It should usually belong to a repo, a working area, or a specific thread of work. When you open a project, pins should answer practical questions:
+
+- What still needs attention here?
+- Which ideas have enough context to give to an agent?
+- Which items are done and can leave the active view?
+- Which decisions were dropped but may need to be reopened later?
+
+That is different from a personal todo list. Pins are organized around the engineering workspace, not around a calendar.
+
+## A pin can become an agent context packet
+
+Pins are not only for reading. They can also be used as context for the next step.
+
+When a pin is handed to an agent, it is not just saying “remember this title.” It is saying: “inherit this context.” The title, body, links, and screenshots become a small packet of information for the next conversation.
+
+That matters because agent quality depends heavily on context quality. Give an agent “fix this” and it will guess. Give it a pin with background, evidence, expected behavior, and a next action, and the task becomes much less ambiguous.
+
+Chat history is a timeline. A pin is a prepared context packet. Timelines contain everything, but they are hard to reuse. Context packets are smaller, but easier to hand off.
+
+## How to keep pins from becoming clutter
+
+Pins are useful only if they stay selective. They should not become another place where every passing thought goes to die.
+
+A good rule is to use pins for three kinds of work.
+
+First, use them for things that are actionable but not immediate: small bugs, product polish, follow-up checks, or tasks that are ready for an agent later.
+
+Second, use them for things that need evidence: screenshots, errors, user feedback, issue links, or surprising behavior that will be hard to reconstruct.
+
+Third, use them for ideas that are not ready to become formal issues but are concrete enough to revisit.
+
+Some things do not belong in pins. Large planned projects should go into a roadmap or issue tracker. Vague long-term wishes should be refined before they are saved. One-line reactions are usually not worth pinning unless they point to a real next action.
+
+The value of a pin is not that it stores everything. Its value is that it preserves the context worth carrying forward.
+
+## Done and dropped both matter
+
+Pins have status for a reason.
+
+Done means the loop was closed. Dropped means you deliberately decided not to continue. Both are healthier than leaving every note open forever.
+
+AI coding tools can create a false sense of control: if something is recorded, it feels managed. But the management happens later, when you review the list, close what is done, drop what no longer matters, and add missing context to anything that is still worth keeping.
+
+A good pin list is alive. It is not an archive. It is the working memory of the current project.
+
+## The point of pins
+
+A pin is not a bookmark. It is a way to fix future context in place.
+
+It gives uncertain, unfinished, but still valuable work a place near the project. It keeps screenshots, links, decisions, and next actions together. It also lets an agent resume from a prepared context packet instead of a scattered chat history.
+
+For a solo developer, this reduces forgetting.
+
+For AI-assisted coding, it becomes more important: it makes context easier to save, organize, hand off, and restart.

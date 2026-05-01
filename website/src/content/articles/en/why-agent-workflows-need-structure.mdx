@@ -1,0 +1,132 @@
+---
+title: "Why AI Agent Workflows Need Structure"
+seoTitle: "Why AI Agent Workflows Need Structure"
+date: 2026-04-27
+locale: en
+translationKey: hydra-design-philosophy
+tag: "Workflow"
+summary: "AI coding agents are useful because they can keep working, but long-running work needs structure: clear handoffs, visible decision points, and evidence that is stronger than a terminal message saying done."
+cover: /hydra-architecture.png
+---
+
+A coding agent can feel surprisingly capable when the task is small. Ask it to change a component, fix a test, or explain a file, and the interaction is close to a normal conversation.
+
+Longer work is different.
+
+When an agent spends half an hour reading files, editing code, running tests, retrying commands, and summarizing its own progress, the problem is no longer just “is the model smart enough?” The problem becomes: how does the human keep track of what happened, what is trustworthy, and what should happen next?
+
+That is where workflow structure starts to matter.
+
+## Natural language is not enough evidence
+
+An agent can say:
+
+```text
+Done. I implemented the feature and all tests pass.
+```
+
+That sentence may be true. It may also be incomplete, optimistic, or simply wrong.
+
+This is not because agents are malicious. It is because natural language summaries are a weak source of truth. A terminal message does not prove that a diff is correct, a test actually ran, or the implementation matches the product intent.
+
+Human teams already know this. We do not merge work because someone says “looks good” in isolation. We look at the diff, run checks, review the behavior, and ask what changed.
+
+AI agent workflows need the same discipline.
+
+## The user is still the lead
+
+It is tempting to imagine agent workflows as full automation: give the model a product request, wait long enough, and get a finished result.
+
+That is not how real software work behaves.
+
+Many decisions are not obvious until implementation starts. A requirement may be underspecified. A test failure may reveal a product ambiguity. A small UI change may conflict with an existing pattern. An agent can make a choice, but it should not silently become the final authority for every choice.
+
+The user still needs decision points:
+
+- Should this branch of work continue?
+- Is the implementation direction acceptable?
+- Should a failed attempt be retried or abandoned?
+- Is the output ready to merge?
+- Does the agent need more context?
+
+The point of workflow structure is not to remove the human. It is to bring the human back at the moments where judgment matters.
+
+## Long-running work needs handoffs
+
+Short tasks can live inside a single conversation. Long tasks cannot rely on conversation alone.
+
+As context grows, it becomes harder to tell which details still matter. The agent may summarize too early, skip steps, or continue from assumptions that were never explicitly checked. Another agent may later read the repository and make a different guess about why the previous work exists.
+
+Good handoffs reduce that drift.
+
+A useful handoff says:
+
+- What was attempted.
+- What changed.
+- What evidence was collected.
+- What remains uncertain.
+- What the next decision should be.
+
+This is one reason TermCanvas treats structured workflow state as important. In Hydra, agent work is routed through explicit dispatches and decision points. The lead watches for a result, reads the report, and decides what to do next.
+
+The exact tooling matters less than the principle: long-running AI work should leave behind durable context, not just terminal prose.
+
+## Parallel agents need boundaries
+
+Running more than one agent can be powerful, but it also multiplies confusion.
+
+If two agents work in the same directory, it becomes hard to know which changes belong to which task. If three agents all summarize their own progress in separate terminals, the user has to mentally reconstruct the project state. If a review agent and an implementation agent share the same assumptions, the review may only repeat the same blind spots.
+
+Structure creates boundaries:
+
+- Worktrees separate filesystem changes.
+- Pins preserve task context and evidence.
+- Visible terminal state shows which agent needs attention.
+- Reports and result files make completion auditable.
+- The lead decides whether to merge, reset, or continue.
+
+Without boundaries, parallelism becomes noise. With boundaries, it can become a real workflow.
+
+## Structure should not hide the work
+
+There is a bad version of automation where the system hides everything behind a single “running” indicator and returns a polished answer at the end.
+
+That is not enough for coding.
+
+Developers need to see the work: the terminal, the branch, the diff, the evidence, the failure mode. If the system hides too much, the user loses the ability to intervene intelligently.
+
+The better goal is visible structure. Let agents do useful work, but keep the important relationships inspectable:
+
+- Which project is this for?
+- Which worktree is being changed?
+- Which terminal produced this output?
+- Which pin or task started the work?
+- Which decision is waiting for the lead?
+
+This is the difference between automation and orchestration. Automation tries to make the user disappear. Orchestration helps the user manage work that is too broad to hold in one terminal window.
+
+## A practical way to think about Hydra
+
+Hydra is TermCanvas's answer to this problem: a lead-driven workflow for AI agents.
+
+Instead of treating an agent's final message as the source of truth, Hydra expects a structured result and a readable report. Instead of assuming the next step automatically, it returns to the lead at decision points. Instead of letting parallel work collide in one place, it encourages isolated branches of work that can be reviewed and merged deliberately.
+
+The important idea is simple:
+
+```text
+Agents can do work.
+The lead makes decisions.
+The workflow keeps evidence.
+```
+
+That split is what keeps long-running AI coding from turning into a pile of confident but hard-to-audit terminal sessions.
+
+## The goal is not more process
+
+Structure can become heavy if it is applied everywhere. A one-line fix does not need a workflow. A quick explanation does not need orchestration. Small tasks should stay small.
+
+But when the task is ambiguous, long-running, or parallel, structure pays for itself. It gives the human a stable way to supervise the work without reading every token the agent produced.
+
+Good AI coding workflows should feel less like bureaucracy and more like a clean workbench: every active thread has a place, every important note can be found again, and every merge happens because someone chose it deliberately.
+
+That is the core reason agent workflows need structure. Not because models are useless, but because useful agents create more work than a single terminal tab can responsibly hold.
