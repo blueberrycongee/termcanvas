@@ -88,8 +88,19 @@ export function UpdateModal({ onClose }: Props) {
             ? { label: t.update_checking_short, disabled: true, onClick: () => {} }
             : null;
 
-  const buttonBase =
-    "tc-ui px-3 py-1.5 rounded-md transition-colors duration-150";
+  const cancelButtonClass =
+    "tc-ui px-3 py-1.5 rounded-md transition-colors duration-150 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]";
+
+  // Inverted neutral instead of a saturated CTA: the project's palette is
+  // a restrained warm grayscale, so green/blue/etc. would clash. Pairing
+  // --text-primary against --bg gives ~14:1 contrast and the maximum
+  // visual weight available without leaving the neutral family. font-
+  // semibold (over tc-ui's medium) anchors the glyph strokes against
+  // the bright fill so the label stops feeling washed out.
+  const primaryEnabledClass =
+    "text-[length:var(--text-sm)] font-semibold leading-[var(--leading-snug)] tracking-[var(--tracking-title)] px-3 py-1.5 rounded-md transition-colors duration-150 bg-[var(--text-primary)] text-[var(--bg)] hover:opacity-90";
+  const primaryDisabledClass =
+    "text-[length:var(--text-sm)] font-medium leading-[var(--leading-snug)] px-3 py-1.5 rounded-md bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed";
 
   return (
     <div
@@ -169,7 +180,7 @@ export function UpdateModal({ onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className={`${buttonBase} border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]`}
+            className={cancelButtonClass}
           >
             {t.update_modal_later}
           </button>
@@ -179,7 +190,9 @@ export function UpdateModal({ onClose }: Props) {
               type="button"
               onClick={primary.onClick}
               disabled={primary.disabled}
-              className={`${buttonBase} bg-[var(--green)] text-[var(--accent-foreground)] hover:brightness-110 disabled:bg-[var(--accent)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:brightness-100`}
+              className={
+                primary.disabled ? primaryDisabledClass : primaryEnabledClass
+              }
             >
               {primary.label}
             </button>
