@@ -589,6 +589,24 @@ test("terminal renderer preference can release and reacquire WebGL on a live run
   }
 });
 
+test("resetWebGL recreates the addon and refreshes the terminal viewport", async () => {
+  installRuntimeGlobals();
+  const { acquireWebGL, releaseWebGL, resetWebGL } = await import("../src/terminal/webglContextPool.ts");
+  const { stats, xterm } = createMockXterm();
+
+  try {
+    assert.equal(acquireWebGL("terminal-1", xterm as never), true);
+    assert.equal(stats.loadAddonCalls, 1);
+
+    resetWebGL("terminal-1", "test_reset");
+
+    assert.equal(stats.loadAddonCalls, 2);
+    assert.equal(stats.refreshCalls, 1);
+  } finally {
+    releaseWebGL("terminal-1");
+  }
+});
+
 test("acquireWebGL warns users to switch renderers when WebGL is unavailable", async () => {
   installRuntimeGlobals();
   const { useLocaleStore } = await import("../src/stores/localeStore.ts");

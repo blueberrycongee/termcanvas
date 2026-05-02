@@ -56,6 +56,8 @@ import { ActivitySparkline } from "./ActivitySparkline";
 import { TerminalFindOverlay } from "./TerminalFindOverlay";
 import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
+import { resetWebGL } from "./webglContextPool";
+import { refreshRegisteredTerminalViewports } from "./terminalRegistry";
 
 interface Props {
   lodMode: TerminalMountMode;
@@ -522,6 +524,7 @@ export function TerminalTile({
   const activityHeatmapEnabled = usePreferencesStore(
     (s) => s.activityHeatmapEnabled,
   );
+  const terminalRenderer = usePreferencesStore((s) => s.terminalRenderer);
   const focusLiveTerminal = useCallback(() => {
     const tile = tileRef.current;
     if (!tile || tile.getClientRects().length === 0) {
@@ -1293,6 +1296,21 @@ export function TerminalTile({
                 onClick: () =>
                   setTagManager({ x: contextMenu.x, y: contextMenu.y }),
               },
+              ...(terminalRenderer === "webgl"
+                ? [
+                    { type: "separator" as const },
+                    {
+                      label: t["palette.cmd.refresh_terminal_rendering"],
+                      onClick: () => {
+                        resetWebGL(
+                          terminal.id,
+                          "terminal_context_menu_refresh_rendering",
+                        );
+                        refreshRegisteredTerminalViewports(terminal.id);
+                      },
+                    },
+                  ]
+                : []),
               ...((terminal.type === "claude" || terminal.type === "codex") &&
               liveTerminal.sessionId
                 ? [

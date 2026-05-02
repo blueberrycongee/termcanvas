@@ -10,6 +10,7 @@ import {
   releaseWebGL,
   touch as touchWebGL,
   rebuildTerminalAtlas,
+  resetWebGL,
 } from "./webglContextPool";
 import {
   installRenderDiagnosticsListeners,
@@ -1708,8 +1709,10 @@ function installRenderRecoveryListeners() {
       // WebGL canvases lose their framebuffer when the page is genuinely
       // hidden (sleep/wake, minimize, OS Space switch). For light triggers
       // (bare window.focus where the page may have just briefly lost focus)
-      // a refresh is enough — atlas rebuild is GPU-expensive.
-      rebuildTerminalAtlas(undefined, reason);
+      // a refresh is enough. If WebGL's renderer state is corrupted,
+      // clearing the atlas can still leave new glyphs wrong; cycling the
+      // addon matches the user-visible DOM -> WebGL recovery path.
+      resetWebGL(undefined, reason);
     }
   });
 }
