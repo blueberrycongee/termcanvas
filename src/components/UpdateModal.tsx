@@ -179,7 +179,7 @@ export function UpdateModal({ onClose }: Props) {
               type="button"
               onClick={primary.onClick}
               disabled={primary.disabled}
-              className={`${buttonBase} bg-[var(--accent)] text-[var(--accent-foreground)] hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:brightness-100`}
+              className={`${buttonBase} bg-[var(--green)] text-[var(--accent-foreground)] hover:brightness-110 disabled:bg-[var(--accent)] disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:brightness-100`}
             >
               {primary.label}
             </button>
