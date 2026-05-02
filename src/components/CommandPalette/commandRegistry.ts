@@ -42,7 +42,7 @@ import { useThemeStore } from "../../stores/themeStore";
 import { useHubStore } from "../../stores/hubStore";
 import { useCanvasRegistryStore } from "../../stores/canvasRegistryStore";
 import { useCanvasManagerStore } from "../../stores/canvasManagerStore";
-import { rebuildTerminalAtlas } from "../../terminal/webglContextPool";
+import { resetWebGL } from "../../terminal/webglContextPool";
 import { refreshRegisteredTerminalViewports } from "../../terminal/terminalRegistry";
 import {
   formatShortcut,
@@ -403,7 +403,7 @@ function actionCommands(ctx: CommandContext): PaletteCommand[] {
       title: t["palette.cmd.refresh_terminal_rendering"],
       keywords: ["redraw", "atlas", "glyph", "webgl"],
       perform: () => {
-        rebuildTerminalAtlas();
+        resetWebGL(undefined, "manual_refresh_terminal_rendering");
         refreshRegisteredTerminalViewports();
       },
     });

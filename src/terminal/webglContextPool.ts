@@ -133,6 +133,44 @@ export function rebuildTerminalAtlas(
   }
 }
 
+function resetEntryWebGL(entry: PoolEntry, reason: string): boolean {
+  recordWebGLDiagnostic("webgl_reset", entry.terminalId, { reason });
+  const wasFocused = focusedId === entry.terminalId;
+  releaseWebGL(entry.terminalId);
+  const reacquired = acquireWebGL(entry.terminalId, entry.xterm);
+  if (reacquired && wasFocused) {
+    touch(entry.terminalId);
+  }
+  try {
+    entry.xterm.refresh(0, Math.max(0, entry.xterm.rows - 1));
+  } catch {
+    // Terminal may be mid-disposal; reset is best-effort recovery.
+  }
+  return reacquired;
+}
+
+export function resetWebGL(terminalId?: string, reason = "unspecified"): void {
+  if (!terminalId) {
+    const currentEntries = [...entries.values()];
+    recordWebGLDiagnostic("webgl_reset_all", undefined, {
+      reason,
+      reset_count: currentEntries.length,
+    });
+    for (const entry of currentEntries) {
+      resetEntryWebGL(entry, reason);
+    }
+    return;
+  }
+
+  const entry = entries.get(terminalId);
+  if (!entry) {
+    recordWebGLDiagnostic("webgl_reset_skipped", terminalId, { reason });
+    return;
+  }
+
+  resetEntryWebGL(entry, reason);
+}
+
 export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
   if (entries.has(terminalId)) {
     touch(terminalId);
