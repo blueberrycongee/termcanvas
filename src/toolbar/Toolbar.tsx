@@ -207,7 +207,7 @@ function UpdateStatusButton({
           <ArrowUpIcon />
           <span
             aria-hidden="true"
-            className="absolute top-0.5 right-0.5 h-1.5 w-1.5 rounded-full bg-[var(--accent)]"
+            className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-[var(--green)] ring-2 ring-[var(--bg)]"
           />
         </>
       ) : status === "error" ? (

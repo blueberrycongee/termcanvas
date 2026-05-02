@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useId, useRef } from "react";
 import { marked } from "marked";
 import { useBodyScrollLock } from "../hooks/useBodyScrollLock";
 import { useUpdaterStore } from "../stores/updaterStore";
@@ -9,13 +9,9 @@ interface Props {
   onClose: () => void;
 }
 
-const primaryUpdateButtonClass =
-  "px-4 py-1.5 rounded-lg bg-[var(--accent)] text-[length:var(--text-sm)] font-medium leading-[var(--leading-snug)] text-[var(--accent-foreground)] shadow-sm hover:brightness-110 transition-all";
-
 function extractLocalizedNotes(notes: string, locale: string): string {
   const zhMatch = notes.match(/<!--\s*zh\s*-->([\s\S]*?)<!--\s*\/zh\s*-->/);
   if (locale === "zh" && zhMatch) return zhMatch[1].trim();
-  // Strip zh block to get English content
   return notes.replace(/<!--\s*zh\s*-->[\s\S]*?<!--\s*\/zh\s*-->/g, "").trim();
 }
 
@@ -24,7 +20,8 @@ export function UpdateModal({ onClose }: Props) {
   const t = useT();
   const locale = useLocaleStore((s) => s.locale);
   const { status, info, downloadPercent, errorMessage } = useUpdaterStore();
-  const backdropRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const primaryRef = useRef<HTMLButtonElement>(null);
 
   const handleInstall = useCallback(() => {
     window.termcanvas.updater.install();
@@ -35,12 +32,23 @@ export function UpdateModal({ onClose }: Props) {
     window.termcanvas.updater.check();
   }, []);
 
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === backdropRef.current) onClose();
-    },
-    [onClose],
-  );
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (status === "ready" || status === "error") {
+      const id = window.setTimeout(() => primaryRef.current?.focus(), 0);
+      return () => window.clearTimeout(id);
+    }
+  }, [status]);
 
   const handleChangelogClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -62,19 +70,54 @@ export function UpdateModal({ onClose }: Props) {
     ? (marked.parse(notes, { async: false }) as string)
     : "";
 
+  // A single primary slot drives the right-hand button across every
+  // status, so the footer's width and rhythm don't pop when state moves
+  // from downloading → ready.
+  const primary: { label: string; disabled: boolean; onClick: () => void } | null =
+    status === "ready"
+      ? { label: t.update_modal_restart, disabled: false, onClick: handleInstall }
+      : status === "error"
+        ? { label: t.update_modal_retry, disabled: false, onClick: handleRetry }
+        : status === "downloading"
+          ? {
+              label: t.update_modal_downloading(downloadPercent),
+              disabled: true,
+              onClick: () => {},
+            }
+          : status === "checking"
+            ? { label: t.update_checking_short, disabled: true, onClick: () => {} }
+            : null;
+
+  const cancelButtonClass =
+    "tc-ui px-3 py-1.5 rounded-md transition-colors duration-150 border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]";
+
+  // Inverted neutral instead of a saturated CTA: the project's palette is
+  // a restrained warm grayscale, so green/blue/etc. would clash. Pairing
+  // --text-primary against --bg gives ~14:1 contrast and the maximum
+  // visual weight available without leaving the neutral family. font-
+  // semibold (over tc-ui's medium) anchors the glyph strokes against
+  // the bright fill so the label stops feeling washed out.
+  const primaryEnabledClass =
+    "text-[length:var(--text-sm)] font-semibold leading-[var(--leading-snug)] tracking-[var(--tracking-title)] px-3 py-1.5 rounded-md transition-colors duration-150 bg-[var(--text-primary)] text-[var(--bg)] hover:opacity-90";
+  const primaryDisabledClass =
+    "text-[length:var(--text-sm)] font-medium leading-[var(--leading-snug)] px-3 py-1.5 rounded-md bg-[var(--surface)] text-[var(--text-muted)] cursor-not-allowed";
+
   return (
     <div
-      ref={backdropRef}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={titleId}
       className="tc-enter-fade fixed inset-0 z-[9999] flex items-center justify-center bg-[var(--scrim)]"
-      onClick={handleBackdropClick}
+      onClick={onClose}
     >
       <div
         className="tc-enter-fade-up w-[480px] max-h-[80vh] flex flex-col rounded-xl border border-[var(--border)] bg-[var(--bg)]"
         style={{ boxShadow: "var(--shadow-elev-2)" }}
+        onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <div>
-            <h2 className="tc-title">
+        <div className="flex items-start justify-between gap-4 px-5 py-4 border-b border-[var(--border)]">
+          <div className="min-w-0">
+            <h2 id={titleId} className="tc-title">
               {status === "ready"
                 ? t.update_modal_title_ready
                 : t.update_modal_title}
@@ -82,14 +125,12 @@ export function UpdateModal({ onClose }: Props) {
             {info && <p className="tc-meta mt-0.5">v{info.version}</p>}
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-            style={{
-              transitionDuration: "var(--duration-quick)",
-              transitionTimingFunction: "var(--ease-out-soft)",
-            }}
+            aria-label={t.cancel}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors duration-150"
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
               <path
                 d="M4 4L12 12M12 4L4 12"
                 stroke="currentColor"
@@ -111,53 +152,49 @@ export function UpdateModal({ onClose }: Props) {
         )}
 
         {status === "downloading" && (
-          <div className="px-5 py-2">
-            <div className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden">
+          <div className="px-5 pt-2 pb-1">
+            <div
+              role="progressbar"
+              aria-valuenow={Math.round(downloadPercent)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="h-1.5 rounded-full bg-[var(--surface)] overflow-hidden"
+            >
               <div
-                className="h-full rounded-full bg-[var(--accent)] transition-all duration-deliberate"
+                className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-deliberate"
                 style={{ width: `${downloadPercent}%` }}
               />
             </div>
-            <p className="tc-meta mt-1">
-              {t.update_modal_downloading(downloadPercent)}
-            </p>
           </div>
         )}
 
-        {/* Error message */}
         {status === "error" && (
-          <div className="px-5 py-3">
+          <div className="px-5 pt-2 pb-1">
             <p className="tc-meta text-[var(--red)]">
               {errorMessage || t.update_modal_download_failed}
             </p>
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-[var(--border)]">
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-[var(--border)]">
           <button
+            type="button"
             onClick={onClose}
-            className="tc-ui px-3 py-1.5 hover:text-[var(--text-primary)] transition-colors"
-            style={{
-              transitionDuration: "var(--duration-quick)",
-              transitionTimingFunction: "var(--ease-out-soft)",
-            }}
+            className={cancelButtonClass}
           >
             {t.update_modal_later}
           </button>
-          {status === "error" && (
+          {primary && (
             <button
-              onClick={handleRetry}
-              className={primaryUpdateButtonClass}
+              ref={primaryRef}
+              type="button"
+              onClick={primary.onClick}
+              disabled={primary.disabled}
+              className={
+                primary.disabled ? primaryDisabledClass : primaryEnabledClass
+              }
             >
-              {t.update_modal_retry}
-            </button>
-          )}
-          {status === "ready" && (
-            <button
-              onClick={handleInstall}
-              className={primaryUpdateButtonClass}
-            >
-              {t.update_modal_restart}
+              {primary.label}
             </button>
           )}
         </div>
