@@ -900,6 +900,7 @@ export interface TermCanvasAPI {
     }>;
     getFilePath: (file: File) => string;
     rename: (oldPath: string, newName: string) => Promise<void>;
+    move: (oldPath: string, newPath: string) => Promise<void>;
     delete: (targetPath: string) => Promise<void>;
     mkdir: (dirPath: string, name: string) => Promise<void>;
     createFile: (dirPath: string, name: string) => Promise<void>;

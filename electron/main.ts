@@ -1616,6 +1616,12 @@ function setupIpc() {
     fs.renameSync(oldPath, newPath);
   });
 
+  ipcMain.handle("fs:move", (_event, oldPath: string, newPath: string) => {
+    if (!oldPath || !newPath) throw new Error("Invalid path");
+    if (fs.existsSync(newPath)) throw new Error("Destination already exists");
+    fs.renameSync(oldPath, newPath);
+  });
+
   ipcMain.handle("fs:delete", (_event, targetPath: string) => {
     fs.rmSync(targetPath, { recursive: true, force: true });
   });
@@ -1707,16 +1713,29 @@ function setupIpc() {
 
   ipcMain.handle("fs:list-ignored-files", async (_event, dirPath: string) => {
     const { execFile } = await import("child_process");
-    try {
-      const stdout = await new Promise<string>((resolve, reject) => {
+    const runGit = (args: string[]) =>
+      new Promise<string>((resolve, reject) => {
         execFile(
           "git",
-          ["ls-files", "--others", "--ignored", "--exclude-standard"],
+          args,
           { cwd: dirPath, timeout: 10000, maxBuffer: 64 * 1024 * 1024 },
           (err, out) => (err ? reject(err) : resolve(out)),
         );
       });
-      return stdout.split("\n").filter(Boolean);
+    try {
+      const [filesOutput, dirsOutput] = await Promise.all([
+        runGit(["ls-files", "--others", "--ignored", "--exclude-standard"]),
+        runGit([
+          "ls-files",
+          "--others",
+          "--ignored",
+          "--exclude-standard",
+          "--directory",
+        ]),
+      ]);
+      return [
+        ...new Set(`${dirsOutput}\n${filesOutput}`.split("\n").filter(Boolean)),
+      ];
     } catch (err) {
       console.warn(`[fs:list-ignored-files] failed:`, err);
       return [] as string[];
