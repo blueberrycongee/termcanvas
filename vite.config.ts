@@ -184,6 +184,13 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  // Pre-bundling @wterm/* would move the modules into .vite/deps, breaking
+  // the `new URL("../wasm/...", import.meta.url)` lookup the ghostty core
+  // uses to find its WASM blob. Keep them as-is so the relative URL stays
+  // valid against node_modules.
+  optimizeDeps: {
+    exclude: ["@wterm/core", "@wterm/dom", "@wterm/ghostty", "@wterm/react"],
+  },
   base: "./",
   // Hydra writes worktrees, dispatch state, and result.json under
   // .hydra/ + .worktrees/ at runtime. The dev server's chokidar
