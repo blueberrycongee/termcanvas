@@ -23,6 +23,18 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.99.3
         version: 2.103.3
+      '@wterm/core':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@wterm/dom':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@wterm/ghostty':
+        specifier: 0.3.0
+        version: 0.3.0
+      '@wterm/react':
+        specifier: 0.3.0
+        version: 0.3.0(@wterm/dom@0.3.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@xterm/addon-image':
         specifier: ^0.9.0
         version: 0.9.0
@@ -2558,6 +2570,22 @@ packages:
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+
+  '@wterm/core@0.3.0':
+    resolution: {integrity: sha512-aQ73QBP+eyA3kcn31mA7DmAi7qmEsQijZdmvgwxtSjCi2248EAOZgtkGDpjlspfrxyVxQbUl/IF+gCVcXt4nZQ==}
+
+  '@wterm/dom@0.3.0':
+    resolution: {integrity: sha512-OiUl7reGSlW02yb5wGXMplMZhW2HBkBSFxvbFj15I832UK0QFIHRvhE2l6Xgae8ROn9bNLaALoKDFvcUuz80iQ==}
+
+  '@wterm/ghostty@0.3.0':
+    resolution: {integrity: sha512-TDjEmUSRD7IaFxq31P7+I3Inkp5mHCfBfO6LYj3/vbLbWOkOZOKPhjAcZ36AYFHe9Q0HLCFvLWmrxIO3aGCjDA==}
+
+  '@wterm/react@0.3.0':
+    resolution: {integrity: sha512-1rua/roQGCIGkNxjs9TVq+EkXJ0n2IK6aCoaGIQJpvzuHv7iU9/lngG3i1SCpX6deOOO/wpfhtjDTI+z9XF0aA==}
+    peerDependencies:
+      '@wterm/dom': 0.3.0
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   '@xmldom/xmldom@0.8.12':
     resolution: {integrity: sha512-9k/gHF6n/pAi/9tqr3m3aqkuiNosYTurLLUtc7xQ9sxB/wm7WPygCv8GYa6mS0fLJEHhqMC1ATYhz++U/lRHqg==}
@@ -8226,6 +8254,22 @@ snapshots:
       vite: 7.3.2(@types/node@25.6.0)(jiti@2.6.1)(lightningcss@1.32.0)(tsx@4.21.0)
     transitivePeerDependencies:
       - supports-color
+
+  '@wterm/core@0.3.0': {}
+
+  '@wterm/dom@0.3.0':
+    dependencies:
+      '@wterm/core': 0.3.0
+
+  '@wterm/ghostty@0.3.0':
+    dependencies:
+      '@wterm/core': 0.3.0
+
+  '@wterm/react@0.3.0(@wterm/dom@0.3.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)':
+    dependencies:
+      '@wterm/dom': 0.3.0
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
 
   '@xmldom/xmldom@0.8.12': {}
 

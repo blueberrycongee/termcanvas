@@ -10,6 +10,8 @@ const LEGACY_ENABLED_BLUR = 1.5;
 
 export type TerminalRendererMode = "dom" | "webgl";
 
+export type TerminalEngine = "xterm" | "wterm";
+
 export interface CliCommandConfig {
   command: string;
   args: string[];
@@ -25,6 +27,7 @@ interface PreferencesStore {
   terminalFontSize: number;
   terminalFontFamily: string;
   terminalRenderer: TerminalRendererMode;
+  terminalEngine: TerminalEngine;
   composerEnabled: boolean;
   drawingEnabled: boolean;
   browserEnabled: boolean;
@@ -64,6 +67,7 @@ interface PreferencesStore {
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
   setTerminalRenderer: (mode: TerminalRendererMode) => void;
+  setTerminalEngine: (engine: TerminalEngine) => void;
   setComposerEnabled: (value: boolean) => void;
   setDrawingEnabled: (value: boolean) => void;
   setBrowserEnabled: (value: boolean) => void;
@@ -91,6 +95,7 @@ interface SavedPrefs {
   terminalFontSize: number;
   terminalFontFamily: string;
   terminalRenderer: TerminalRendererMode;
+  terminalEngine: TerminalEngine;
   composerEnabled: boolean;
   drawingEnabled: boolean;
   browserEnabled: boolean;
@@ -199,6 +204,11 @@ function loadPreferences(): SavedPrefs {
         terminalRenderer = "dom";
       }
 
+      let terminalEngine: TerminalEngine = "xterm";
+      if (parsed.terminalEngine === "wterm") {
+        terminalEngine = "wterm";
+      }
+
       let composerEnabled = false;
       if (parsed.composerEnabled === true) composerEnabled = true;
 
@@ -256,6 +266,7 @@ function loadPreferences(): SavedPrefs {
         terminalFontSize: fontSize,
         terminalFontFamily: fontFamily,
         terminalRenderer,
+        terminalEngine,
         composerEnabled,
         drawingEnabled,
         browserEnabled,
@@ -281,6 +292,7 @@ function loadPreferences(): SavedPrefs {
     terminalFontSize: DEFAULT_FONT_SIZE,
     terminalFontFamily: "geist-mono",
     terminalRenderer: "webgl",
+    terminalEngine: "xterm",
     composerEnabled: false,
     drawingEnabled: false,
     browserEnabled: false,
@@ -386,6 +398,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     terminalFontSize: state.terminalFontSize,
     terminalFontFamily: state.terminalFontFamily,
     terminalRenderer: state.terminalRenderer,
+    terminalEngine: state.terminalEngine,
     composerEnabled: state.composerEnabled,
     drawingEnabled: state.drawingEnabled,
     browserEnabled: state.browserEnabled,
@@ -412,6 +425,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   terminalFontSize: initialPrefs.terminalFontSize,
   terminalFontFamily: initialPrefs.terminalFontFamily,
   terminalRenderer: initialPrefs.terminalRenderer,
+  terminalEngine: initialPrefs.terminalEngine,
   composerEnabled: initialPrefs.composerEnabled,
   drawingEnabled: initialPrefs.drawingEnabled,
   browserEnabled: initialPrefs.browserEnabled,
@@ -452,6 +466,10 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setTerminalRenderer: (mode) => {
     set({ terminalRenderer: mode });
     savePreferences(getSaveState({ ...get(), terminalRenderer: mode }));
+  },
+  setTerminalEngine: (engine) => {
+    set({ terminalEngine: engine });
+    savePreferences(getSaveState({ ...get(), terminalEngine: engine }));
   },
   setComposerEnabled: (value) => {
     set({ composerEnabled: value });

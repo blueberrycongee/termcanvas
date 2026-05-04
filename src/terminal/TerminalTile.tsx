@@ -54,6 +54,7 @@ import { TERMINAL_TYPE_CONFIG } from "./terminalTypeConfig";
 import { AgentRenderer } from "../components/agent/AgentRenderer";
 import { ActivitySparkline } from "./ActivitySparkline";
 import { TerminalFindOverlay } from "./TerminalFindOverlay";
+import { WtermTile } from "./WtermTile";
 import { useTerminalFindStore } from "../stores/terminalFindStore";
 import { recordRenderDiagnostic } from "./renderDiagnostics";
 import { resetWebGL } from "./webglContextPool";
@@ -525,6 +526,7 @@ export function TerminalTile({
     (s) => s.activityHeatmapEnabled,
   );
   const terminalRenderer = usePreferencesStore((s) => s.terminalRenderer);
+  const terminalEngine = usePreferencesStore((s) => s.terminalEngine);
   const focusLiveTerminal = useCallback(() => {
     const tile = tileRef.current;
     if (!tile || tile.getClientRects().length === 0) {
@@ -1207,6 +1209,21 @@ export function TerminalTile({
           )}
         </div>
       ) : lodMode === "live" ? (
+        terminalEngine === "wterm" ? (
+          <div
+            className={
+              terminal.minimized
+                ? "relative nopan nodrag nowheel"
+                : "flex-1 min-h-0 relative nopan nodrag nowheel"
+            }
+            style={{
+              height: terminal.minimized ? 0 : undefined,
+              overflow: "hidden",
+            }}
+          >
+            <WtermTile terminal={liveTerminal} />
+          </div>
+        ) : (
         <div
           className={
             terminal.minimized
@@ -1260,6 +1277,7 @@ export function TerminalTile({
           />
           <TerminalFindOverlay terminalId={terminal.id} />
         </div>
+        )
       ) : (
         <div
           className={terminal.minimized ? "" : "flex-1 min-h-0"}
