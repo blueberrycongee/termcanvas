@@ -352,6 +352,12 @@ export const zh = {
     "当前系统无法使用 WebGL 终端渲染。请到“设置 > 外观”切换到 DOM。",
   terminal_renderer_webgl_context_lost:
     "WebGL 终端渲染丢失了图形上下文。如果反复出现，请到“设置 > 外观”切换到 DOM。",
+  terminal_engine: "终端引擎",
+  terminal_engine_xterm: "xterm.js",
+  terminal_engine_wterm: "wterm",
+  terminal_engine_experimental_tag: "实验性",
+  terminal_engine_desc:
+    "默认使用 xterm.js。wterm 由 libghostty 驱动、纯 DOM 渲染，刚发布不久——鼠标上报、全角字符、搜索、复制选区等功能尚不完整。",
   font_builtin: "内置",
   font_downloaded: "已下载",
   font_download: "下载",

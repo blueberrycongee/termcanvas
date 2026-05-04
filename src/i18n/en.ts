@@ -358,6 +358,12 @@ export const en = {
     "WebGL terminal rendering is unavailable. Switch to DOM in Settings > Appearance.",
   terminal_renderer_webgl_context_lost:
     "WebGL terminal rendering lost its graphics context. If it keeps happening, switch to DOM in Settings > Appearance.",
+  terminal_engine: "Terminal engine",
+  terminal_engine_xterm: "xterm.js",
+  terminal_engine_wterm: "wterm",
+  terminal_engine_experimental_tag: "Experimental",
+  terminal_engine_desc:
+    "xterm.js is the default. wterm is libghostty-powered, DOM-rendered, and very new — expect missing features (mouse reporting, wide chars, search, selection-to-clipboard).",
   font_builtin: "Built-in",
   font_downloaded: "Downloaded",
   font_download: "Download",

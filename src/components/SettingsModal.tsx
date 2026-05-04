@@ -806,6 +806,8 @@ export function SettingsModal({ onClose }: Props) {
     setTerminalFontFamily,
     terminalRenderer,
     setTerminalRenderer,
+    terminalEngine,
+    setTerminalEngine,
     composerEnabled,
     setComposerEnabled,
     drawingEnabled,
@@ -1363,6 +1365,28 @@ export function SettingsModal({ onClose }: Props) {
                         { value: "dom", label: t.terminal_renderer_dom },
                       ]}
                       onChange={(v) => setTerminalRenderer(v)}
+                    />
+                  </SettingsRow>
+
+                  <SettingsRow
+                    label={
+                      <span className="flex items-center gap-2">
+                        {t.terminal_engine}
+                        <span className="rounded-full border border-[var(--amber)]/35 bg-[var(--amber)]/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[var(--amber)]">
+                          {t.terminal_engine_experimental_tag}
+                        </span>
+                      </span>
+                    }
+                    description={t.terminal_engine_desc}
+                    align="start"
+                  >
+                    <ChoiceSegment
+                      value={terminalEngine}
+                      options={[
+                        { value: "xterm", label: t.terminal_engine_xterm },
+                        { value: "wterm", label: t.terminal_engine_wterm },
+                      ]}
+                      onChange={(v) => setTerminalEngine(v)}
                     />
                   </SettingsRow>
 
