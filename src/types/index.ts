@@ -1173,6 +1173,19 @@ export interface TermCanvasAPI {
     ) => Promise<ComposerSubmitResult>;
     subscribe: (handler: (event: PinEvent) => void) => () => void;
   };
+  blocking: {
+    list: () => Promise<import("../../shared/blocking").BlockingEvent[]>;
+    jump: (terminalId: string) => Promise<void>;
+    onOpened: (
+      callback: (event: import("../../shared/blocking").BlockingEvent) => void,
+    ) => () => void;
+    onResolved: (
+      callback: (
+        event: import("../../shared/blocking").BlockingEventResolved,
+      ) => void,
+    ) => () => void;
+    onJumpToTerminal: (callback: (terminalId: string) => void) => () => void;
+  };
   updater: {
     check: () => Promise<import("../../shared/updater-types").UpdateCheckOutcome>;
     install: () => void;
