@@ -16,11 +16,14 @@ import {
   useShortcutStore,
 } from "../src/stores/shortcutStore.ts";
 import { isSelectAllShortcutInput } from "../electron/select-all-shortcut.ts";
+import { useCanvasStore } from "../src/stores/canvasStore.ts";
+import { useProjectStore } from "../src/stores/projectStore.ts";
 import {
   isXtermHelperTextArea,
   performContextualSelectAll,
   selectAllInTarget,
 } from "../src/utils/contextualSelectAll.ts";
+import { panToTerminal } from "../src/utils/panToTerminal.ts";
 import { getTerminalFocusOrder } from "../src/stores/projectFocus.ts";
 import {
   createTerminalSelectionAutoCopyState,
@@ -627,4 +630,70 @@ test("terminal navigation preserves scale only while zoomed out", () => {
       preserveScale: true,
     },
   ]);
+});
+
+test("terminal focus clamps fit scale for small resized tiles", () => {
+  const previousWindow = (globalThis as { window?: unknown }).window;
+  const previousProjectState = useProjectStore.getState();
+  const previousCanvasState = useCanvasStore.getState();
+
+  (globalThis as { window?: unknown }).window = {
+    innerWidth: 1600,
+    innerHeight: 1000,
+  };
+
+  useProjectStore.setState({
+    focusedProjectId: "project-1",
+    focusedWorktreeId: "worktree-1",
+    projects: [
+      {
+        id: "project-1",
+        name: "Project",
+        path: "/project",
+        worktrees: [
+          {
+            id: "worktree-1",
+            name: "main",
+            path: "/project",
+            terminals: [
+              {
+                id: "terminal-1",
+                title: "Terminal",
+                type: "shell",
+                minimized: false,
+                focused: true,
+                ptyId: null,
+                status: "idle",
+                x: 100,
+                y: 80,
+                width: 300,
+                height: 200,
+                tags: [],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  });
+  useCanvasStore.setState({
+    viewport: { x: 0, y: 0, scale: 1 },
+    leftPanelCollapsed: true,
+    leftPanelWidth: 280,
+    rightPanelCollapsed: true,
+    rightPanelWidth: 360,
+  });
+
+  try {
+    panToTerminal("terminal-1", { immediate: true });
+    assert.equal(useCanvasStore.getState().viewport.scale, 2);
+  } finally {
+    useProjectStore.setState(previousProjectState);
+    useCanvasStore.setState(previousCanvasState);
+    if (previousWindow === undefined) {
+      delete (globalThis as { window?: unknown }).window;
+    } else {
+      (globalThis as { window?: unknown }).window = previousWindow;
+    }
+  }
 });

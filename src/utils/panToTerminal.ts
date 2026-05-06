@@ -11,6 +11,7 @@ import {
   getCanvasLeftInset,
   clampCenterX,
 } from "../canvas/viewportBounds";
+import { clampScale } from "../canvas/viewportZoom";
 import {
   setTrackSidebar,
   recomputeTileDimensions,
@@ -96,8 +97,8 @@ export function panToTerminal(
   const viewH = window.innerHeight - padding * 2;
 
   const scale = opts?.preserveScale
-    ? viewport.scale
-    : Math.min(viewW / absW, viewH / absH) * 0.9;
+    ? clampScale(viewport.scale)
+    : clampScale(Math.min(viewW / absW, viewH / absH) * 0.9);
 
   const centerX = clampCenterX(absX, absW, scale, leftOffset, rightOffset);
   const centerY =

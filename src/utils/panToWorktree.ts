@@ -8,6 +8,7 @@ import {
   getCanvasLeftInset,
   clampCenterX,
 } from "../canvas/viewportBounds";
+import { clampScale } from "../canvas/viewportZoom";
 
 interface PanToWorktreeOptions {
   /** When true, enter overview mode so double-clicking a terminal zooms into it. */
@@ -63,7 +64,7 @@ export function panToWorktree(
   const padding = 60;
   const viewW = window.innerWidth - leftOffset - rightOffset - padding * 2;
   const viewH = window.innerHeight - padding * 2;
-  const scale = Math.min(viewW / sizeW, viewH / sizeH) * 0.85;
+  const scale = clampScale(Math.min(viewW / sizeW, viewH / sizeH) * 0.85);
 
   const centerX = clampCenterX(absX, sizeW, scale, leftOffset, rightOffset);
   const centerY = -(absY + sizeH / 2) * scale + window.innerHeight / 2;

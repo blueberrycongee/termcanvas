@@ -9,12 +9,14 @@ import { useProjectStore } from "../stores/projectStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { usePinStore } from "../stores/pinStore";
 import { usePreferencesStore } from "../stores/preferencesStore";
+import { useViewportFocusStore } from "../stores/viewportFocusStore";
 import { TerminalTile } from "../terminal/TerminalTile";
 import { resolveTerminalMountMode } from "../terminal/terminalRuntimePolicy";
 import {
   fitTerminalRuntime,
   useTerminalRuntimeStore,
 } from "../terminal/terminalRuntimeStore";
+import { panToTerminal } from "../utils/panToTerminal";
 import { type TerminalNodeData, type CanvasFlowNode } from "./nodeProjection";
 import { rectIntersectsCanvasViewport } from "./viewportBounds";
 import { resolveCollisions } from "./collisionResolver";
@@ -210,6 +212,17 @@ function TerminalNode({ data }: NodeProps<TerminalFlowNode>) {
       // React Flow dimension sync.
       requestAnimationFrame(() => {
         fitTerminalRuntime(data.terminalId);
+        const resizedTerminal = useProjectStore
+          .getState()
+          .projects.find((p) => p.id === data.projectId)
+          ?.worktrees.find((w) => w.id === data.worktreeId)
+          ?.terminals.find((t) => t.id === data.terminalId);
+        if (
+          resizedTerminal?.focused &&
+          useViewportFocusStore.getState().zoomedOutTerminalId === null
+        ) {
+          panToTerminal(data.terminalId, { immediate: true });
+        }
       });
     },
     [

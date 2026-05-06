@@ -636,10 +636,11 @@ export function useKeyboardShortcuts() {
             worktreeId: focusedWorktreeId,
           });
           focusTerminalInScene(terminal.id);
-          panToTerminal(terminal.id, { preserveScale: true });
-          if (getZoomedOutTerminalId() !== null) {
-            setZoomedOutTerminalId(terminal.id);
-          }
+          setZoomedOutTerminalId(
+            navigateToTerminalWithViewport(terminal.id, {
+              zoomedOutTerminalId: getZoomedOutTerminalId(),
+            }),
+          );
         }
         return;
       }
