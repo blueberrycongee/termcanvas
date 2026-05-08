@@ -71,6 +71,8 @@ pnpm dev
 
 **安装命令行工具** —— 启动应用后，进入 设置 → 通用 → 命令行工具，点击注册。这会将 `termcanvas` 和 `hydra` 添加到你的 PATH。
 
+注册也会安装 TermCanvas 的 Claude/Codex skills 和 lifecycle hooks。对于 Codex 0.129.0 及更新版本，TermCanvas 会在 `~/.codex/config.toml` 写入所需的 hook trust state，让自动生成的 hooks 被 Codex 视为已审核/可信，从而继续发送终端 lifecycle 和 telemetry 事件。
+
 ---
 
 ## 功能特性

@@ -73,6 +73,8 @@ pnpm dev
 
 **Install CLI tools** — after launching the app, go to Settings → General → Command line interface and click Register. This adds `termcanvas` and `hydra` to your PATH.
 
+Registration also installs TermCanvas skills and lifecycle hooks for Claude/Codex. For Codex 0.129.0 and newer, TermCanvas writes the required hook trust state in `~/.codex/config.toml` so the generated hooks are reviewed/trusted and continue to emit terminal lifecycle and telemetry events.
+
 ---
 
 ## Features
