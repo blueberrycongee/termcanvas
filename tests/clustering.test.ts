@@ -82,3 +82,22 @@ test("packGroup arranges tiles in a compact grid", async () => {
     }
   }
 });
+
+test("worktree compact offsets honor preferred columns", async () => {
+  const { computeCompactOffsets } = await import(
+    "../src/canvas/worktreeCompactLayout.ts"
+  );
+
+  const result = computeCompactOffsets(
+    [
+      { id: "t1", width: 100, height: 40 },
+      { id: "t2", width: 120, height: 50 },
+      { id: "t3", width: 80, height: 30 },
+    ],
+    2,
+  );
+
+  assert.deepEqual(result.get("t1"), { x: 0, y: 0 });
+  assert.deepEqual(result.get("t2"), { x: 112, y: 0 });
+  assert.deepEqual(result.get("t3"), { x: 0, y: 62 });
+});

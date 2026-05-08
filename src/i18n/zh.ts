@@ -374,6 +374,10 @@ export const zh = {
   drawing_toggle_desc: "实验性功能。在画布上进行自由绘图和标注",
   browser_toggle: "内置浏览器入口",
   browser_toggle_desc: "实验性功能。开启后会在顶部工具栏显示打开浏览器按钮",
+  worktree_compact_columns: "工作树标签重排列数",
+  worktree_compact_columns_desc:
+    "点击或拖动工作树标签吸附终端时，每行放几个终端",
+  worktree_compact_columns_value: (count: number) => `${count} 列`,
   pet_toggle: "画布桌宠",
   pet_toggle_desc: "实验性功能。一只像素风卡皮巴拉，会对终端和工作流事件做出反应",
   completion_glow_toggle: "完成终端边缘提示",

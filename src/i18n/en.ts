@@ -382,6 +382,11 @@ export const en = {
   browser_toggle: "Built-in browser shortcut",
   browser_toggle_desc:
     "Experimental. Shows the open-browser button in the top toolbar when enabled",
+  worktree_compact_columns: "Worktree label grid columns",
+  worktree_compact_columns_desc:
+    "How many terminals fit per row when a worktree label gathers its terminals",
+  worktree_compact_columns_value: (count: number) =>
+    `${count} ${count === 1 ? "column" : "columns"}`,
   pet_toggle: "Canvas pet",
   pet_toggle_desc:
     "Experimental. A pixel-art capybara that reacts to terminal and workflow events",

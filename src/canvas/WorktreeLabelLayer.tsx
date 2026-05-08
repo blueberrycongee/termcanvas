@@ -13,6 +13,8 @@ import {
 import { resolveCollisionsDetailed } from "./collisionResolver";
 import { panToWorktree } from "../utils/panToWorktree";
 import { focusWorktreeInScene } from "../actions/sceneSelectionActions";
+import { usePreferencesStore } from "../stores/preferencesStore";
+import { computeCompactOffsets } from "./worktreeCompactLayout";
 
 /**
  * Per-worktree screen-space label layer.
@@ -323,46 +325,15 @@ interface WorktreeDragState {
   terminalIds: string[];
 }
 
-/**
- * Compute compact offsets for terminals relative to an anchor point.
- * Terminals "snap" into a tight grid below the anchor — like being
- * summoned to the label.
- */
-const COMPACT_GAP = 12;
-
-function computeCompactOffsets(
-  terminals: Array<{ id: string; width: number; height: number }>,
-): Map<string, { x: number; y: number }> {
-  const offsets = new Map<string, { x: number; y: number }>();
-  if (terminals.length === 0) return offsets;
-
-  const columns =
-    terminals.length <= 2 ? terminals.length : terminals.length <= 6 ? 3 : 4;
-
-  let curX = 0;
-  let curY = 0;
-  let rowHeight = 0;
-
-  terminals.forEach((t, index) => {
-    if (index > 0 && index % columns === 0) {
-      curX = 0;
-      curY += rowHeight + COMPACT_GAP;
-      rowHeight = 0;
-    }
-    offsets.set(t.id, { x: curX, y: curY });
-    curX += t.width + COMPACT_GAP;
-    rowHeight = Math.max(rowHeight, t.height);
-  });
-
-  return offsets;
-}
-
 export function WorktreeLabelLayer() {
   const projects = useProjectStore((s) => s.projects);
   const viewport = useCanvasStore((s) => s.viewport);
   const leftPanelCollapsed = useCanvasStore((s) => s.leftPanelCollapsed);
   const leftPanelWidth = useCanvasStore((s) => s.leftPanelWidth);
   const taskDrawerOpen = usePinStore((s) => s.openProjectPath !== null);
+  const compactColumns = usePreferencesStore(
+    (s) => s.worktreeCompactColumns,
+  );
   const reactFlow = useReactFlow();
   const [, setResizeTick] = useState(0);
   const [hoveredLabelKey, setHoveredLabelKey] = useState<string | null>(null);
@@ -495,6 +466,7 @@ export function WorktreeLabelLayer() {
 
     const compactOffsets = computeCompactOffsets(
       terminals.map((t) => ({ id: t.id, width: t.width, height: t.height })),
+      compactColumns,
     );
     const terminalIds = terminals.map((t) => t.id);
 

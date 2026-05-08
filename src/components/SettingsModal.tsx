@@ -824,6 +824,8 @@ export function SettingsModal({ onClose }: Props) {
     setCompletionGlowEnabled,
     trackpadSwipeFocusEnabled,
     setTrackpadSwipeFocusEnabled,
+    worktreeCompactColumns,
+    setWorktreeCompactColumns,
     quitOnLastWindowClosed,
     setQuitOnLastWindowClosed,
     summaryCli,
@@ -1449,6 +1451,19 @@ export function SettingsModal({ onClose }: Props) {
                       <OnOffSegment
                         value={browserEnabled}
                         onChange={setBrowserEnabled}
+                      />
+                    </SettingsRow>
+                    <SettingsRow
+                      label={t.worktree_compact_columns}
+                      description={t.worktree_compact_columns_desc}
+                    >
+                      <SliderControl
+                        min={1}
+                        max={6}
+                        step={1}
+                        value={worktreeCompactColumns}
+                        onChange={setWorktreeCompactColumns}
+                        format={(v) => t.worktree_compact_columns_value(v)}
                       />
                     </SettingsRow>
                   </div>

@@ -183,3 +183,24 @@ test("preferences persist completed terminal edge glow toggle", async () => {
   const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
   assert.equal(raw.completionGlowEnabled, true);
 });
+
+test("preferences persist and sanitize worktree compact columns", async () => {
+  installLocalStorage(
+    JSON.stringify({
+      worktreeCompactColumns: 12,
+    }),
+  );
+
+  const { usePreferencesStore } = await loadPreferencesStoreModule(
+    "worktree-compact-columns",
+  );
+  const store = usePreferencesStore.getState();
+
+  assert.equal(store.worktreeCompactColumns, 6);
+
+  store.setWorktreeCompactColumns(2.4);
+  assert.equal(usePreferencesStore.getState().worktreeCompactColumns, 2);
+
+  const raw = JSON.parse(localStorage.getItem("termcanvas-preferences")!);
+  assert.equal(raw.worktreeCompactColumns, 2);
+});

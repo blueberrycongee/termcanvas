@@ -2,6 +2,10 @@ import { create } from "zustand";
 import type { TerminalType } from "../types/index.ts";
 import type { AgentProviderConfig } from "../agentProviders";
 import { defaultProviderConfig, getPreset, PROVIDER_PRESETS } from "../agentProviders";
+import {
+  DEFAULT_WORKTREE_COMPACT_COLUMNS,
+  sanitizeWorktreeCompactColumns,
+} from "../canvas/worktreeCompactLayout";
 
 const DEFAULT_BLUR = 0;
 const DEFAULT_FONT_SIZE = 13;
@@ -37,6 +41,7 @@ interface PreferencesStore {
   completionGlowEnabled: boolean;
   activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
+  worktreeCompactColumns: number;
   quitOnLastWindowClosed: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
@@ -77,6 +82,7 @@ interface PreferencesStore {
   setCompletionGlowEnabled: (value: boolean) => void;
   setActivityHeatmapEnabled: (value: boolean) => void;
   setTrackpadSwipeFocusEnabled: (value: boolean) => void;
+  setWorktreeCompactColumns: (value: number) => void;
   setQuitOnLastWindowClosed: (value: boolean) => void;
   setSummaryCli: (value: "claude" | "codex") => void;
   setCli: (type: TerminalType, config: CliCommandConfig | null) => void;
@@ -105,6 +111,7 @@ interface SavedPrefs {
   completionGlowEnabled: boolean;
   activityHeatmapEnabled: boolean;
   trackpadSwipeFocusEnabled: boolean;
+  worktreeCompactColumns: number;
   quitOnLastWindowClosed: boolean;
   summaryCli: "claude" | "codex";
   minimumContrastRatio: number;
@@ -236,6 +243,10 @@ function loadPreferences(): SavedPrefs {
       let trackpadSwipeFocusEnabled = false;
       if (parsed.trackpadSwipeFocusEnabled === true) trackpadSwipeFocusEnabled = true;
 
+      const worktreeCompactColumns = sanitizeWorktreeCompactColumns(
+        parsed.worktreeCompactColumns,
+      );
+
       let quitOnLastWindowClosed = false;
       if (parsed.quitOnLastWindowClosed === true) quitOnLastWindowClosed = true;
 
@@ -276,6 +287,7 @@ function loadPreferences(): SavedPrefs {
         completionGlowEnabled,
         activityHeatmapEnabled,
         trackpadSwipeFocusEnabled,
+        worktreeCompactColumns,
         quitOnLastWindowClosed,
         summaryCli,
         minimumContrastRatio,
@@ -302,6 +314,7 @@ function loadPreferences(): SavedPrefs {
     completionGlowEnabled: false,
     activityHeatmapEnabled: false,
     trackpadSwipeFocusEnabled: false,
+    worktreeCompactColumns: DEFAULT_WORKTREE_COMPACT_COLUMNS,
     quitOnLastWindowClosed: false,
     summaryCli: "claude",
     minimumContrastRatio: DEFAULT_MIN_CONTRAST,
@@ -408,6 +421,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     completionGlowEnabled: state.completionGlowEnabled,
     activityHeatmapEnabled: state.activityHeatmapEnabled,
     trackpadSwipeFocusEnabled: state.trackpadSwipeFocusEnabled,
+    worktreeCompactColumns: state.worktreeCompactColumns,
     quitOnLastWindowClosed: state.quitOnLastWindowClosed,
     summaryCli: state.summaryCli,
     minimumContrastRatio: state.minimumContrastRatio,
@@ -435,6 +449,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   completionGlowEnabled: initialPrefs.completionGlowEnabled,
   activityHeatmapEnabled: initialPrefs.activityHeatmapEnabled,
   trackpadSwipeFocusEnabled: initialPrefs.trackpadSwipeFocusEnabled,
+  worktreeCompactColumns: initialPrefs.worktreeCompactColumns,
   quitOnLastWindowClosed: initialPrefs.quitOnLastWindowClosed,
   summaryCli: initialPrefs.summaryCli,
   minimumContrastRatio: initialPrefs.minimumContrastRatio,
@@ -506,6 +521,11 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   setTrackpadSwipeFocusEnabled: (value) => {
     set({ trackpadSwipeFocusEnabled: value });
     savePreferences(getSaveState({ ...get(), trackpadSwipeFocusEnabled: value }));
+  },
+  setWorktreeCompactColumns: (value) => {
+    const sanitized = sanitizeWorktreeCompactColumns(value);
+    set({ worktreeCompactColumns: sanitized });
+    savePreferences(getSaveState({ ...get(), worktreeCompactColumns: sanitized }));
   },
   setQuitOnLastWindowClosed: (value) => {
     set({ quitOnLastWindowClosed: value });
