@@ -2,6 +2,14 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.6] - 2026-05-08
+
+### Added
+- **Worktree label grid columns**: settings now let you choose how many terminal tiles are placed per row when a worktree label gathers its terminals.
+
+### Fixed
+- **Codex hooks feature flag migration**: Codex hook setup now preserves compatibility with both current and legacy feature flag names.
+
 ## [0.39.5] - 2026-05-01
 
 ### Added
