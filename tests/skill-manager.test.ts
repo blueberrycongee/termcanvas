@@ -124,6 +124,10 @@ function withFakeCodexExecutable(
   }
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 test("installSkillLinks creates symlinks for all skills including hydra", () => {
   const { home, sourceDir } = makeTempEnv();
   assert.equal(
@@ -428,6 +432,59 @@ test("installSkillLinks enables hooks feature flag in config.toml", () => {
     !content.includes("codex_hooks"),
     "deprecated codex_hooks flag should not be written",
   );
+});
+
+test("installSkillLinks trusts generated codex hooks", () => {
+  const { home, sourceDir } = makeTempEnv();
+  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const configFile = path.join(home, ".codex", "config.toml");
+  const hooksFile = path.join(home, ".codex", "hooks.json");
+  const content = fs.readFileSync(configFile, "utf-8");
+
+  for (const event of [
+    "pre_tool_use",
+    "post_tool_use",
+    "session_start",
+    "stop",
+    "user_prompt_submit",
+  ]) {
+    const key = `${hooksFile}:${event}:0:0`;
+    assert.match(
+      content,
+      new RegExp(`\\[hooks\\.state\\."${escapeRegExp(key)}"\\]`),
+      `missing trust state for ${event}`,
+    );
+  }
+
+  assert.equal(
+    (content.match(/trusted_hash = "sha256:/g) ?? []).length,
+    5,
+    "expected one trusted hash per generated hook",
+  );
+});
+
+test("ensureSkillLinks preserves codex hook enabled state while updating trust", () => {
+  const { home, sourceDir } = makeTempEnv();
+  const configFile = path.join(home, ".codex", "config.toml");
+  const hooksFile = path.join(home, ".codex", "hooks.json");
+  const stopKey = `${hooksFile}:stop:0:0`;
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+  fs.writeFileSync(
+    configFile,
+    `[hooks.state."${stopKey}"]\nenabled = false\ntrusted_hash = "sha256:stale"\n`,
+  );
+
+  ensureSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+
+  const content = fs.readFileSync(configFile, "utf-8");
+  const stopBlocks = content.match(
+    new RegExp(`\\[hooks\\.state\\."${escapeRegExp(stopKey)}"\\]`, "g"),
+  );
+  assert.equal(stopBlocks?.length, 1, "stop hook state table duplicated");
+  const stopBlock = content.slice(content.indexOf(`[hooks.state."${stopKey}"]`));
+  assert.match(stopBlock, /enabled = false/);
+  assert.doesNotMatch(stopBlock, /trusted_hash = "sha256:stale"/);
 });
 
 test("ensureCodexFeatureFlag preserves existing config.toml content", () => {

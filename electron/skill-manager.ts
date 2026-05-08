@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 
 function getSkillLinkType(platform = process.platform): "junction" | "dir" {
@@ -795,6 +796,119 @@ const CODEX_HOOK_EVENTS = [
   "UserPromptSubmit",
 ] as const;
 
+const CODEX_HOOK_EVENT_KEY_LABELS: Record<(typeof CODEX_HOOK_EVENTS)[number], string> = {
+  PreToolUse: "pre_tool_use",
+  PostToolUse: "post_tool_use",
+  SessionStart: "session_start",
+  Stop: "stop",
+  UserPromptSubmit: "user_prompt_submit",
+};
+
+function canonicalJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJson);
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(
+      ([left], [right]) => left.localeCompare(right),
+    );
+    return Object.fromEntries(
+      entries.map(([key, val]) => [key, canonicalJson(val)]),
+    );
+  }
+  return value;
+}
+
+function versionForCodexHookIdentity(value: unknown): string {
+  const serialized = JSON.stringify(canonicalJson(value));
+  return `sha256:${crypto.createHash("sha256").update(serialized).digest("hex")}`;
+}
+
+function codexCommandHookHash(eventName: (typeof CODEX_HOOK_EVENTS)[number], command: string): string {
+  return versionForCodexHookIdentity({
+    event_name: CODEX_HOOK_EVENT_KEY_LABELS[eventName],
+    hooks: [
+      {
+        async: false,
+        command,
+        timeout: 5,
+        type: "command",
+      },
+    ],
+    matcher: "",
+  });
+}
+
+function escapeTomlBasicString(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function isTomlHookStateHeader(line: string): string | null {
+  const match = line.match(/^\s*\[hooks\.state\."((?:\\.|[^"])*)"\]\s*(?:#.*)?$/);
+  if (!match) return null;
+  return match[1].replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+
+function ensureTrustedHashInHookStateBlock(lines: string[], trustedHash: string): string[] {
+  const hashLine = `trusted_hash = "${trustedHash}"`;
+  let replaced = false;
+  const next = lines.map((line) => {
+    if (/^\s*trusted_hash\s*=/.test(line)) {
+      replaced = true;
+      return hashLine;
+    }
+    return line;
+  });
+  if (!replaced) next.push(hashLine);
+  return next;
+}
+
+function ensureCodexHookTrustStatesInToml(
+  content: string,
+  states: Record<string, string>,
+): string {
+  if (Object.keys(states).length === 0) return content;
+
+  const lines = content.split("\n");
+  const output: string[] = [];
+  let changed = false;
+  const seen = new Set<string>();
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const stateKey = isTomlHookStateHeader(lines[i]);
+    if (!stateKey || !(stateKey in states)) {
+      output.push(lines[i]);
+      continue;
+    }
+
+    const block = [lines[i]];
+    let j = i + 1;
+    while (j < lines.length && !isTomlTableHeader(lines[j])) {
+      block.push(lines[j]);
+      j += 1;
+    }
+
+    const nextBlock = ensureTrustedHashInHookStateBlock(block, states[stateKey]);
+    if (nextBlock.join("\n") !== block.join("\n")) changed = true;
+    output.push(...nextBlock);
+    seen.add(stateKey);
+    i = j - 1;
+  }
+
+  const missing = Object.entries(states).filter(([key]) => !seen.has(key));
+  if (missing.length > 0) {
+    const trimmed = output.join("\n").trimEnd();
+    const prefix = trimmed ? `${trimmed}\n\n` : "";
+    const appended = missing
+      .map(
+        ([key, hash]) =>
+          `[hooks.state."${escapeTomlBasicString(key)}"]\ntrusted_hash = "${hash}"`,
+      )
+      .join("\n\n");
+    return `${prefix}${appended}\n`;
+  }
+
+  return changed ? output.join("\n") : content;
+}
+
 function ensureCodexHooks(scriptPath: string, home: string): void {
   const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
   let data: { hooks?: Record<string, unknown[]> } = {};
@@ -1024,6 +1138,32 @@ function ensureCodexHooksFeatureFlagInToml(
     .replace(/\n{3,}/g, "\n\n");
 }
 
+function ensureCodexHookTrustStates(home: string, scriptPath: string): void {
+  const configFile = path.join(getCodexConfigDir(home), "config.toml");
+  fs.mkdirSync(path.dirname(configFile), { recursive: true });
+
+  let content = "";
+  try {
+    content = fs.readFileSync(configFile, "utf-8");
+  } catch {}
+
+  const hooksFile = path.join(getCodexConfigDir(home), "hooks.json");
+  const hookCommand = `node '${scriptPath}'`;
+  const states = Object.fromEntries(
+    CODEX_HOOK_EVENTS.map((eventName) => [
+      `${hooksFile}:${CODEX_HOOK_EVENT_KEY_LABELS[eventName]}:0:0`,
+      codexCommandHookHash(eventName, hookCommand),
+    ]),
+  );
+
+  const nextContent = ensureCodexHookTrustStatesInToml(content, states);
+  if (nextContent === content) return;
+
+  const tmp = configFile + ".tmp." + process.pid;
+  fs.writeFileSync(tmp, nextContent, "utf-8");
+  fs.renameSync(tmp, configFile);
+}
+
 function ensureCodexFeatureFlag(home: string): void {
   const configFile = path.join(getCodexConfigDir(home), "config.toml");
   fs.mkdirSync(path.dirname(configFile), { recursive: true });
@@ -1066,6 +1206,10 @@ export function installSkillLinks({
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
       home,
     );
+    ensureCodexHookTrustStates(
+      home,
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
+    );
     ensureCodexFeatureFlag(home);
     ensureComputerUseMcpRegistration(sourceDir, home);
     installAllSkillLinks(sourceDir, home, appVersion);
@@ -1104,6 +1248,10 @@ export function ensureSkillLinks({
     ensureCodexHooks(
       path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
       home,
+    );
+    ensureCodexHookTrustStates(
+      home,
+      path.join(sourceDir, "scripts", "termcanvas-hook.mjs"),
     );
     ensureCodexFeatureFlag(home);
     ensureComputerUseMcpRegistration(sourceDir, home);
