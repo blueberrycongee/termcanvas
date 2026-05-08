@@ -7,6 +7,7 @@ import path from "node:path";
 import {
   ensureSkillLinks,
   installSkillLinks,
+  parseCodexHooksFeatureFlag,
   uninstallSkillLinks,
 } from "../electron/skill-manager.ts";
 
@@ -62,6 +63,65 @@ function readClaudeSettings(home: string) {
 function readClaudeGlobalConfig(home: string) {
   const p = path.join(home, ".claude.json");
   return JSON.parse(fs.readFileSync(p, "utf-8"));
+}
+
+function withFakeCodexFeatures(
+  featuresListOutput: string,
+  callback: () => void,
+): void {
+  const windowsScript = `@echo off\r\necho ${featuresListOutput}\r\n`;
+  const posixScript = `#!/bin/sh\ncat <<'EOF'\n${featuresListOutput}\nEOF\n`;
+  withFakeCodexExecutable(posixScript, windowsScript, callback);
+}
+
+function withFakeCodexVersionFallback(
+  versionOutput: string,
+  callback: () => void,
+): void {
+  const windowsScript = [
+    "@echo off",
+    'if "%1"=="features" exit /b 1',
+    `if "%1"=="--version" echo ${versionOutput} & exit /b 0`,
+    "exit /b 1",
+    "",
+  ].join("\r\n");
+  const posixScript = [
+    "#!/bin/sh",
+    'if [ "$1" = "features" ]; then exit 1; fi',
+    `if [ "$1" = "--version" ]; then echo '${versionOutput}'; exit 0; fi`,
+    "exit 1",
+    "",
+  ].join("\n");
+  withFakeCodexExecutable(posixScript, windowsScript, callback);
+}
+
+function withFakeCodexExecutable(
+  posixScript: string,
+  windowsScript: string,
+  callback: () => void,
+): void {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fake-codex-"));
+  const script = path.join(
+    dir,
+    process.platform === "win32" ? "codex.cmd" : "codex",
+  );
+  if (process.platform === "win32") {
+    fs.writeFileSync(script, windowsScript);
+  } else {
+    fs.writeFileSync(script, posixScript, { mode: 0o755 });
+  }
+
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${dir}${path.delimiter}${previousPath ?? ""}`;
+  try {
+    callback();
+  } finally {
+    if (previousPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = previousPath;
+    }
+  }
 }
 
 test("installSkillLinks creates symlinks for all skills including hydra", () => {
@@ -337,15 +397,37 @@ test("uninstallSkillLinks removes termcanvas entries from codex hooks.json", () 
   }
 });
 
-test("installSkillLinks enables codex_hooks feature flag in config.toml", () => {
+test("parseCodexHooksFeatureFlag prefers current hooks flag", () => {
+  assert.equal(
+    parseCodexHooksFeatureFlag(
+      "codex_hooks stable true\nhooks stable true\n",
+    ),
+    "hooks",
+  );
+});
+
+test("parseCodexHooksFeatureFlag supports legacy codex_hooks flag", () => {
+  assert.equal(
+    parseCodexHooksFeatureFlag("codex_hooks experimental true\n"),
+    "codex_hooks",
+  );
+});
+
+test("installSkillLinks enables hooks feature flag in config.toml", () => {
   const { home, sourceDir } = makeTempEnv();
-  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  withFakeCodexFeatures("hooks stable true", () => {
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  });
 
   const configFile = path.join(home, ".codex", "config.toml");
   assert.equal(fs.existsSync(configFile), true, "config.toml not created");
 
   const content = fs.readFileSync(configFile, "utf-8");
-  assert.ok(content.includes("codex_hooks = true"), "codex_hooks flag not set");
+  assert.ok(content.includes("hooks = true"), "hooks flag not set");
+  assert.ok(
+    !content.includes("codex_hooks"),
+    "deprecated codex_hooks flag should not be written",
+  );
 });
 
 test("ensureCodexFeatureFlag preserves existing config.toml content", () => {
@@ -358,7 +440,9 @@ test("ensureCodexFeatureFlag preserves existing config.toml content", () => {
     'model = "gpt-4"\n\n[features]\napply_patch = true\n',
   );
 
-  installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  withFakeCodexFeatures("hooks stable true", () => {
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  });
 
   const content = fs.readFileSync(path.join(codexDir, "config.toml"), "utf-8");
   assert.ok(content.includes('model = "gpt-4"'), "existing model setting lost");
@@ -366,7 +450,56 @@ test("ensureCodexFeatureFlag preserves existing config.toml content", () => {
     content.includes("apply_patch = true"),
     "existing feature flag lost",
   );
-  assert.ok(content.includes("codex_hooks = true"), "codex_hooks not added");
+  assert.ok(content.includes("hooks = true"), "hooks not added");
+});
+
+test("installSkillLinks migrates deprecated codex_hooks flag to hooks", () => {
+  const { home, sourceDir } = makeTempEnv();
+  const codexDir = path.join(home, ".codex");
+  fs.mkdirSync(codexDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(codexDir, "config.toml"),
+    'model = "gpt-5"\n\n[features]\napply_patch = true\ncodex_hooks = true\n',
+  );
+
+  withFakeCodexFeatures("hooks stable true", () => {
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  });
+
+  const content = fs.readFileSync(path.join(codexDir, "config.toml"), "utf-8");
+  assert.match(content, /^\s*hooks\s*=\s*true\s*$/m);
+  assert.doesNotMatch(content, /^\s*codex_hooks\s*=/m);
+  assert.match(content, /^\s*apply_patch\s*=\s*true\s*$/m);
+});
+
+test("installSkillLinks keeps legacy codex_hooks for older Codex feature list", () => {
+  const { home, sourceDir } = makeTempEnv();
+
+  withFakeCodexFeatures("codex_hooks experimental true", () => {
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  });
+
+  const content = fs.readFileSync(
+    path.join(home, ".codex", "config.toml"),
+    "utf-8",
+  );
+  assert.match(content, /^\s*codex_hooks\s*=\s*true\s*$/m);
+  assert.doesNotMatch(content, /^\s*hooks\s*=/m);
+});
+
+test("installSkillLinks keeps legacy codex_hooks for pre-0.129 Codex without features list", () => {
+  const { home, sourceDir } = makeTempEnv();
+
+  withFakeCodexVersionFallback("codex-cli 0.128.0", () => {
+    installSkillLinks({ home, sourceDir, appVersion: "0.18.0" });
+  });
+
+  const content = fs.readFileSync(
+    path.join(home, ".codex", "config.toml"),
+    "utf-8",
+  );
+  assert.match(content, /^\s*codex_hooks\s*=\s*true\s*$/m);
+  assert.doesNotMatch(content, /^\s*hooks\s*=/m);
 });
 
 test("installSkillLinks registers Computer Use MCP globally for Claude and Codex", () => {

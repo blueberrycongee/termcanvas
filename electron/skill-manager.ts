@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 function getSkillLinkType(platform = process.platform): "junction" | "dir" {
   return platform === "win32" ? "junction" : "dir";
@@ -42,6 +43,11 @@ function getClaudeGlobalConfigFile(home: string): string {
 const PLUGIN_KEY = "termcanvas@termcanvas";
 const CODEX_COMPUTER_USE_MCP_SERVER_NAME = "computer-use";
 const CLAUDE_COMPUTER_USE_MCP_SERVER_NAME = "termcanvas-computer-use";
+const CODEX_HOOKS_FEATURE_FLAG = "hooks";
+const CODEX_LEGACY_HOOKS_FEATURE_FLAG = "codex_hooks";
+type CodexHooksFeatureFlag =
+  | typeof CODEX_HOOKS_FEATURE_FLAG
+  | typeof CODEX_LEGACY_HOOKS_FEATURE_FLAG;
 
 interface PluginEntry {
   scope: string;
@@ -873,6 +879,151 @@ function removeCodexHooks(home: string): void {
   fs.renameSync(tmp, hooksFile);
 }
 
+export function parseCodexHooksFeatureFlag(
+  featuresListOutput: string,
+): CodexHooksFeatureFlag | null {
+  const featureNames = new Set(
+    featuresListOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim().split(/\s+/)[0])
+      .filter(Boolean),
+  );
+  if (featureNames.has(CODEX_HOOKS_FEATURE_FLAG)) {
+    return CODEX_HOOKS_FEATURE_FLAG;
+  }
+  if (featureNames.has(CODEX_LEGACY_HOOKS_FEATURE_FLAG)) {
+    return CODEX_LEGACY_HOOKS_FEATURE_FLAG;
+  }
+  return null;
+}
+
+function parseCodexCliVersion(
+  versionOutput: string,
+): [number, number, number] | null {
+  const match = versionOutput.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function compareSemver(
+  left: [number, number, number],
+  right: [number, number, number],
+): number {
+  for (let i = 0; i < 3; i += 1) {
+    const diff = left[i] - right[i];
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function detectCodexHooksFeatureFlag(): CodexHooksFeatureFlag {
+  try {
+    const output = execFileSync("codex", ["features", "list"], {
+      encoding: "utf-8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 2000,
+    });
+    return parseCodexHooksFeatureFlag(output) ?? CODEX_HOOKS_FEATURE_FLAG;
+  } catch {
+    try {
+      const output = execFileSync("codex", ["--version"], {
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "ignore"],
+        timeout: 2000,
+      });
+      const version = parseCodexCliVersion(output);
+      if (version && compareSemver(version, [0, 129, 0]) < 0) {
+        return CODEX_LEGACY_HOOKS_FEATURE_FLAG;
+      }
+    } catch {}
+  }
+  return CODEX_HOOKS_FEATURE_FLAG;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isTomlTableHeader(line: string): boolean {
+  return /^\s*\[+[^\]]+\]+\s*(?:#.*)?$/.test(line);
+}
+
+function isTomlTable(line: string, tableName: string): boolean {
+  return new RegExp(
+    `^\\s*\\[${escapeRegExp(tableName)}\\]\\s*(?:#.*)?$`,
+  ).test(line);
+}
+
+function isTomlKeyAssignment(line: string, key: string): boolean {
+  return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`).test(line);
+}
+
+function isTomlTrueAssignment(line: string, key: string): boolean {
+  return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*true\\s*(?:#.*)?$`).test(
+    line,
+  );
+}
+
+function ensureCodexHooksFeatureFlagInToml(
+  content: string,
+  featureFlag: CodexHooksFeatureFlag,
+): string {
+  const hookFeatureFlags = [
+    CODEX_HOOKS_FEATURE_FLAG,
+    CODEX_LEGACY_HOOKS_FEATURE_FLAG,
+  ];
+  let cleaned = content;
+  for (const flag of hookFeatureFlags) {
+    cleaned = cleaned.replace(
+      new RegExp(`^\\s*features\\.${escapeRegExp(flag)}\\s*=.*$`, "gm"),
+      "",
+    );
+  }
+  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
+
+  const lines = cleaned.split("\n");
+  const featuresStart = lines.findIndex((line) =>
+    isTomlTable(line, "features"),
+  );
+
+  if (featuresStart === -1) {
+    const prefix = cleaned.trimEnd();
+    const section = `[features]\n${featureFlag} = true\n`;
+    return prefix ? `${prefix}\n\n${section}` : section;
+  }
+
+  let featuresEnd = lines.length;
+  for (let i = featuresStart + 1; i < lines.length; i += 1) {
+    if (isTomlTableHeader(lines[i])) {
+      featuresEnd = i;
+      break;
+    }
+  }
+
+  const featureLines = lines.slice(featuresStart + 1, featuresEnd);
+  const matchingLines = featureLines.filter((line) =>
+    hookFeatureFlags.some((flag) => isTomlKeyAssignment(line, flag)),
+  );
+  const alreadyCanonical =
+    matchingLines.length === 1 &&
+    isTomlTrueAssignment(matchingLines[0], featureFlag);
+
+  if (alreadyCanonical) return cleaned;
+
+  const filteredFeatureLines = featureLines.filter(
+    (line) => !hookFeatureFlags.some((flag) => isTomlKeyAssignment(line, flag)),
+  );
+
+  return [
+    ...lines.slice(0, featuresStart + 1),
+    `${featureFlag} = true`,
+    ...filteredFeatureLines,
+    ...lines.slice(featuresEnd),
+  ]
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 function ensureCodexFeatureFlag(home: string): void {
   const configFile = path.join(getCodexConfigDir(home), "config.toml");
   fs.mkdirSync(path.dirname(configFile), { recursive: true });
@@ -882,27 +1033,12 @@ function ensureCodexFeatureFlag(home: string): void {
     content = fs.readFileSync(configFile, "utf-8");
   } catch {}
 
-  // Already enabled — nothing to do
-  if (/^\s*codex_hooks\s*=\s*true\s*$/m.test(content)) return;
-
-  // Remove any existing codex_hooks line (might be set to false)
-  content = content
-    .replace(/^\s*codex_hooks\s*=.*$/m, "")
-    .replace(/\n{3,}/g, "\n\n");
-
-  const featuresMatch = content.match(/^\[features\]\s*$/m);
-  if (featuresMatch) {
-    // Insert after [features] header
-    const idx = featuresMatch.index! + featuresMatch[0].length;
-    content =
-      content.slice(0, idx) + "\ncodex_hooks = true" + content.slice(idx);
-  } else {
-    // Append new [features] section
-    content = content.trimEnd() + "\n\n[features]\ncodex_hooks = true\n";
-  }
+  const featureFlag = detectCodexHooksFeatureFlag();
+  const nextContent = ensureCodexHooksFeatureFlagInToml(content, featureFlag);
+  if (nextContent === content) return;
 
   const tmp = configFile + ".tmp." + process.pid;
-  fs.writeFileSync(tmp, content, "utf-8");
+  fs.writeFileSync(tmp, nextContent, "utf-8");
   fs.renameSync(tmp, configFile);
 }
 
