@@ -1058,6 +1058,8 @@ contextBridge.exposeInMainWorld("termcanvas", {
       ipcRenderer.invoke("pin:update", repo, id, patch) as Promise<import("../shared/pin.js").Pin>,
     remove: (repo: string, id: string) =>
       ipcRenderer.invoke("pin:remove", repo, id) as Promise<void>,
+    openPreview: (repo: string, id: string) =>
+      ipcRenderer.invoke("pin:open-preview", repo, id) as Promise<void>,
     saveAttachment: (
       repo: string,
       id: string,

@@ -172,6 +172,7 @@ import { AgentService, type AgentConfig } from "./agent-service";
 import { ComputerUseManager } from "./computer-use-manager";
 import { SessionScanner } from "./session-scanner.ts";
 import { mergeAndDedupeSessions } from "./session-list.ts";
+import { buildPinRenderHtml } from "./pin-render-utils";
 import type { RenderDiagnosticEventInput } from "../shared/render-diagnostics";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -327,6 +328,51 @@ const apiServer = new ApiServer({
   computerUseManager,
   taskStore,
 });
+
+function openPinPreviewWindow(repo: string, pinId: string): void {
+  const pin = taskStore.get(repo, pinId);
+  if (!pin) {
+    throw new Error(`Pin not found: ${pinId}`);
+  }
+
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 900,
+    useContentSize: true,
+    minWidth: 480,
+    minHeight: 360,
+    show: false,
+    title: pin.title.trim() || "Pin Preview",
+    backgroundColor: "#ffffff",
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+
+  let initialUrl: string | null = null;
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (initialUrl && url === initialUrl) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) {
+      void shell.openExternal(url);
+    }
+  });
+  win.once("ready-to-show", () => {
+    if (!win.isDestroyed()) win.show();
+  });
+
+  const html = buildPinRenderHtml(pin);
+  initialUrl = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+  void win.loadURL(initialUrl);
+}
 
 function createWindow() {
   const isMac = process.platform === "darwin";
@@ -2207,6 +2253,10 @@ function setupIpc() {
 
   ipcMain.handle("pin:remove", (_event, repo: string, id: string) => {
     taskStore.remove(repo, id);
+  });
+
+  ipcMain.handle("pin:open-preview", (_event, repo: string, id: string) => {
+    openPinPreviewWindow(repo, id);
   });
 
   ipcMain.handle(

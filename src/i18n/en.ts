@@ -767,6 +767,7 @@ export const en = {
   "pin.action.reopen": "Reopen",
   "pin.action.drop": "Drop",
   "pin.action.delete": "Delete",
+  "pin.action.openPreview": "Open preview",
   "pin.meta.created": (rel: string) => `Created ${rel}`,
   "pin.meta.updated": (rel: string) => `Updated ${rel}`,
   "pin.relativeTime": (deltaMs: number) => {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ClipboardEvent, DragEvent } from "react";
+import { ExternalLink } from "lucide-react";
 import {
   useCanvasStore,
   COLLAPSED_TAB_WIDTH,
@@ -66,6 +67,7 @@ export function PinDetailDrawer() {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [previewBusy, setPreviewBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -313,6 +315,16 @@ export function PinDetailDrawer() {
     }
   }, [pin, busy, removePin, closeDetail]);
 
+  const handleOpenPreview = useCallback(async () => {
+    if (!pin || previewBusy) return;
+    setPreviewBusy(true);
+    try {
+      await window.termcanvas.pins.openPreview(pin.repo, pin.id);
+    } finally {
+      setPreviewBusy(false);
+    }
+  }, [pin, previewBusy]);
+
   // Keyboard handlers — latest-ref pattern: the listener is mounted once per
   // open/close cycle, but reads the freshest state and callbacks via a ref so
   // every keystroke in edit mode doesn't tear down + rebind window listeners.
@@ -456,6 +468,18 @@ export function PinDetailDrawer() {
 
           {pin && (
             <div className="flex items-center gap-1.5">
+              {!editing && pin.body.trim() && (
+                <button
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] transition-colors disabled:opacity-50"
+                  disabled={previewBusy}
+                  onClick={() => void handleOpenPreview()}
+                  title={t["pin.action.openPreview"]}
+                  aria-label={t["pin.action.openPreview"]}
+                >
+                  <ExternalLink className="h-3 w-3" strokeWidth={2} />
+                  <span>{t["pin.action.openPreview"]}</span>
+                </button>
+              )}
               {!editing && (
                 <button
                   className="text-[10px] px-2 py-0.5 rounded bg-[var(--surface-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--sidebar-hover)] transition-colors disabled:opacity-50"

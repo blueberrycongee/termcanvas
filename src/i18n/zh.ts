@@ -750,6 +750,7 @@ export const zh = {
   "pin.action.reopen": "重新打开",
   "pin.action.drop": "搁置",
   "pin.action.delete": "删除",
+  "pin.action.openPreview": "独立预览",
   "pin.meta.created": (rel: string) => `创建于 ${rel}`,
   "pin.meta.updated": (rel: string) => `更新于 ${rel}`,
   "pin.relativeTime": (deltaMs: number) => {

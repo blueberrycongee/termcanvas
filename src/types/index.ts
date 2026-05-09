@@ -1155,6 +1155,7 @@ export interface TermCanvasAPI {
     create: (input: CreatePinInput) => Promise<Pin>;
     update: (repo: string, id: string, patch: UpdatePinInput) => Promise<Pin>;
     remove: (repo: string, id: string) => Promise<void>;
+    openPreview: (repo: string, id: string) => Promise<void>;
     saveAttachment: (
       repo: string,
       id: string,
