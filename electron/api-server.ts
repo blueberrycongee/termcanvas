@@ -15,6 +15,7 @@ import {
 import { PinStore, PinStoreError } from "./pin-store";
 import { resolveCanvasProjectRoot } from "./pin-project-resolver";
 import { renderPinToPng } from "./pin-render";
+import { cleanupPinRenderCache } from "./pin-render-utils";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -681,6 +682,8 @@ export class ApiServer {
     const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
     const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
     try {
+      const pins = this.deps.taskStore.list(canonicalRepo);
+      cleanupPinRenderCache(canonicalRepo, pins.map((pin) => pin.id));
       const pin = this.deps.taskStore.get(canonicalRepo, id);
       if (!pin) {
         throw Object.assign(new Error(`Pin not found: ${id}`), { status: 404 });

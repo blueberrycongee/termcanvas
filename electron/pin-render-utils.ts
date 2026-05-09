@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 import { marked } from "marked";
 import type { Pin } from "../shared/pin";
 
@@ -10,6 +11,7 @@ export const PIN_RENDER_MAX_WIDTH = 3840;
 export const PIN_RENDER_MAX_HEIGHT = 4096;
 export const PIN_RENDER_DEFAULT_WAIT_MS = 300;
 export const PIN_RENDER_MAX_WAIT_MS = 5000;
+export const PIN_RENDER_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const HTML_DOCUMENT_RE =
   /^\s*(?:<!doctype\s+html[^>]*>|<html[\s>]|<head[\s>]|<body[\s>])/i;
@@ -48,7 +50,40 @@ export function isPinHtmlDocument(text: string): boolean {
 }
 
 export function getDefaultPinRenderPath(repo: string, pinId: string): string {
-  return path.join(repo, ".termcanvas", "pin-renders", pinId, "latest.png");
+  return path.join(getPinRenderCacheDir(repo), pinId, "latest.png");
+}
+
+export function getPinRenderCacheDir(repo: string): string {
+  return path.join(repo, ".termcanvas", "pin-renders");
+}
+
+export function cleanupPinRenderCache(
+  repo: string,
+  existingPinIds: Iterable<string>,
+  nowMs = Date.now(),
+): void {
+  const cacheDir = getPinRenderCacheDir(repo);
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(cacheDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  const existing = new Set(existingPinIds);
+  for (const entry of entries) {
+    const fullPath = path.join(cacheDir, entry.name);
+    if (!entry.isDirectory()) {
+      removeIfStaleRenderFile(fullPath, nowMs);
+      continue;
+    }
+    if (!existing.has(entry.name)) {
+      removePath(fullPath);
+      continue;
+    }
+    cleanupPinRenderDir(fullPath, nowMs);
+  }
+  removeEmptyDir(cacheDir);
 }
 
 export function normalizePinRenderOptions(
@@ -164,6 +199,68 @@ function resolveAttachmentHref(href: string, baseUrl: string | null): string {
 
 function normalizeAttachmentsUrl(attachmentsUrl: string | undefined): string | null {
   return attachmentsUrl ? attachmentsUrl.replace(/\/$/, "") : null;
+}
+
+function cleanupPinRenderDir(dir: string, nowMs: number): void {
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      cleanupPinRenderDir(fullPath, nowMs);
+      removeEmptyDir(fullPath);
+      continue;
+    }
+    if (entry.name === "latest.png" || entry.name === "latest.json") {
+      continue;
+    }
+    removeIfStaleRenderFile(fullPath, nowMs);
+  }
+  removeEmptyDir(dir);
+}
+
+function removeIfStaleRenderFile(filePath: string, nowMs: number): void {
+  const name = path.basename(filePath);
+  if (!isRenderCacheFileName(name)) return;
+  let stat: fs.Stats;
+  try {
+    stat = fs.statSync(filePath);
+  } catch {
+    return;
+  }
+  if (!stat.isFile()) return;
+  if (name.includes(".tmp-") || nowMs - stat.mtimeMs > PIN_RENDER_CACHE_MAX_AGE_MS) {
+    removePath(filePath);
+  }
+}
+
+function isRenderCacheFileName(name: string): boolean {
+  return (
+    name === "latest.json" ||
+    name.endsWith(".png") ||
+    name.endsWith(".json") ||
+    name.includes(".tmp-")
+  );
+}
+
+function removePath(targetPath: string): void {
+  try {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } catch {
+    // Cache cleanup should not block rendering.
+  }
+}
+
+function removeEmptyDir(dir: string): void {
+  try {
+    fs.rmdirSync(dir);
+  } catch {
+    // Directory is not empty or disappeared; both are fine for cleanup.
+  }
 }
 
 function clampInteger(

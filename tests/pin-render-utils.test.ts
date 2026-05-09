@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import {
   PIN_RENDER_MAX_HEIGHT,
   PIN_RENDER_MAX_WIDTH,
   buildPinRenderHtml,
+  cleanupPinRenderCache,
   getDefaultPinRenderPath,
   isPinHtmlDocument,
   normalizePinRenderOptions,
@@ -95,4 +98,48 @@ test("buildPinRenderHtml prepares full html documents for sandboxed rendering", 
       'src="tc-attachment://local/tmp/render-pin-aa11.attachments/shot.png"',
     ),
   );
+});
+
+test("cleanupPinRenderCache removes stale renders but preserves current latest", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "pin-render-cache-"));
+  const cacheDir = path.join(repo, ".termcanvas", "pin-renders");
+  const currentDir = path.join(cacheDir, "current-pin");
+  const deletedDir = path.join(cacheDir, "deleted-pin");
+  fs.mkdirSync(currentDir, { recursive: true });
+  fs.mkdirSync(deletedDir, { recursive: true });
+
+  const latest = path.join(currentDir, "latest.png");
+  const oldSnapshot = path.join(currentDir, "old.png");
+  const tempFile = path.join(currentDir, "latest.png.tmp-123");
+  const oldJson = path.join(currentDir, "old.json");
+  const deletedLatest = path.join(deletedDir, "latest.png");
+  fs.writeFileSync(latest, "latest");
+  fs.writeFileSync(oldSnapshot, "old");
+  fs.writeFileSync(tempFile, "tmp");
+  fs.writeFileSync(oldJson, "{}");
+  fs.writeFileSync(deletedLatest, "deleted");
+
+  const now = new Date("2026-01-10T00:00:00Z").getTime();
+  const old = new Date("2026-01-01T00:00:00Z");
+  fs.utimesSync(oldSnapshot, old, old);
+  fs.utimesSync(oldJson, old, old);
+  fs.utimesSync(deletedLatest, old, old);
+
+  cleanupPinRenderCache(repo, ["current-pin"], now);
+
+  assert.equal(fs.existsSync(latest), true);
+  assert.equal(fs.existsSync(oldSnapshot), false);
+  assert.equal(fs.existsSync(tempFile), false);
+  assert.equal(fs.existsSync(oldJson), false);
+  assert.equal(fs.existsSync(deletedDir), false);
+});
+
+test("cleanupPinRenderCache ignores files outside the default cache directory", () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), "pin-render-cache-"));
+  const exported = path.join(repo, "exported.png");
+  fs.writeFileSync(exported, "keep");
+
+  cleanupPinRenderCache(repo, [], Date.now());
+
+  assert.equal(fs.existsSync(exported), true);
 });
