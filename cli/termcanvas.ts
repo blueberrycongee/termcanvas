@@ -1000,6 +1000,16 @@ async function main() {
         const explicit = pinOptionalFlag("--repo");
         return path.resolve(explicit ?? process.cwd());
       };
+      const pinNumberFlag = (flag: string): number | undefined => {
+        const value = pinOptionalFlag(flag);
+        if (value === undefined) return undefined;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+          console.error(`${flag} must be a number`);
+          process.exit(1);
+        }
+        return parsed;
+      };
 
       if (command === "add") {
         const title = pinRequireFlag("--title");
@@ -1066,6 +1076,30 @@ async function main() {
           console.log("");
           console.log(t.body);
         }
+      } else if (command === "render" && rest[0]) {
+        const id = rest[0];
+        const repo = resolveRepo();
+        const payload: Record<string, unknown> = { repo };
+        const out = pinOptionalFlag("--out");
+        if (out !== undefined) payload.outputPath = path.resolve(out);
+        const width = pinNumberFlag("--width");
+        if (width !== undefined) payload.width = width;
+        const height = pinNumberFlag("--height");
+        if (height !== undefined) payload.height = height;
+        const waitMs = pinNumberFlag("--wait-ms");
+        if (waitMs !== undefined) payload.waitMs = waitMs;
+        if (rest.includes("--full-page")) payload.fullPage = true;
+
+        const result = await request(
+          "POST",
+          `/pin/${encodeURIComponent(id)}/render`,
+          payload,
+        );
+        if (jsonFlag) {
+          console.log(JSON.stringify(result, null, 2));
+          return;
+        }
+        console.log(result.image_path);
       } else if (command === "update" && rest[0]) {
         const id = rest[0];
         const repo = resolveRepo();
@@ -1094,10 +1128,11 @@ async function main() {
         else console.log(`Removed ${id}`);
       } else {
         console.log(
-          "Usage: termcanvas pin <add|list|show|update|rm> [args]\n" +
+          "Usage: termcanvas pin <add|list|show|render|update|rm> [args]\n" +
           "  pin add --title <t> [--body <b>] [--status open|done|dropped] [--link <url>] [--link-type <type>] [--repo <path>]\n" +
           "  pin list [--status open|done|dropped] [--repo <path>]\n" +
           "  pin show <id> [--repo <path>]\n" +
+          "  pin render <id> [--repo <path>] [--out <png>] [--width N] [--height N] [--wait-ms N] [--full-page]\n" +
           "  pin update <id> [--title <t>] [--status <s>] [--body <b>] [--repo <path>]\n" +
           "  pin rm <id> [--repo <path>]",
         );
@@ -1212,6 +1247,9 @@ async function main() {
       );
       console.log(
         "  pin show <id>                              Show pin detail",
+      );
+      console.log(
+        "  pin render <id>                            Render pin HTML/Markdown to PNG",
       );
       console.log(
         "  pin update <id> [--title|--status|--body]  Edit a pin",
