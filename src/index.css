@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@xyflow/react/dist/style.css";
 @import "@xterm/xterm/css/xterm.css";
+@import "@wterm/react/css";
 
 @theme {
   --duration-instant: 80ms;

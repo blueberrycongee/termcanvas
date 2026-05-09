@@ -577,5 +577,5 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
 // very first window-close of this session. Guarded because this module is
 // also imported in Node-based unit tests where `window` is not defined.
 if (typeof window !== "undefined") {
-  window.termcanvas?.app.setQuitOnLastWindowClosed(initialPrefs.quitOnLastWindowClosed);
+  window.termcanvas?.app.setQuitOnLastWindowClosed?.(initialPrefs.quitOnLastWindowClosed);
 }

@@ -11,7 +11,6 @@ import {
   type TerminalHandle,
 } from "@wterm/react";
 import { GhosttyCore } from "@wterm/ghostty";
-import "@wterm/react/css";
 import type { TerminalData } from "../types";
 import { useResolvedTerminalRuntimeState } from "../stores/terminalRuntimeStateStore";
 import { getTerminalRuntimePreviewAnsi } from "./terminalRuntimeStore";
