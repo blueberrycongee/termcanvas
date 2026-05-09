@@ -51,8 +51,15 @@ termcanvas pin add --title "<short imperative>" --body "<detail>" [--link <url>]
 Reading and updating pins:
 - \`termcanvas pin list\` — list pins for the current repo (filter \`--status done\` etc.)
 - \`termcanvas pin show <id>\` — read a single pin before acting on it
+- \`termcanvas pin render <id> --json\` — render a pin's Markdown/HTML body to a PNG and print the output path
 - \`termcanvas pin update <id> --status done\` — mark complete after finishing the work
 - \`termcanvas pin update <id> --body "..."\` — refine the description as you learn more
+
+Visual / HTML pins:
+- If a pin contains a full HTML document, SVG diagrams, charts, mockups, visual layouts, or other content where visual understanding matters, run \`termcanvas pin render <id> --json\` after \`pin show\`.
+- Inspect the returned \`image_path\` with whatever local image-viewing capability is available in the current agent environment. Use both the rendered screenshot and the pin source when reasoning about the artifact.
+- By default, render output is written to \`<repo>/.termcanvas/pin-renders/<pin-id>/latest.png\` and overwritten on the next render, so it should not accumulate. Do not commit rendered pin images unless the user explicitly asks.
+- Pass \`--out <png>\` only when the user asks for a specific export path.
 
 Rules:
 - Pins belong to the user. Don't invent pins the user didn't ask for.

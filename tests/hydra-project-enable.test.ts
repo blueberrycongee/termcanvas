@@ -25,6 +25,8 @@ test("enableHydraForProject writes Hydra and Pin instructions into the project r
   assert.match(agents, /## Hydra Orchestration Toolkit/);
   assert.match(claude, /## TermCanvas Pin System/);
   assert.match(agents, /## TermCanvas Pin System/);
+  assert.match(claude, /termcanvas pin render <id> --json/);
+  assert.match(agents, /termcanvas pin render <id> --json/);
 });
 
 test("enableHydraForProject reports unchanged when the current instructions already exist", () => {
