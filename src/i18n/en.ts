@@ -789,7 +789,7 @@ export const en = {
   "pin.uploading": "uploading…",
   "pin.links": "Links",
   "pin.bodyPlaceholder":
-    "Description (markdown supported) — paste or drop images",
+    "Description (Markdown or HTML supported) — paste or drop images",
   "pin.titlePlaceholder": "Pin title",
   "pin.untitled": "Untitled",
   "pin.deleteConfirm.title": "Delete pin",

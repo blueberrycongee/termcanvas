@@ -3,6 +3,21 @@ import DOMPurify from "dompurify";
 
 const ALLOWED_URI_REGEXP =
   /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|xxx|urn|tc-attachment):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+const PIN_HTML_CSP = [
+  "default-src 'none'",
+  "img-src data: blob: http: https: tc-attachment:",
+  "media-src data: blob: http: https: tc-attachment:",
+  "style-src 'unsafe-inline'",
+  "script-src 'unsafe-inline'",
+  "font-src data:",
+  "connect-src 'none'",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join("; ");
+const HTML_DOCUMENT_RE =
+  /^\s*(?:<!doctype\s+html[^>]*>|<html[\s>]|<head[\s>]|<body[\s>])/i;
 
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
@@ -35,13 +50,13 @@ export function renderMarkdownWithAttachments(
   text: string,
   attachmentsUrl: string | undefined,
 ): string {
-  const baseUrl = attachmentsUrl ? attachmentsUrl.replace(/\/$/, "") : null;
+  const baseUrl = normalizeAttachmentsUrl(attachmentsUrl);
   const m = new Marked({
     async: false,
     breaks: true,
     renderer: {
       image({ href, title, text: alt }) {
-        const resolved = resolveImageHref(href, baseUrl);
+        const resolved = resolveAttachmentHref(href, baseUrl);
         const safeHref = escapeAttr(resolved);
         const safeAlt = escapeAttr(alt ?? "");
         const titleAttr = title ? ` title="${escapeAttr(title)}"` : "";
@@ -50,16 +65,125 @@ export function renderMarkdownWithAttachments(
       },
     },
   });
-  return sanitizeHtml(m.parse(text) as string);
+  const html = sanitizeHtml(m.parse(text) as string);
+  return rewriteRelativeAttachmentMedia(html, baseUrl);
 }
 
-function resolveImageHref(href: string, baseUrl: string | null): string {
+export function isHtmlDocument(text: string): boolean {
+  return HTML_DOCUMENT_RE.test(text);
+}
+
+export function renderHtmlDocumentWithAttachments(
+  text: string,
+  attachmentsUrl: string | undefined,
+): string {
+  const parsed = parseHtmlDocument(text);
+  if (!parsed) {
+    return `<!doctype html><html><head>${pinHtmlCspMeta()}</head><body>${sanitizeHtml(
+      text,
+    )}</body></html>`;
+  }
+
+  parsed.querySelectorAll("base").forEach((el) => el.remove());
+  const head = parsed.head;
+  head
+    .querySelectorAll("meta[http-equiv]")
+    .forEach((el) => {
+      if (
+        el
+          .getAttribute("http-equiv")
+          ?.toLowerCase()
+          .trim() === "content-security-policy"
+      ) {
+        el.remove();
+      }
+    });
+  head.insertAdjacentHTML("afterbegin", pinHtmlCspMeta());
+  rewriteRelativeAttachmentMediaInRoot(
+    parsed,
+    normalizeAttachmentsUrl(attachmentsUrl),
+  );
+
+  return `<!doctype html>\n${parsed.documentElement.outerHTML}`;
+}
+
+function normalizeAttachmentsUrl(attachmentsUrl: string | undefined): string | null {
+  return attachmentsUrl ? attachmentsUrl.replace(/\/$/, "") : null;
+}
+
+function resolveAttachmentHref(href: string, baseUrl: string | null): string {
   if (!baseUrl) return href;
   if (!href.startsWith("./")) return href;
   const segments = href.slice(2).split("/");
   const basename = segments[segments.length - 1];
   if (!basename) return href;
   return `${baseUrl}/${encodeURIComponent(basename)}`;
+}
+
+function rewriteRelativeAttachmentMedia(
+  html: string,
+  baseUrl: string | null,
+): string {
+  if (!baseUrl) return html;
+  const doc = getDocument();
+  if (!doc) return html;
+  const template = doc.createElement("template");
+  template.innerHTML = html;
+  rewriteRelativeAttachmentMediaInRoot(template.content, baseUrl);
+  return template.innerHTML;
+}
+
+function rewriteRelativeAttachmentMediaInRoot(
+  root: ParentNode,
+  baseUrl: string | null,
+): void {
+  if (!baseUrl) return;
+  root.querySelectorAll("img[src], source[src], video[poster]").forEach((node) => {
+    const el = node as Element;
+    for (const attr of ["src", "poster"]) {
+      const value = el.getAttribute(attr);
+      if (!value) continue;
+      const resolved = resolveAttachmentHref(value, baseUrl);
+      if (resolved === value) continue;
+      el.setAttribute(attr, resolved);
+      const parent = el.parentElement;
+      if (
+        parent?.tagName.toLowerCase() === "a" &&
+        parent.getAttribute("href") === value
+      ) {
+        parent.setAttribute("href", resolved);
+      }
+    }
+    if (el.tagName.toLowerCase() === "img" && !el.hasAttribute("loading")) {
+      el.setAttribute("loading", "lazy");
+    }
+  });
+}
+
+function parseHtmlDocument(text: string): Document | null {
+  const Parser =
+    typeof DOMParser !== "undefined"
+      ? DOMParser
+      : (getWindow() as
+          | (Window & { DOMParser?: typeof DOMParser })
+          | undefined)?.DOMParser;
+  if (!Parser) return null;
+  return new Parser().parseFromString(text, "text/html");
+}
+
+function getDocument(): Document | null {
+  if (typeof document !== "undefined") return document;
+  return getWindow()?.document ?? null;
+}
+
+function getWindow(): Window | undefined {
+  return (globalThis as typeof globalThis & { window?: Window }).window;
+}
+
+function pinHtmlCspMeta(): string {
+  return `<meta http-equiv="Content-Security-Policy" content="${escapeAttr(
+    PIN_HTML_CSP,
+  )}">`;
 }
 
 function escapeAttr(s: string): string {

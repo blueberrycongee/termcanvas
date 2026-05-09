@@ -13,7 +13,9 @@ import {
   PANEL_TRANSITION_EASING_CSS,
 } from "../utils/panelAnimation";
 import {
+  isHtmlDocument,
   markdownClassName,
+  renderHtmlDocumentWithAttachments,
   renderMarkdownWithAttachments,
 } from "../utils/markdownClass";
 import { useT } from "../i18n/useT";
@@ -368,11 +370,19 @@ export function PinDetailDrawer() {
   // renderer instance every cycle. Only repaints on body / attachments / mode.
   const bodyHtml = useMemo(
     () =>
-      pin && !isEditing && pin.body
+      pin && !isEditing && pin.body && !isHtmlDocument(pin.body)
         ? renderMarkdownWithAttachments(pin.body, pin.attachmentsUrl)
         : "",
     [pin?.body, pin?.attachmentsUrl, isEditing, pin],
   );
+  const htmlDocumentSrc = useMemo(
+    () =>
+      pin && !isEditing && pin.body && isHtmlDocument(pin.body)
+        ? renderHtmlDocumentWithAttachments(pin.body, pin.attachmentsUrl)
+        : "",
+    [pin?.body, pin?.attachmentsUrl, isEditing, pin],
+  );
+  const bodyIsHtmlDocument = htmlDocumentSrc !== "";
 
   return (
     <>
@@ -497,7 +507,11 @@ export function PinDetailDrawer() {
         {/* Reading column */}
         {(pin || isComposing) && (
           <div className="flex-1 min-h-0 overflow-y-auto px-4">
-            <div className="mx-auto max-w-[720px] py-6">
+            <div
+              className={`mx-auto py-6 ${
+                bodyIsHtmlDocument ? "w-full" : "max-w-[720px]"
+              }`}
+            >
               {/* Topic header */}
               <div className="mb-1">
                 {isEditing ? (
@@ -556,6 +570,13 @@ export function PinDetailDrawer() {
                     disabled={busy}
                     placeholder={t["pin.bodyPlaceholder"]}
                     rows={10}
+                  />
+                ) : bodyIsHtmlDocument ? (
+                  <iframe
+                    className="h-[calc(100vh-220px)] min-h-[520px] w-full rounded-md border border-[var(--border)] bg-white"
+                    title={pin?.title ?? "Pin HTML"}
+                    sandbox="allow-scripts"
+                    srcDoc={htmlDocumentSrc}
                   />
                 ) : pin?.body ? (
                   <div

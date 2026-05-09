@@ -771,7 +771,7 @@ export const zh = {
   "pin.keyboardHint": "⌘↵ 保存 · Esc 取消",
   "pin.uploading": "上传中…",
   "pin.links": "链接",
-  "pin.bodyPlaceholder": "描述（支持 markdown）—— 可粘贴或拖入图片",
+  "pin.bodyPlaceholder": "描述（支持 Markdown 或 HTML）—— 可粘贴或拖入图片",
   "pin.titlePlaceholder": "标记标题",
   "pin.untitled": "未命名",
   "pin.deleteConfirm.title": "删除标记",
