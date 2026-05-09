@@ -14,6 +14,7 @@ import {
 } from "../hydra/src/spawn";
 import { PinStore, PinStoreError } from "./pin-store";
 import { resolveCanvasProjectRoot } from "./pin-project-resolver";
+import { renderPinToPng } from "./pin-render";
 
 interface ApiServerDeps {
   getWindow: () => BrowserWindow | null;
@@ -191,6 +192,10 @@ export class ApiServer {
     }
     if (method === "POST" && pathname === "/pin/create") {
       return this.pinCreate(body);
+    }
+    if (method === "POST" && pathname.match(/^\/pin\/[^/]+\/render$/)) {
+      const id = pathname.split("/")[2];
+      return this.pinRender(id, body);
     }
     if (method === "GET" && pathname.match(/^\/pin\/[^/]+$/)) {
       const id = pathname.split("/")[2];
@@ -681,6 +686,30 @@ export class ApiServer {
         throw Object.assign(new Error(`Pin not found: ${id}`), { status: 404 });
       }
       return { pin };
+    } catch (err) {
+      throw rethrowPinStoreError(err);
+    }
+  }
+
+  private async pinRender(id: string, body: any) {
+    const inputRepo = body?.repo;
+    if (!inputRepo) {
+      throw Object.assign(new Error("repo is required"), { status: 400 });
+    }
+    const projects = await this.execRenderer(`window.__tcApi.getProjects()`);
+    const canonicalRepo = resolveCanvasProjectRoot(inputRepo, projects);
+    try {
+      const pin = this.deps.taskStore.get(canonicalRepo, id);
+      if (!pin) {
+        throw Object.assign(new Error(`Pin not found: ${id}`), { status: 404 });
+      }
+      return await renderPinToPng(pin, {
+        outputPath: body?.outputPath,
+        width: body?.width,
+        height: body?.height,
+        waitMs: body?.waitMs,
+        fullPage: body?.fullPage,
+      });
     } catch (err) {
       throw rethrowPinStoreError(err);
     }
