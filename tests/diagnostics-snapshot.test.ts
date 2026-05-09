@@ -50,6 +50,7 @@ function fakeRenderer(): RendererSnapshot {
     devicePixelRatio: 2,
     innerWidth: 1440,
     innerHeight: 900,
+    renderDiagnosticsEnabled: true,
     terminals: [
       {
         id: "term-uuid-1",
@@ -121,4 +122,126 @@ test("buildIssueBody renders empty terminals state", () => {
   const snap = buildSnapshot(fakeMain(), renderer);
   const body = buildIssueBody(snap);
   assert.match(body, /\(no terminals\)/);
+});
+
+test("buildIssueBody surfaces disabled render-diagnostics state", () => {
+  const renderer = fakeRenderer();
+  renderer.renderDiagnosticsEnabled = false;
+  const snap = buildSnapshot(fakeMain(), renderer);
+  const body = buildIssueBody(snap);
+  assert.match(body, /Render diagnostics log:.*disabled/);
+  assert.match(body, /termcanvas-render-diagnostics=1/);
+});
+
+// Field allowlist freeze. Adding a field anywhere in the snapshot tree must
+// fail this test, forcing a deliberate update + privacy review. Removing a
+// field also fails — keeps the schema_version contract honest.
+test("snapshot field allowlist is frozen", () => {
+  const ALLOWED = {
+    DiagnosticsSnapshot: ["captured_at", "main", "renderer", "schema_version"],
+    MainSnapshot: [
+      "app",
+      "displays",
+      "gpuFeatureStatus",
+      "renderDiagnosticsLogPath",
+      "window",
+    ],
+    AppSnapshot: [
+      "appVersion",
+      "arch",
+      "chromiumVersion",
+      "electronVersion",
+      "locale",
+      "nodeVersion",
+      "platform",
+    ],
+    DisplaySnapshot: ["id", "isPrimary", "rotation", "scaleFactor", "size"],
+    WindowSnapshot: ["isFocused", "isFullScreen", "isMinimized", "isVisible"],
+    RendererSnapshot: [
+      "devicePixelRatio",
+      "documentFocused",
+      "innerHeight",
+      "innerWidth",
+      "renderDiagnosticsEnabled",
+      "terminals",
+      "visibilityState",
+      "webglPool",
+    ],
+    TerminalSnapshot: [
+      "cols",
+      "hasXterm",
+      "id",
+      "isAttached",
+      "isFocused",
+      "mode",
+      "rendererMode",
+      "rows",
+      "status",
+    ],
+    WebGLPoolSnapshot: [
+      "contextLossCount",
+      "focusedTerminalId",
+      "lastContextLossAt",
+      "maxContexts",
+      "poolSize",
+      "trackedTerminalIds",
+    ],
+  };
+
+  const snap = buildSnapshot(fakeMain(), fakeRenderer());
+
+  const sortedKeys = (obj: object) => Object.keys(obj).sort();
+
+  assert.deepEqual(sortedKeys(snap), ALLOWED.DiagnosticsSnapshot);
+  assert.deepEqual(sortedKeys(snap.main), ALLOWED.MainSnapshot);
+  assert.deepEqual(sortedKeys(snap.main.app), ALLOWED.AppSnapshot);
+  assert.deepEqual(sortedKeys(snap.main.displays[0]!), ALLOWED.DisplaySnapshot);
+  assert.deepEqual(sortedKeys(snap.main.window), ALLOWED.WindowSnapshot);
+  assert.deepEqual(sortedKeys(snap.renderer), ALLOWED.RendererSnapshot);
+  assert.deepEqual(
+    sortedKeys(snap.renderer.terminals[0]!),
+    ALLOWED.TerminalSnapshot,
+  );
+  assert.deepEqual(
+    sortedKeys(snap.renderer.webglPool),
+    ALLOWED.WebGLPoolSnapshot,
+  );
+});
+
+// Privacy pattern guard. Field names matching common user-content shapes
+// (titles, labels, paths, cwd, command lines, urls) are rejected. Adding a
+// field whose name matches the pattern requires explicitly listing it in
+// PRIVACY_EXCEPTIONS — that line is what a privacy reviewer will scrutinize.
+test("snapshot field names match the privacy allowlist", () => {
+  const FORBIDDEN =
+    /^(title|titles|label|labels|cwd|cwds|content|contents|name|names|url|urls|path|paths|filename|filenames|command|commands|cmdline|args|argv)$/i;
+  const PRIVACY_EXCEPTIONS = new Set<string>([
+    // Documented log file path constant in main process. Not user content.
+    "renderDiagnosticsLogPath",
+  ]);
+
+  const snap = buildSnapshot(fakeMain(), fakeRenderer());
+  const violations: string[] = [];
+
+  function scan(value: unknown, path: string): void {
+    if (value === null || value === undefined) return;
+    if (typeof value !== "object") return;
+    if (Array.isArray(value)) {
+      value.forEach((item, i) => scan(item, `${path}[${i}]`));
+      return;
+    }
+    for (const key of Object.keys(value as Record<string, unknown>)) {
+      if (FORBIDDEN.test(key) && !PRIVACY_EXCEPTIONS.has(key)) {
+        violations.push(`${path}.${key}`);
+      }
+      scan((value as Record<string, unknown>)[key], `${path}.${key}`);
+    }
+  }
+  scan(snap, "$");
+
+  assert.deepEqual(
+    violations,
+    [],
+    `Forbidden snapshot field name(s) detected: ${violations.join(", ")}`,
+  );
 });

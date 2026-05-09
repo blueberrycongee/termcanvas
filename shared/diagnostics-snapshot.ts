@@ -74,6 +74,11 @@ export interface RendererSnapshot {
   devicePixelRatio: number;
   innerWidth: number;
   innerHeight: number;
+  // Whether the rolling render-event log is being written. When false, the
+  // `renderDiagnosticsLogPath` referenced in `MainSnapshot` exists but is
+  // empty — surfacing this in the issue body tells reviewers (and the user)
+  // that they need to enable the flag and reproduce to capture an event log.
+  renderDiagnosticsEnabled: boolean;
   terminals: TerminalSnapshot[];
   webglPool: WebGLPoolSnapshot;
 }
@@ -204,9 +209,15 @@ export function buildIssueBody(snapshot: DiagnosticsSnapshot): string {
   lines.push("</details>");
 
   lines.push("");
-  lines.push(
-    `Render diagnostics log (not auto-attached — paste manually if relevant): \`${snapshot.main.renderDiagnosticsLogPath}\``,
-  );
+  if (snapshot.renderer.renderDiagnosticsEnabled) {
+    lines.push(
+      `Render diagnostics log (not auto-attached — paste manually if relevant): \`${snapshot.main.renderDiagnosticsLogPath}\``,
+    );
+  } else {
+    lines.push(
+      `Render diagnostics log: **disabled** — set localStorage \`termcanvas-render-diagnostics=1\` (or env \`VITE_TERMCANVAS_RENDER_DIAGNOSTICS=1\`) and reproduce to capture events to \`${snapshot.main.renderDiagnosticsLogPath}\`.`,
+    );
+  }
 
   return lines.join("\n");
 }

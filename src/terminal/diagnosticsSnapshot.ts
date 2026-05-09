@@ -1,4 +1,5 @@
 import type { RendererSnapshot } from "../../shared/diagnostics-snapshot";
+import { isRenderDiagnosticsEnabled } from "./renderDiagnostics";
 import { getTerminalDiagnosticSnapshots } from "./terminalRuntimeStore";
 import { getWebGLPoolDiagnosticSnapshot } from "./webglContextPool";
 
@@ -29,6 +30,7 @@ export function collectRendererSnapshot(): RendererSnapshot {
     devicePixelRatio,
     innerWidth,
     innerHeight,
+    renderDiagnosticsEnabled: isRenderDiagnosticsEnabled(),
     terminals: getTerminalDiagnosticSnapshots(),
     webglPool: getWebGLPoolDiagnosticSnapshot(),
   };
