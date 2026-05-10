@@ -37,6 +37,8 @@ import { BoxSelectOverlay } from "./BoxSelectOverlay";
 import { CanvasCardLayer } from "./CanvasCardLayer";
 import { DrawingLayer } from "./DrawingLayer";
 import { PetOverlay } from "../pet/PetOverlay";
+import { createCanvasSurface } from "../render-surfaces/canvasSurface";
+import { useRenderableSurface } from "../render-surfaces/useRenderableSurface";
 import { useBoxSelect } from "../hooks/useBoxSelect";
 import { useTrackpadSwipeFocus } from "./trackpadSwipeFocus";
 import {
@@ -290,6 +292,24 @@ function TerminalRuntimeLayer({
 function XyFlowCanvasInner() {
   const t = useT();
   const viewport = useCanvasStore((state) => state.viewport);
+
+  useRenderableSurface(() => {
+    const handle = createCanvasSurface({
+      // Read viewport directly from the store at call time — closing
+      // over the `viewport` selector would freeze the value at mount.
+      getViewport: () => useCanvasStore.getState().viewport,
+      setViewport: (next) => {
+        // The store is the canonical viewport source; xyflow re-syncs
+        // via its registered viewport adapter. Writing the same value
+        // bumps the dependency identity and causes a re-render.
+        useCanvasStore.getState().syncViewportFromRenderer(next);
+      },
+      isVisible: () =>
+        typeof document === "undefined" || document.visibilityState === "visible",
+    });
+    return { surface: handle.surface, dispose: () => handle.dispose() };
+  }, []);
+
   const isAnimating = useCanvasStore((state) => state.isAnimating);
   const rightPanelCollapsed = useCanvasStore(
     (state) => state.rightPanelCollapsed,
