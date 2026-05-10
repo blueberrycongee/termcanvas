@@ -16,6 +16,8 @@ import { zzzOffsets } from "./sprites/sleeping";
 import { sparklePositions } from "./sprites/celebrating";
 import { PET_SIZE } from "./constants";
 import { ParticleLayer, type Particle } from "./ParticleLayer";
+import { createPetSurface } from "../render-surfaces/petSurface";
+import { useRenderableSurface } from "../render-surfaces/useRenderableSurface";
 
 const PRIORITY_COLORS: Record<AttentionPriority, string> = {
   error: "#EF4444",
@@ -148,8 +150,31 @@ export function PetOverlay() {
   const animFrameRef = useRef<number>(0);
   const lastFrameTimeRef = useRef(0);
   const lastWalkDustRef = useRef(0);
+  // Surface adapter ref so the RAF tick can stamp lastPaintAt without
+  // reaching into the registry on every frame.
+  const petSurfaceRef = useRef<ReturnType<typeof createPetSurface> | null>(null);
 
   const [particles, setParticles] = useState<Particle[]>([]);
+
+  useRenderableSurface(() => {
+    const handle = createPetSurface({
+      // The pet's RAF chain re-schedules itself; if it had stalled, a
+      // single advanceFrame call kicks the next iteration. We don't
+      // know the chain's state from out here, so call advanceFrame as
+      // a side-effect-free way to nudge React state and re-trigger the
+      // useEffect that owns the loop.
+      triggerPaint: () => {
+        try {
+          usePetStore.getState().advanceFrame();
+        } catch {
+          // best-effort
+        }
+      },
+      isMounted: () => true,
+    });
+    petSurfaceRef.current = handle;
+    return { surface: handle.surface, dispose: () => handle.dispose() };
+  }, []);
 
   const spawnParticles = useCallback((batch: Particle[]) => {
     setParticles((prev) => [...prev, ...batch]);
@@ -168,6 +193,10 @@ export function PetOverlay() {
       if (!running) return;
       const dt = timestamp - lastTickTime;
       lastTickTime = timestamp;
+      // Stamp surface paint timestamp once per RAF tick. The heartbeat
+      // watchdog reads this — if RAF stops firing under occlusion the
+      // value goes stale and the watchdog dispatches recovery.
+      petSurfaceRef.current?.markPaint();
 
       const state = usePetStore.getState();
       const interval = getFrameInterval(

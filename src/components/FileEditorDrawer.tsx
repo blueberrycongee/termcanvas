@@ -19,6 +19,11 @@ import {
 import { useThemeStore } from "../stores/themeStore";
 import { useT } from "../i18n/useT";
 import type * as MonacoNs from "monaco-editor";
+import {
+  registerSurface,
+  unregisterSurface,
+} from "../terminal/surfaceRegistry";
+import { createMonacoSurface } from "../render-surfaces/monacoSurface";
 
 /*
  * Full-canvas file editor drawer.
@@ -579,6 +584,15 @@ export function FileEditorDrawer() {
                   monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
                   () => void handleSave(),
                 );
+                const handle = createMonacoSurface({
+                  editor,
+                  isMounted: () => editorRef.current === editor,
+                });
+                registerSurface(handle.surface);
+                editor.onDidDispose(() => {
+                  unregisterSurface(handle.surface.id);
+                  handle.dispose();
+                });
               }}
               options={{
                 fontFamily: '"Geist Mono", monospace',
