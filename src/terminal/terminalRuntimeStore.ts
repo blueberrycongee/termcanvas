@@ -7,6 +7,7 @@ import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import {
   acquireWebGL,
+  isWebGLDemoted,
   releaseWebGL,
   touch as touchWebGL,
   rebuildTerminalAtlas,
@@ -761,13 +762,28 @@ function syncRuntimeRenderer(runtime: ManagedTerminalRuntime) {
     return false;
   }
 
-  recordRuntimeDiagnostic(runtime, "terminal_renderer_sync");
+  // Resolve effective WebGL eligibility from the new gpuAcceleration
+  // pref. The legacy `runtime.rendererMode` is kept in sync with the
+  // pref by setTerminalRenderer / setGpuAcceleration, but we read the
+  // primary policy directly so demotion bookkeeping doesn't depend on
+  // the secondary mirror.
+  const policy = usePreferencesStore.getState().gpuAcceleration;
+  const id = runtime.meta.terminal.id;
+  const wantsWebGL =
+    policy === "on" ||
+    (policy === "auto" && !isWebGLDemoted(id));
 
-  if (runtime.rendererMode === "webgl") {
+  recordRuntimeDiagnostic(runtime, "terminal_renderer_sync", {
+    gpu_acceleration: policy,
+    demoted: isWebGLDemoted(id),
+    wants_webgl: wantsWebGL,
+  });
+
+  if (wantsWebGL) {
     return ensureRuntimeWebGL(runtime);
   }
 
-  releaseWebGL(runtime.meta.terminal.id);
+  releaseWebGL(id);
   return true;
 }
 
@@ -1258,6 +1274,7 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     }
   });
 
+  let lastGpuAcceleration = usePreferencesStore.getState().gpuAcceleration;
   const preferencesUnsubscribe = usePreferencesStore.subscribe((state) => {
     if (!runtime.xterm) {
       return;
@@ -1266,7 +1283,13 @@ function setupRuntimeSubscriptions(runtime: ManagedTerminalRuntime) {
     if (runtime.rendererMode !== state.terminalRenderer) {
       runtime.rendererMode = state.terminalRenderer;
       syncRuntimeRenderer(runtime);
+    } else if (state.gpuAcceleration !== lastGpuAcceleration) {
+      // gpuAcceleration changed but terminalRenderer didn't (e.g.
+      // "auto" → "on"). Re-sync so the demotion override path picks
+      // up the new policy without waiting for an unrelated pref change.
+      syncRuntimeRenderer(runtime);
     }
+    lastGpuAcceleration = state.gpuAcceleration;
 
     const family = buildFontFamily(state.terminalFontFamily);
     // Font family / size / contrast changes all invalidate every

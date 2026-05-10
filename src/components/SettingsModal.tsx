@@ -806,6 +806,8 @@ export function SettingsModal({ onClose }: Props) {
     setTerminalFontFamily,
     terminalRenderer,
     setTerminalRenderer,
+    gpuAcceleration,
+    setGpuAcceleration,
     terminalEngine,
     setTerminalEngine,
     composerEnabled,
@@ -1361,12 +1363,13 @@ export function SettingsModal({ onClose }: Props) {
                     align="start"
                   >
                     <ChoiceSegment
-                      value={terminalRenderer}
+                      value={gpuAcceleration}
                       options={[
-                        { value: "webgl", label: t.terminal_renderer_webgl },
-                        { value: "dom", label: t.terminal_renderer_dom },
+                        { value: "auto", label: "Auto" },
+                        { value: "on", label: "On" },
+                        { value: "off", label: "Off" },
                       ]}
-                      onChange={(v) => setTerminalRenderer(v)}
+                      onChange={(v) => setGpuAcceleration(v)}
                     />
                   </SettingsRow>
 
