@@ -18,6 +18,16 @@ import {
 } from "./renderDiagnostics";
 import { getVisibilityObserver } from "./visibilityObserver";
 import {
+  registerSurface,
+  unregisterSurface,
+  dispatchSurfaceRecovery,
+} from "./surfaceRegistry";
+import {
+  createTerminalSurface,
+  type TerminalSurfaceHandle,
+  type TerminalSurfaceRuntimeView,
+} from "./terminalSurface";
+import {
   registerTerminal,
   serializeTerminal,
   unregisterTerminal,
@@ -148,6 +158,7 @@ interface ManagedTerminalRuntime {
   selectionPointerCleanup: (() => void) | null;
   serializeAddon: SerializeAddon | null;
   sessionCancel: (() => void) | null;
+  surfaceHandle: TerminalSurfaceHandle | null;
   started: boolean;
   telemetryTimer: ReturnType<typeof setInterval> | null;
   usesAgentRenderer: boolean;
@@ -1131,6 +1142,51 @@ function registerModifierAwareLinkProvider(
   };
 }
 
+function createTerminalSurfaceRuntimeView(
+  runtime: ManagedTerminalRuntime,
+): TerminalSurfaceRuntimeView {
+  return {
+    id: runtime.meta.terminal.id,
+    isLive: () => !runtime.disposed && runtime.xterm !== null,
+    isAttached: () => runtime.attachedContainer !== null,
+    rendererMode: () => {
+      // Map the runtime's preferred renderer to the surface health enum.
+      // The actual active renderer can diverge (xterm WebGL fallback to
+      // Canvas2D on context loss) — PR 8 will surface that distinction
+      // by reading the WebGL pool. For now use the runtime preference.
+      const mode = runtime.rendererMode;
+      if (mode === "webgl" || mode === "dom") return mode;
+      return "unknown";
+    },
+    refreshXterm: () => {
+      const xterm = runtime.xterm;
+      if (!xterm || runtime.disposed) return false;
+      try {
+        xterm.refresh(0, Math.max(0, xterm.rows - 1));
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    onPaint: (callback) => {
+      // xterm's `onRender` fires on every render (initial + on every
+      // `refresh` / pty write). Subscribe lazily — if xterm isn't ready
+      // yet we return a no-op disposer; PR 5's heartbeat will tolerate
+      // null `lastPaintAt` until the first real render.
+      const xterm = runtime.xterm;
+      if (!xterm || typeof xterm.onRender !== "function") return () => {};
+      const disposable = xterm.onRender(() => callback());
+      return () => {
+        try {
+          disposable.dispose();
+        } catch {
+          // best-effort; xterm may already be disposed
+        }
+      };
+    },
+  };
+}
+
 function createTerminalRenderer(
   runtime: ManagedTerminalRuntime,
   container: HTMLDivElement,
@@ -1202,6 +1258,12 @@ function createTerminalRenderer(
   runtime.serializeAddon = serializeAddon;
   runtime.searchAddon = searchAddon;
   syncRuntimeRenderer(runtime);
+
+  if (!runtime.surfaceHandle) {
+    const view = createTerminalSurfaceRuntimeView(runtime);
+    runtime.surfaceHandle = createTerminalSurface(view);
+    registerSurface(runtime.surfaceHandle.surface);
+  }
 
   registerTerminal(runtime.meta.terminal.id, xterm, serializeAddon);
   if (runtime.previewAnsi) {
@@ -1515,6 +1577,7 @@ function buildTerminalRuntime(
     selectionPointerCleanup: null,
     serializeAddon: null,
     sessionCancel: null,
+    surfaceHandle: null,
     started: false,
     telemetryTimer: null,
     usesAgentRenderer: false,
@@ -1704,16 +1767,14 @@ function installRenderRecoveryListeners() {
   });
   observer.install();
   observer.onRecovery(({ reason, severity }) => {
-    refreshAllTerminalRenderers(reason);
-    if (severity === "heavy") {
-      // WebGL canvases lose their framebuffer when the page is genuinely
-      // hidden (sleep/wake, minimize, OS Space switch). For light triggers
-      // (bare window.focus where the page may have just briefly lost focus)
-      // a refresh is enough. If WebGL's renderer state is corrupted,
-      // clearing the atlas can still leave new glyphs wrong; cycling the
-      // addon matches the user-visible DOM -> WebGL recovery path.
-      resetWebGL(undefined, reason);
-    }
+    // Recovery now routes through the surface registry instead of walking
+    // `runtimeRegistry` directly. Each registered surface implements its
+    // own paint primitive — terminals refresh xterm + cycle WebGL on
+    // heavy, the canvas graph layer redraws its scene, Monaco calls
+    // `editor.render(true)`, etc. (Non-terminal surfaces are wired in
+    // PR 7.) Recording the result counters here makes diagnostics show
+    // how many surfaces participated and how many failed.
+    dispatchSurfaceRecovery(reason, severity);
   });
 }
 
@@ -2086,6 +2147,7 @@ export function focusTerminalRuntime(terminalId: string): boolean {
 
   recordRuntimeDiagnostic(runtime, "terminal_runtime_focus");
   runtime.xterm.focus();
+  runtime.surfaceHandle?.setVisibleHint(true);
   return true;
 }
 
@@ -2096,6 +2158,9 @@ export function blurTerminalRuntime(terminalId: string): boolean {
   }
 
   runtime.xterm.blur();
+  // Don't flip surface visibility on blur — a terminal can be visible
+  // (rendered in its tile) without being keyboard-focused. PR 7 will
+  // wire visibility transitions from the actual mount/unmount path.
   return true;
 }
 
@@ -2196,6 +2261,12 @@ export function destroyTerminalRuntime(
     void window.termcanvas.terminal.destroy(ptyId).catch((error) => {
       console.error(`[terminalRuntime] failed to destroy PTY ${ptyId}:`, error);
     });
+  }
+
+  if (runtime.surfaceHandle) {
+    unregisterSurface(terminalId);
+    runtime.surfaceHandle.dispose();
+    runtime.surfaceHandle = null;
   }
 
   runtimeRegistry.delete(terminalId);
