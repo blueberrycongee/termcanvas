@@ -21,7 +21,9 @@ import {
   registerSurface,
   unregisterSurface,
   dispatchSurfaceRecovery,
+  listSurfaces,
 } from "./surfaceRegistry";
+import { PaintHeartbeatWatchdog } from "./paintHeartbeat";
 import {
   createTerminalSurface,
   type TerminalSurfaceHandle,
@@ -1776,6 +1778,19 @@ function installRenderRecoveryListeners() {
     // how many surfaces participated and how many failed.
     dispatchSurfaceRecovery(reason, severity);
   });
+
+  // Heartbeat watchdog catches the "page is visible but no paint
+  // happened in 5 s" case the visibility-event signals can't see
+  // (xterm IntersectionObserver false negative, stuck WebGL pipeline
+  // that didn't fire context-loss, silent renderer breakage).
+  const heartbeat = new PaintHeartbeatWatchdog({
+    observer,
+    listSurfaces,
+    documentVisible: () => document.visibilityState === "visible",
+    recordDiagnostic: (event) =>
+      recordRenderDiagnostic({ kind: event.kind, data: event.data }),
+  });
+  heartbeat.start();
 }
 
 function startTerminalRuntime(runtime: ManagedTerminalRuntime) {
