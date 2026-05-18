@@ -17,7 +17,17 @@ const MAX_CONTEXTS = 16;
 const WEBGL_NOTIFICATION_THROTTLE_MS = 60_000;
 const WEBGL_UNAVAILABLE_NOTICE_KEY = "tc:webgl-unavailable-notice-at";
 const WEBGL_CONTEXT_LOST_NOTICE_KEY = "tc:webgl-context-lost-notice-at";
+
+// Auto-demotion thresholds. After this many context-loss events within
+// the rolling window, an `auto`-mode terminal is demoted to Canvas2D
+// for the rest of the session. Tuned for "obviously broken pipeline"
+// without false-positives on a one-off GPU process restart.
+const DEMOTION_LOSS_THRESHOLD = 3;
+const DEMOTION_WINDOW_MS = 60_000;
+
 const entries = new Map<string, PoolEntry>();
+const demotedTerminals = new Set<string>();
+const recentLossesByTerminal = new Map<string, number[]>();
 let focusedId: string | null = null;
 const dictionaries = { en, zh } as const;
 
@@ -171,7 +181,42 @@ export function resetWebGL(terminalId?: string, reason = "unspecified"): void {
   resetEntryWebGL(entry, reason);
 }
 
+export function isWebGLDemoted(terminalId: string): boolean {
+  return demotedTerminals.has(terminalId);
+}
+
+export function clearWebGLDemotion(terminalId: string): void {
+  if (demotedTerminals.delete(terminalId)) {
+    recentLossesByTerminal.delete(terminalId);
+    recordWebGLDiagnostic("webgl_demotion_cleared", terminalId);
+  }
+}
+
+function recordContextLossForDemotion(terminalId: string): boolean {
+  const now = Date.now();
+  const recent = recentLossesByTerminal.get(terminalId) ?? [];
+  // Drop events older than the window before evaluating threshold.
+  const fresh = recent.filter((t) => now - t < DEMOTION_WINDOW_MS);
+  fresh.push(now);
+  recentLossesByTerminal.set(terminalId, fresh);
+
+  if (fresh.length >= DEMOTION_LOSS_THRESHOLD && !demotedTerminals.has(terminalId)) {
+    demotedTerminals.add(terminalId);
+    recordWebGLDiagnostic("webgl_demoted", terminalId, {
+      losses_in_window: fresh.length,
+      window_ms: DEMOTION_WINDOW_MS,
+    });
+    return true;
+  }
+  return false;
+}
+
 export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
+  if (demotedTerminals.has(terminalId)) {
+    recordWebGLDiagnostic("webgl_acquire_skipped_demoted", terminalId);
+    return false;
+  }
+
   if (entries.has(terminalId)) {
     touch(terminalId);
     recordWebGLDiagnostic("webgl_acquire_reused", terminalId, {
@@ -196,8 +241,10 @@ export function acquireWebGL(terminalId: string, xterm: Terminal): boolean {
       const count = (parseInt(localStorage.getItem("tc:webgl-loss-count") ?? "0", 10) || 0) + 1;
       localStorage.setItem("tc:webgl-loss-count", String(count));
       localStorage.setItem("tc:webgl-loss-last", new Date().toISOString());
+      const justDemoted = recordContextLossForDemotion(terminalId);
       recordWebGLDiagnostic("webgl_context_lost", terminalId, {
         context_loss_count: count,
+        demoted: justDemoted || demotedTerminals.has(terminalId),
       });
       notifyWebGLFallbackHint("context_lost");
       addon.dispose();
@@ -243,6 +290,19 @@ export function releaseWebGL(terminalId: string): void {
   if (focusedId === terminalId) {
     focusedId = null;
   }
+}
+
+// Test-only — reset the demotion bookkeeping between cases.
+export function __resetWebGLDemotionForTesting(): void {
+  demotedTerminals.clear();
+  recentLossesByTerminal.clear();
+}
+
+// Test-only — drive a synthetic context-loss event into the demotion
+// counter. Returns true iff this loss tipped the terminal over the
+// threshold (i.e. demotion changed from inactive to active).
+export function __recordWebGLContextLossForTesting(terminalId: string): boolean {
+  return recordContextLossForDemotion(terminalId);
 }
 
 export function touch(terminalId: string): void {

@@ -14,6 +14,23 @@ const LEGACY_ENABLED_BLUR = 1.5;
 
 export type TerminalRendererMode = "dom" | "webgl";
 
+// User-facing GPU acceleration policy.
+//
+//  "on"   — always use WebGL, never auto-fall back, even after repeated
+//           context-loss events. Use when the user explicitly trusts
+//           their GPU and would rather see context-loss notifications
+//           than lose the WebGL renderer.
+//  "auto" — start with WebGL; if a terminal experiences repeated
+//           context-loss events within a short window, fall that
+//           specific terminal back to Canvas2D for the rest of the
+//           session. Default. Mirrors VS Code's behavior — keeps the
+//           common case fast without leaving stuck terminals on a
+//           visibly broken WebGL pipeline.
+//  "off"  — always use Canvas2D / DOM, never try WebGL. Use on
+//           machines with broken GPU drivers or to debug renderer
+//           differences.
+export type GpuAccelerationMode = "auto" | "on" | "off";
+
 export type TerminalEngine = "xterm" | "wterm";
 
 export interface CliCommandConfig {
@@ -31,6 +48,12 @@ interface PreferencesStore {
   terminalFontSize: number;
   terminalFontFamily: string;
   terminalRenderer: TerminalRendererMode;
+  // GPU acceleration policy. Replaces the on/off `terminalRenderer`
+  // toggle for new users (who get the default "auto"). Existing users'
+  // `terminalRenderer` is migrated on first load: "webgl" → "auto",
+  // "dom" → "off". `terminalRenderer` is kept in sync as a derived
+  // legacy view so callers reading it directly still work.
+  gpuAcceleration: GpuAccelerationMode;
   terminalEngine: TerminalEngine;
   composerEnabled: boolean;
   drawingEnabled: boolean;
@@ -72,6 +95,7 @@ interface PreferencesStore {
   setTerminalFontSize: (value: number) => void;
   setTerminalFontFamily: (fontId: string) => void;
   setTerminalRenderer: (mode: TerminalRendererMode) => void;
+  setGpuAcceleration: (mode: GpuAccelerationMode) => void;
   setTerminalEngine: (engine: TerminalEngine) => void;
   setComposerEnabled: (value: boolean) => void;
   setDrawingEnabled: (value: boolean) => void;
@@ -101,6 +125,10 @@ interface SavedPrefs {
   terminalFontSize: number;
   terminalFontFamily: string;
   terminalRenderer: TerminalRendererMode;
+  // Always set after the migration path in `loadPreferences`. Stored
+  // as optional in older saved-state files; absence triggers
+  // backfill from `terminalRenderer`.
+  gpuAcceleration: GpuAccelerationMode;
   terminalEngine: TerminalEngine;
   composerEnabled: boolean;
   drawingEnabled: boolean;
@@ -211,6 +239,24 @@ function loadPreferences(): SavedPrefs {
         terminalRenderer = "dom";
       }
 
+      let gpuAcceleration: GpuAccelerationMode;
+      if (
+        parsed.gpuAcceleration === "auto" ||
+        parsed.gpuAcceleration === "on" ||
+        parsed.gpuAcceleration === "off"
+      ) {
+        gpuAcceleration = parsed.gpuAcceleration;
+      } else {
+        // Migration from the legacy 2-value `terminalRenderer`. webgl
+        // users get the new "auto" default (auto-fall-back on context
+        // loss); dom users get "off" (their explicit opt-out is
+        // preserved).
+        gpuAcceleration = terminalRenderer === "dom" ? "off" : "auto";
+      }
+      // Keep terminalRenderer derived from gpuAcceleration so legacy
+      // readers and the new pref stay in lockstep.
+      terminalRenderer = gpuAcceleration === "off" ? "dom" : "webgl";
+
       let terminalEngine: TerminalEngine = "xterm";
       if (parsed.terminalEngine === "wterm") {
         terminalEngine = "wterm";
@@ -277,6 +323,7 @@ function loadPreferences(): SavedPrefs {
         terminalFontSize: fontSize,
         terminalFontFamily: fontFamily,
         terminalRenderer,
+        gpuAcceleration,
         terminalEngine,
         composerEnabled,
         drawingEnabled,
@@ -304,6 +351,7 @@ function loadPreferences(): SavedPrefs {
     terminalFontSize: DEFAULT_FONT_SIZE,
     terminalFontFamily: "geist-mono",
     terminalRenderer: "webgl",
+    gpuAcceleration: "auto",
     terminalEngine: "xterm",
     composerEnabled: false,
     drawingEnabled: false,
@@ -411,6 +459,7 @@ function getSaveState(state: PreferencesStore): SavedPrefs {
     terminalFontSize: state.terminalFontSize,
     terminalFontFamily: state.terminalFontFamily,
     terminalRenderer: state.terminalRenderer,
+    gpuAcceleration: state.gpuAcceleration,
     terminalEngine: state.terminalEngine,
     composerEnabled: state.composerEnabled,
     drawingEnabled: state.drawingEnabled,
@@ -439,6 +488,7 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
   terminalFontSize: initialPrefs.terminalFontSize,
   terminalFontFamily: initialPrefs.terminalFontFamily,
   terminalRenderer: initialPrefs.terminalRenderer,
+  gpuAcceleration: initialPrefs.gpuAcceleration,
   terminalEngine: initialPrefs.terminalEngine,
   composerEnabled: initialPrefs.composerEnabled,
   drawingEnabled: initialPrefs.drawingEnabled,
@@ -479,8 +529,24 @@ export const usePreferencesStore = create<PreferencesStore>((set, get) => ({
     savePreferences(getSaveState({ ...get(), terminalFontFamily: fontId }));
   },
   setTerminalRenderer: (mode) => {
-    set({ terminalRenderer: mode });
-    savePreferences(getSaveState({ ...get(), terminalRenderer: mode }));
+    // Legacy 2-value setter — route through gpuAcceleration so the new
+    // primary pref stays the source of truth.
+    const next: GpuAccelerationMode = mode === "dom" ? "off" : "auto";
+    set({ terminalRenderer: mode, gpuAcceleration: next });
+    savePreferences(
+      getSaveState({ ...get(), terminalRenderer: mode, gpuAcceleration: next }),
+    );
+  },
+  setGpuAcceleration: (mode) => {
+    const renderer: TerminalRendererMode = mode === "off" ? "dom" : "webgl";
+    set({ gpuAcceleration: mode, terminalRenderer: renderer });
+    savePreferences(
+      getSaveState({
+        ...get(),
+        gpuAcceleration: mode,
+        terminalRenderer: renderer,
+      }),
+    );
   },
   setTerminalEngine: (engine) => {
     set({ terminalEngine: engine });
