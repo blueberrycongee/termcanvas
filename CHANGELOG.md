@@ -2,6 +2,12 @@
 
 All notable changes to TermCanvas will be documented in this file.
 
+## [0.39.8] - 2026-05-18
+
+### Fixed
+- **Unicode paths stay readable in Git-backed views**: the file tree and Git diff now parse `git ls-files` output as NUL-separated records, so Chinese and other non-ASCII filenames render as real paths instead of escaped octal strings.
+- **File tree refresh prunes stale empty directories**: after tracked or ignored paths disappear, the file tree now removes empty ancestor folders that no longer exist in the refreshed path snapshot.
+
 ## [0.39.7] - 2026-05-10
 
 ### Added
