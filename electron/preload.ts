@@ -5,6 +5,10 @@ import type {
 } from "../shared/render-diagnostics";
 import type { SessionHistoryChangedEvent } from "../shared/sessions";
 import type { TelemetryProvider } from "../shared/telemetry";
+import type {
+  BlockingEvent,
+  BlockingEventResolved,
+} from "../shared/blocking";
 
 type SessionTelemetryProvider = Exclude<TelemetryProvider, "unknown">;
 
@@ -829,6 +833,39 @@ contextBridge.exposeInMainWorld("termcanvas", {
     requestClose: () => ipcRenderer.send("app:request-close"),
     setQuitOnLastWindowClosed: (value: boolean) =>
       ipcRenderer.send("app:set-quit-on-last-window-closed", value),
+  },
+  blocking: {
+    list: () =>
+      ipcRenderer.invoke("blocking:list") as Promise<BlockingEvent[]>,
+    jump: (terminalId: string) =>
+      ipcRenderer.invoke("blocking:jump", terminalId) as Promise<void>,
+    onOpened: (callback: (event: BlockingEvent) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: BlockingEvent,
+      ) => callback(payload);
+      ipcRenderer.on("blocking:opened", listener);
+      return () => ipcRenderer.removeListener("blocking:opened", listener);
+    },
+    onResolved: (callback: (event: BlockingEventResolved) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: BlockingEventResolved,
+      ) => callback(payload);
+      ipcRenderer.on("blocking:resolved", listener);
+      return () => ipcRenderer.removeListener("blocking:resolved", listener);
+    },
+    // Main process triggers a jump (e.g. from a notification click).
+    // Renderer listens to actually run the canvas pan + focus.
+    onJumpToTerminal: (callback: (terminalId: string) => void) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: { terminalId: string },
+      ) => callback(payload.terminalId);
+      ipcRenderer.on("blocking:jump-to-terminal", listener);
+      return () =>
+        ipcRenderer.removeListener("blocking:jump-to-terminal", listener);
+    },
   },
   updater: {
     check: () => ipcRenderer.invoke("updater:check"),

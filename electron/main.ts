@@ -154,6 +154,8 @@ import { createMenu } from "./menu";
 import { isSelectAllShortcutInput } from "./select-all-shortcut";
 import { isReloadShortcutInput } from "./reload-shortcut";
 import { TelemetryService } from "./telemetry-service";
+import { BlockingEventBus } from "./blocking-event-bus";
+import { NotificationService } from "./notification-service";
 import { createRenderDiagnosticsLogger } from "./render-diagnostics";
 import { RenderThrottlingCoordinator } from "./render-throttling-coordinator";
 import { HookReceiver } from "./hook-receiver";
@@ -266,12 +268,50 @@ const fileTreeWatcher = new FileTreeWatcher(HIDDEN_DIRS, (dirPath) => {
   sendToWindow(mainWindow, "fs:dir-changed", dirPath);
 });
 const sessionWatcher = new SessionWatcher();
+// Track turn_state per terminal so we can detect the unknown→awaiting_input
+// transition that gates blocking-event emission. Held outside the
+// telemetry service because the service emits on any change; we only
+// care about edge transitions for blocking events.
+const lastTurnStateByTerminal = new Map<string, string>();
+const blockingEventBus = new BlockingEventBus({
+  isWindowFocused: () => mainWindow?.isFocused() ?? false,
+});
+const notificationService = new NotificationService({
+  getWindow: () => mainWindow,
+});
+blockingEventBus.onPublish((event) => notificationService.showBlocking(event));
+blockingEventBus.onResolve((resolved) =>
+  notificationService.closeBlocking(resolved.id),
+);
+blockingEventBus.onOpen((event) =>
+  sendToWindow(mainWindow, "blocking:opened", event),
+);
+blockingEventBus.onResolve((resolved) =>
+  sendToWindow(mainWindow, "blocking:resolved", resolved),
+);
 const telemetryService = new TelemetryService({
   onSnapshotChanged: (terminalId, snapshot) => {
     sendToWindow(mainWindow, "telemetry:snapshot-changed", {
       terminalId,
       snapshot,
     });
+
+    const prev = lastTurnStateByTerminal.get(terminalId);
+    const curr = snapshot.turn_state;
+    lastTurnStateByTerminal.set(terminalId, curr);
+
+    if (curr === "awaiting_input" && prev !== "awaiting_input") {
+      const repoPath = snapshot.repo_path;
+      const worktreePath = snapshot.worktree_path;
+      blockingEventBus.open({
+        kind: "approval",
+        terminalId,
+        projectName: repoPath ? path.basename(repoPath) : undefined,
+        terminalTitle: worktreePath ? path.basename(worktreePath) : undefined,
+      });
+    } else if (prev === "awaiting_input" && curr !== "awaiting_input") {
+      blockingEventBus.resolve({ kind: "approval", terminalId });
+    }
   },
 });
 const agentService = new AgentService();
@@ -1430,6 +1470,11 @@ function setupIpc() {
 
   ipcMain.handle("hook:get-socket-path", () => hookSocketPath);
   ipcMain.handle("hook:get-health", () => hookReceiver.getHealth());
+
+  ipcMain.handle("blocking:list", () => blockingEventBus.list());
+  ipcMain.handle("blocking:jump", (_event, terminalId: string) => {
+    notificationService.focusWindowAndJump(terminalId);
+  });
 
   ipcMain.handle("sessions:load-replay", async (_event, filePath: string) => {
     return sessionScanner.loadReplay(filePath);
