@@ -6,8 +6,9 @@ import { createTerminal, findTerminalById, useProjectStore } from "../src/stores
 import { usePreferencesStore } from "../src/stores/preferencesStore.ts";
 import {
   cancelScheduledTerminalFocus,
+  createPendingFocus,
   scheduleTerminalFocus,
-  type PendingFocusFrame,
+  type PendingFocus,
 } from "../src/terminal/focusScheduler.ts";
 import { getComposerAdapter } from "../src/terminal/cliConfig.ts";
 
@@ -93,23 +94,17 @@ function installWindowMock() {
 
 function attachTerminalFocusHarness(
   terminalId: string,
-  queue: Map<number, FrameRequestCallback>,
-  cancelled: number[],
+  microtasks: Array<() => void>,
   fired: string[],
 ) {
-  let nextId = 1;
-  const pending: PendingFocusFrame = { current: null };
-  const focus = () => fired.push(terminalId);
-
-  const requestFrame = (callback: FrameRequestCallback) => {
-    const id = nextId++;
-    queue.set(id, callback);
-    return id;
+  const pending: PendingFocus = createPendingFocus();
+  const focus = () => {
+    fired.push(terminalId);
+    return true;
   };
 
-  const cancelFrame = (id: number) => {
-    cancelled.push(id);
-    queue.delete(id);
+  const options = {
+    requestMicrotask: (cb: () => void) => microtasks.push(cb),
   };
 
   const syncFromStore = () => {
@@ -120,16 +115,16 @@ function attachTerminalFocusHarness(
     const shouldFocusXterm = !!terminal && terminal.focused && (!adapter || !composerEnabled);
 
     if (shouldFocusXterm) {
-      scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
+      scheduleTerminalFocus(focus, pending, options);
     } else {
-      cancelScheduledTerminalFocus(pending, cancelFrame);
+      cancelScheduledTerminalFocus(pending);
     }
   };
 
   const unsubscribe = useProjectStore.subscribe(syncFromStore);
   const onFocusXterm = (event: Event) => {
     if ((event as CustomEvent).detail === terminalId) {
-      scheduleTerminalFocus(focus, pending, requestFrame, cancelFrame);
+      scheduleTerminalFocus(focus, pending, options);
     }
   };
 
@@ -138,7 +133,7 @@ function attachTerminalFocusHarness(
   return () => {
     unsubscribe();
     window.removeEventListener("termcanvas:focus-xterm", onFocusXterm);
-    cancelScheduledTerminalFocus(pending, cancelFrame);
+    cancelScheduledTerminalFocus(pending);
   };
 }
 
@@ -147,8 +142,7 @@ test("queued xterm focus is cancelled when worktree focus replaces a newly focus
   const previousProjectState = useProjectStore.getState();
   const previousPreferences = usePreferencesStore.getState();
 
-  const queue = new Map<number, FrameRequestCallback>();
-  const cancelled: number[] = [];
+  const microtasks: Array<() => void> = [];
   const fired: string[] = [];
 
   try {
@@ -168,20 +162,27 @@ test("queued xterm focus is cancelled when worktree focus replaces a newly focus
 
     const detach = attachTerminalFocusHarness(
       terminalBId,
-      queue,
-      cancelled,
+      microtasks,
       fired,
     );
 
     try {
       useProjectStore.getState().setFocusedTerminal(terminalBId);
-      assert.equal(queue.size, 1);
+      // The first-tier microtask was queued (possibly multiple times if the
+      // store subscriber fires on each field change — each scheduleTerminalFocus
+      // call enqueues a fresh microtask while bumping generation, so any stale
+      // ones become no-ops).
+      assert.ok(microtasks.length >= 1, `expected >= 1 microtask, got ${microtasks.length}`);
 
+      // Switching projects re-syncs the harness; cancellation bumps
+      // generation so the queued microtask must no-op when flushed.
       useProjectStore.getState().setFocusedWorktree(projectAId, worktreeAId);
 
-      assert.equal(queue.size, 0);
+      while (microtasks.length > 0) {
+        microtasks.shift()!();
+      }
+
       assert.deepEqual(fired, []);
-      assert.deepEqual(cancelled, [1, 2]);
     } finally {
       detach();
     }

@@ -42,6 +42,7 @@ import type { TerminalMountMode } from "./terminalRuntimePolicy";
 import { shellEscapePath } from "../utils/shellEscape";
 import {
   cancelScheduledTerminalFocus,
+  createPendingFocus,
   scheduleTerminalFocus,
 } from "./focusScheduler";
 import { useSidebarDragStore } from "../stores/sidebarDragStore";
@@ -209,7 +210,7 @@ export function TerminalTile({
   const containerRef = useCallback((node: HTMLDivElement | null) => {
     setContainerEl(node);
   }, []);
-  const pendingFocusFrameRef = useRef<number | null>(null);
+  const pendingFocusFrameRef = useRef(createPendingFocus());
   const customTitleInputRef = useRef<HTMLInputElement>(null);
   const copiedNonce = useTerminalRuntimeStore(
     (s) => s.terminals[terminal.id]?.copiedNonce ?? 0,
@@ -541,8 +542,14 @@ export function TerminalTile({
   }, [terminal.id]);
 
   const scheduleXtermFocus = useCallback(() => {
-    scheduleTerminalFocus(focusLiveTerminal, pendingFocusFrameRef);
-  }, [focusLiveTerminal]);
+    scheduleTerminalFocus(focusLiveTerminal, pendingFocusFrameRef.current, {
+      recordDiagnostic: (event) =>
+        recordRenderDiagnostic({
+          ...event,
+          terminalId: terminal.id,
+        }),
+    });
+  }, [focusLiveTerminal, terminal.id]);
 
   useEffect(() => {
     const adapter = getComposerAdapter(terminal.type);
@@ -556,7 +563,7 @@ export function TerminalTile({
     if (shouldFocusXterm) {
       scheduleXtermFocus();
     } else {
-      cancelScheduledTerminalFocus(pendingFocusFrameRef);
+      cancelScheduledTerminalFocus(pendingFocusFrameRef.current);
       blurTerminalRuntime(terminal.id);
     }
   }, [
@@ -581,7 +588,7 @@ export function TerminalTile({
 
   useEffect(
     () => () => {
-      cancelScheduledTerminalFocus(pendingFocusFrameRef);
+      cancelScheduledTerminalFocus(pendingFocusFrameRef.current);
     },
     [],
   );
