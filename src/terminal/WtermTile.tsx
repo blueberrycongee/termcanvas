@@ -141,6 +141,15 @@ export function WtermTile({ terminal }: Props) {
   // (Menlo/14px/1.2/17px) so cell metrics match what xterm computes from
   // the same preferences. Row-height has to be an integer pixel value or
   // wterm's resize math drifts row-by-row.
+  //
+  // overflowY/scrollbarGutter pin the scroll container open from the
+  // first frame. @wterm/dom toggles `.has-scrollback` to swap overflow-y
+  // between hidden and auto; on Windows 11 the classic scrollbar that
+  // appears when scrollback first lands shaves ~5–17px off clientWidth,
+  // which wterm's own ResizeObserver reads as a column drop and answers
+  // with bridge.resize + renderer.setup — visible as the terminal
+  // "jumping" while you type. Always being a scroll container with a
+  // stable gutter keeps cols constant across that transition.
   const containerStyle = useMemo<CSSProperties>(() => {
     const family = buildFontFamily(fontFamilyId);
     const rowHeight = Math.round(fontSize * TERMINAL_LINE_HEIGHT);
@@ -150,6 +159,8 @@ export function WtermTile({ terminal }: Props) {
       padding: 0,
       borderRadius: 0,
       boxShadow: "none",
+      overflowY: "scroll",
+      scrollbarGutter: "stable",
       "--term-font-family": family,
       "--term-font-size": `${fontSize}px`,
       "--term-line-height": `${rowHeight}px`,
