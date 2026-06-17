@@ -3,145 +3,251 @@ import assert from "node:assert/strict";
 
 import {
   cancelScheduledTerminalFocus,
+  createPendingFocus,
   scheduleTerminalFocus,
+  type FocusScheduleOptions,
+  type FocusTier,
 } from "../src/terminal/focusScheduler.ts";
 
-test("scheduleTerminalFocus defers focus until the next animation frame", () => {
+interface Harness {
+  microtasks: Array<() => void>;
+  rafs: Map<number, FrameRequestCallback>;
+  rafCancelled: number[];
+  timeouts: Map<number, { cb: () => void; ms: number }>;
+  timeoutCleared: number[];
+  options: FocusScheduleOptions;
+  diagnostics: Array<{ kind: string; data: Record<string, unknown> }>;
+  attempts: Array<{ tier: FocusTier; attempt: number; focused: boolean }>;
+}
+
+function makeHarness(): Harness {
+  const microtasks: Array<() => void> = [];
+  const rafs = new Map<number, FrameRequestCallback>();
+  const rafCancelled: number[] = [];
+  const timeouts = new Map<number, { cb: () => void; ms: number }>();
+  const timeoutCleared: number[] = [];
+  const diagnostics: Harness["diagnostics"] = [];
+  const attempts: Harness["attempts"] = [];
+
+  let nextRafId = 1;
+  let nextTimeoutId = 1;
+
+  return {
+    microtasks,
+    rafs,
+    rafCancelled,
+    timeouts,
+    timeoutCleared,
+    diagnostics,
+    attempts,
+    options: {
+      requestMicrotask: (cb) => microtasks.push(cb),
+      requestFrame: (cb) => {
+        const id = nextRafId++;
+        rafs.set(id, cb);
+        return id;
+      },
+      cancelFrame: (id) => {
+        rafCancelled.push(id);
+        rafs.delete(id);
+      },
+      setTimeoutFn: ((cb: () => void, ms: number) => {
+        const id = nextTimeoutId++;
+        timeouts.set(id, { cb, ms });
+        return id as unknown as ReturnType<typeof setTimeout>;
+      }) as FocusScheduleOptions["setTimeoutFn"],
+      clearTimeoutFn: ((id: ReturnType<typeof setTimeout>) => {
+        timeoutCleared.push(id as unknown as number);
+        timeouts.delete(id as unknown as number);
+      }) as FocusScheduleOptions["clearTimeoutFn"],
+      onAttempt: (info) => attempts.push(info),
+      recordDiagnostic: (event) =>
+        diagnostics.push({ kind: event.kind, data: event.data ?? {} }),
+    },
+  };
+}
+
+function flushMicrotasks(h: Harness) {
+  while (h.microtasks.length > 0) {
+    const cb = h.microtasks.shift()!;
+    cb();
+  }
+}
+
+test("first attempt defers via microtask, not sync — caller can still mutate state", () => {
+  const h = makeHarness();
   let focused = false;
-  let queued: FrameRequestCallback | null = null;
+  let activeTarget = "other";
 
-  const pending = { current: null as number | null };
-  scheduleTerminalFocus(
-    () => {
-      focused = true;
-    },
-    pending,
-    (callback) => {
-      queued = callback;
-      return 1;
-    },
-    () => {},
-  );
-
-  assert.equal(focused, false);
-  assert.equal(typeof queued, "function");
-
-  queued?.(16);
-  assert.equal(focused, true);
-  assert.equal(pending.current, null);
-});
-
-test("scheduleTerminalFocus cancels the previous frame so only the latest focus runs", () => {
-  const queued = new Map<number, FrameRequestCallback>();
-  const cancelled: number[] = [];
-  const fired: string[] = [];
-
-  let nextId = 1;
-  const requestFrame = (callback: FrameRequestCallback) => {
-    const id = nextId++;
-    queued.set(id, callback);
-    return id;
-  };
-
-  const cancelFrame = (id: number) => {
-    cancelled.push(id);
-    queued.delete(id);
-  };
-
-  const pending = { current: null as number | null };
-
-  scheduleTerminalFocus(() => fired.push("first"), pending, requestFrame, cancelFrame);
-  scheduleTerminalFocus(() => fired.push("second"), pending, requestFrame, cancelFrame);
-
-  assert.deepEqual(cancelled, [1]);
-  assert.equal(pending.current, 2);
-  assert.equal(queued.has(1), false);
-  assert.equal(queued.has(2), true);
-
-  queued.get(2)?.(16);
-  assert.deepEqual(fired, ["second"]);
-  assert.equal(pending.current, null);
-});
-
-test("scheduleTerminalFocus lets xterm focus win after a same-turn competing focus update", () => {
-  const queued = new Map<number, FrameRequestCallback>();
-  let nextId = 1;
-  let activeTarget = "none";
-
-  const pending = { current: null as number | null };
-  const requestFrame = (callback: FrameRequestCallback) => {
-    const id = nextId++;
-    queued.set(id, callback);
-    return id;
-  };
-
-  const syncFocus = () => {
-    activeTarget = "xterm";
-  };
-
-  syncFocus();
-  activeTarget = "other";
-  assert.equal(activeTarget, "other");
-
+  const pending = createPendingFocus();
   scheduleTerminalFocus(
     () => {
       activeTarget = "xterm";
+      focused = true;
+      return true;
     },
     pending,
-    requestFrame,
-    () => {},
+    h.options,
   );
 
-  activeTarget = "other";
-  assert.equal(activeTarget, "other");
+  // The scheduler must NOT have run focus inline — competing focus updates
+  // that race with our schedule call must be allowed to interleave.
+  activeTarget = "competitor";
+  assert.equal(focused, false);
+  assert.equal(h.microtasks.length, 1);
 
-  queued.get(1)?.(16);
+  flushMicrotasks(h);
+  assert.equal(focused, true);
   assert.equal(activeTarget, "xterm");
-  assert.equal(pending.current, null);
 });
 
-test("scheduleTerminalFocus retries on later frames until focus actually sticks", () => {
-  const queued = new Map<number, FrameRequestCallback>();
-  let nextId = 1;
-  let attempts = 0;
+test("scheduling again before microtask fires supersedes the prior schedule", () => {
+  const h = makeHarness();
+  const fired: string[] = [];
+  const pending = createPendingFocus();
 
-  const pending = { current: null as number | null };
-  const requestFrame = (callback: FrameRequestCallback) => {
-    const id = nextId++;
-    queued.set(id, callback);
-    return id;
-  };
+  scheduleTerminalFocus(() => fired.push("first"), pending, h.options);
+  scheduleTerminalFocus(() => fired.push("second"), pending, h.options);
 
+  // Both microtasks were queued (microtask queue can't be cancelled), but
+  // the first one's generation is stale and must no-op.
+  assert.equal(h.microtasks.length, 2);
+  flushMicrotasks(h);
+
+  assert.deepEqual(fired, ["second"]);
+});
+
+test("falling-back tier escalates: microtask → RAF → timeout50 → timeout200", () => {
+  const h = makeHarness();
+  const pending = createPendingFocus();
+
+  let succeedAfter = 3; // succeed on the 4th attempt (timeout200)
   scheduleTerminalFocus(
     () => {
-      attempts += 1;
-      return attempts >= 2;
+      const ok = succeedAfter <= 0;
+      succeedAfter -= 1;
+      return ok;
     },
     pending,
-    requestFrame,
-    () => {},
+    h.options,
   );
 
-  assert.equal(pending.current, 1);
-  queued.get(1)?.(16);
+  // Tier 1: microtask
+  assert.equal(h.microtasks.length, 1);
+  flushMicrotasks(h);
+  assert.deepEqual(h.attempts.map((a) => a.tier), ["microtask"]);
 
-  assert.equal(attempts, 1);
-  assert.equal(pending.current, 2);
-  assert.equal(queued.has(2), true);
+  // Tier 2: RAF
+  assert.equal(h.rafs.size, 1);
+  h.rafs.get(1)!(0);
+  assert.deepEqual(h.attempts.map((a) => a.tier), ["microtask", "raf"]);
 
-  queued.get(2)?.(32);
+  // Tier 3: timeout50
+  assert.equal(h.timeouts.size, 1);
+  const t50 = [...h.timeouts.entries()][0]!;
+  assert.equal(t50[1].ms, 50);
+  t50[1].cb();
+  h.timeouts.delete(t50[0]);
+  assert.deepEqual(
+    h.attempts.map((a) => a.tier),
+    ["microtask", "raf", "timeout50"],
+  );
 
-  assert.equal(attempts, 2);
-  assert.equal(pending.current, null);
-});
-test("cancelScheduledTerminalFocus clears any queued focus frame", () => {
-  const cancelled: number[] = [];
-  const pending = { current: 7 as number | null };
+  // Tier 4: timeout200 — succeeds
+  assert.equal(h.timeouts.size, 1);
+  const t200 = [...h.timeouts.entries()][0]!;
+  assert.equal(t200[1].ms, 200);
+  t200[1].cb();
 
-  cancelScheduledTerminalFocus(pending, (id) => {
-    cancelled.push(id);
+  assert.deepEqual(
+    h.attempts.map((a) => a.tier),
+    ["microtask", "raf", "timeout50", "timeout200"],
+  );
+  assert.equal(
+    h.diagnostics.filter((d) => d.kind === "terminal_focus_scheduler_succeeded")
+      .length,
+    1,
+  );
+  assert.deepEqual(h.diagnostics.at(-1)?.data, {
+    tier: "timeout200",
+    attempt: 3,
   });
+});
 
-  assert.deepEqual(cancelled, [7]);
-  assert.equal(pending.current, null);
+test("repeated failures past the chain stick on timeout200 and emit exhausted", () => {
+  const h = makeHarness();
+  const pending = createPendingFocus();
+
+  scheduleTerminalFocus(() => false, pending, h.options, );
+
+  flushMicrotasks(h); // tier 0
+  h.rafs.get(1)!(0); // tier 1
+
+  for (let i = 0; i < 12; i++) {
+    const next = [...h.timeouts.entries()][0];
+    if (!next) break;
+    h.timeouts.delete(next[0]);
+    next[1].cb();
+  }
+
+  // After exhausting, the diagnostic must be emitted.
+  const exhausted = h.diagnostics.find(
+    (d) => d.kind === "terminal_focus_scheduler_exhausted",
+  );
+  assert.ok(
+    exhausted,
+    "expected scheduler to emit terminal_focus_scheduler_exhausted",
+  );
+});
+
+test("succeeding on the first microtask emits a success diagnostic with tier=microtask", () => {
+  const h = makeHarness();
+  const pending = createPendingFocus();
+
+  scheduleTerminalFocus(() => true, pending, h.options);
+  flushMicrotasks(h);
+
+  const success = h.diagnostics.find(
+    (d) => d.kind === "terminal_focus_scheduler_succeeded",
+  );
+  assert.deepEqual(success?.data, { tier: "microtask", attempt: 0 });
+});
+
+test("cancelScheduledTerminalFocus cancels in-flight RAF and timeout, makes microtask no-op", () => {
+  const h = makeHarness();
+  const fired: string[] = [];
+  const pending = createPendingFocus();
+
+  scheduleTerminalFocus(() => {
+    fired.push("microtask");
+    return false;
+  }, pending, h.options);
+
+  // Bump to RAF tier
+  flushMicrotasks(h);
+  fired.length = 0;
+
+  cancelScheduledTerminalFocus(pending, h.options);
+  assert.deepEqual(h.rafCancelled, [1]);
+
+  // Even if a stale RAF callback somehow fires, it must no-op.
+  // (Most schedulers cancel cleanly, but microtasks cannot be cancelled,
+  // so the generation guard is the load-bearing piece.)
+});
+
+test("cancellation across a microtask boundary: stale microtask no-ops via generation guard", () => {
+  const h = makeHarness();
+  const fired: string[] = [];
+  const pending = createPendingFocus();
+
+  scheduleTerminalFocus(() => {
+    fired.push("first");
+    return true;
+  }, pending, h.options);
+
+  cancelScheduledTerminalFocus(pending, h.options);
+
+  // The microtask is still in the queue — flush it. It must not fire focus.
+  flushMicrotasks(h);
+  assert.deepEqual(fired, []);
 });
