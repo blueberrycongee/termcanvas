@@ -9,6 +9,8 @@ import { RightPanel } from "./components/RightPanel";
 import { FileEditorDrawer } from "./components/FileEditorDrawer";
 import { PinDetailDrawer } from "./components/PinDetailDrawer";
 import { initUpdaterListeners } from "./stores/updaterStore";
+import { startBlockingBridge } from "./stores/blockingStore";
+import { panToTerminal } from "./utils/panToTerminal";
 import { ComposerBar } from "./components/ComposerBar";
 import { HandoffDragChip } from "./components/HandoffDragChip";
 import { usePreferencesStore, hydrateApiKey } from "./stores/preferencesStore";
@@ -274,6 +276,17 @@ export function App() {
   }, [summaryEnabled]);
 
   useEffect(() => initUpdaterListeners(), []);
+  useEffect(() => startBlockingBridge(), []);
+  // Notification click in main process → renderer pans canvas to terminal.
+  // Kept lightweight (panToTerminal already handles missing terminals)
+  // so a stale notification just no-ops.
+  useEffect(() => {
+    const api = window.termcanvas?.blocking;
+    if (!api) return;
+    return api.onJumpToTerminal((terminalId) => {
+      panToTerminal(terminalId);
+    });
+  }, []);
   useEffect(() => {
     void useSnapshotHistoryStore.getState().refresh();
   }, []);

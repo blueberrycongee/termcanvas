@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useThemeStore } from "../stores/themeStore";
 import { useUpdaterStore } from "../stores/updaterStore";
+import { useBlockingStore } from "../stores/blockingStore";
+import { panToTerminal } from "../utils/panToTerminal";
 import { useSettingsModalStore } from "../stores/settingsModalStore";
 import { useWorkspaceStore } from "../stores/workspaceStore";
 import { useHubStore } from "../stores/hubStore";
@@ -35,6 +37,10 @@ export function Toolbar() {
   const workspacePath = useWorkspaceStore((s) => s.workspacePath);
   const dirty = useWorkspaceStore((s) => s.dirty);
   const updateStatus = useUpdaterStore((s) => s.status);
+  const blockingCount = useBlockingStore((s) => s.events.length);
+  const firstBlockedTerminalId = useBlockingStore((s) =>
+    s.events.length > 0 ? s.events[0].terminalId : null,
+  );
   const showSettings = useSettingsModalStore((s) => s.open);
   const openSettings = useSettingsModalStore((s) => s.openSettings);
   const closeSettings = useSettingsModalStore((s) => s.closeSettings);
@@ -92,6 +98,17 @@ export function Toolbar() {
               status={updateStatus}
               t={t}
               onClick={() => setShowUpdate(true)}
+            />
+          )}
+
+          {blockingCount > 0 && (
+            <BlockingIndicatorButton
+              count={blockingCount}
+              onClick={() => {
+                if (firstBlockedTerminalId) {
+                  panToTerminal(firstBlockedTerminalId);
+                }
+              }}
             />
           )}
 
@@ -216,6 +233,57 @@ function UpdateStatusButton({
         <SpinnerIcon className="motion-safe:animate-spin" />
       )}
     </button>
+  );
+}
+
+function BlockingIndicatorButton({
+  count,
+  onClick,
+}: {
+  count: number;
+  onClick: () => void;
+}) {
+  const label =
+    count === 1
+      ? "1 terminal waiting for you"
+      : `${count} terminals waiting for you`;
+  return (
+    <button
+      type="button"
+      // Re-pop on count change so a new block reads as an event.
+      key={count}
+      className={`${iconButtonClass} tc-enter-pop relative motion-reduce:animate-none`}
+      style={ICON_BUTTON_TRANSITION}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+    >
+      <BellIcon />
+      <span
+        aria-hidden="true"
+        className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-[var(--red)] ring-2 ring-[var(--bg)]"
+      />
+    </button>
+  );
+}
+
+function BellIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M7 1.5v1M3.5 6a3.5 3.5 0 1 1 7 0c0 2.5 1 3.5 1 3.5h-9s1-1 1-3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5.5 11.5a1.5 1.5 0 0 0 3 0"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
