@@ -402,6 +402,6 @@ The goal is simple: **you describe intent, TermCanvas handles the rest.** Your c
 
 <img src="docs/QQ.jpg" width="240" alt="QQ Group" />
 
-[![Star History Chart](https://api.star-history.com/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.com/#blueberrycongee/termcanvas&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=blueberrycongee/termcanvas&type=Date)](https://star-history.dera.page/#blueberrycongee/termcanvas&Date)
 
 </div>
